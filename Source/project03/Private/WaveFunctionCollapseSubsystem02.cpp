@@ -15,8 +15,8 @@ DEFINE_LOG_CATEGORY(LogWFC);
 AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */)
 {
 	//Resolution °ª ¼³Á¤
-	Resolution.X = 30;
-	Resolution.Y = 30;
+	Resolution.X = 60;
+	Resolution.Y = 60;
 	Resolution.Z = 1;
 
 	if (!WFCModel)
