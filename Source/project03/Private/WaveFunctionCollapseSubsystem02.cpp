@@ -9,6 +9,9 @@
 #include "Subsystems/EditorActorSubsystem.h"
 #include "Kismet2/ComponentEditorUtils.h"
 #include "Editor.h"
+#include "Engine/StreamableManager.h"
+#include "Engine/AssetManager.h"
+#include "WaveFunctionCollapseModel02.h"
 
 DEFINE_LOG_CATEGORY(LogWFC);
 
@@ -219,6 +222,9 @@ void UWaveFunctionCollapseSubsystem02::InitializeWFC(TArray<FWaveFunctionCollaps
 {
 	FWaveFunctionCollapseTileCustom InitialTile;
 	int32 SwapIndex = 0;
+
+
+
 
 	if (BuildInitialTile(InitialTile))
 	{
@@ -1060,4 +1066,52 @@ void UWaveFunctionCollapseSubsystem02::DeriveGridFromTransforms(const TArray<FTr
 	{
 		UE_LOG(LogWFC, Display, TEXT("StartOption at: %d,%d,%d"), StarterOption.Key.X, StarterOption.Key.Y, StarterOption.Key.Z);
 	}
+}
+
+void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSeed)
+{
+	
+
+	OriginLocation = FVector(0.0f, 0.0f, 0.0f);
+	Orientation = FRotator(0.0f, 0.0f, 0.0f);
+	bUseEmptyBorder = false;
+
+	// WFC Collapse 실행
+	AActor* ResultActor = CollapseCustom(TryCount, RandomSeed);
+	if (ResultActor)
+	{
+		UE_LOG(LogWFC, Display, TEXT("Successfully collapsed WFC and spawned actor: %s"), *ResultActor->GetName());
+	}
+	else
+	{
+		UE_LOG(LogWFC, Error, TEXT("WFC collapse failed."));
+	}
+}
+
+void UWaveFunctionCollapseSubsystem02::SetWFCModel()
+{
+	// zxzx29 모델의 경로
+	const FStringAssetReference ModelPath(TEXT("/Game/WFCCORE/zxzx29.zxzx29"));
+
+	// 모델 로드
+	FStreamableManager& StreamableManager = UAssetManager::GetStreamableManager();
+	UWaveFunctionCollapseModel02* LoadedModel = Cast<UWaveFunctionCollapseModel02>(StreamableManager.LoadSynchronous(ModelPath));
+
+	if (LoadedModel)
+	{
+		WFCModel = LoadedModel;
+		UE_LOG(LogWFC, Log, TEXT("WFCModel이 zxzx29로 설정되었습니다."));
+	}
+	else
+	{
+		UE_LOG(LogWFC, Error, TEXT("WFCModel 로드 실패: %s"), *ModelPath.ToString());
+	}
+}
+
+void UWaveFunctionCollapseSubsystem02::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	// zxzx29 모델 설정
+	SetWFCModel();
 }

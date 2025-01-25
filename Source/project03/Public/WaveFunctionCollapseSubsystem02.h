@@ -19,6 +19,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFCSettings")
 	TObjectPtr<UWaveFunctionCollapseModel02> WFCModel;
 
+	// WFC 실행 함수
+	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
+	void ExecuteWFC(int32 TryCount = 1, int32 RandomSeed = 0);
+
+	// WFC 모델 설정 메서드
+	void SetWFCModel();
+
+	// Subsystem 초기화 메서드
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFCSettings")
 	FIntVector Resolution;
 
