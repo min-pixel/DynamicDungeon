@@ -79,28 +79,37 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	// if Successful, Spawn Actor
 	if (bSuccessfulSolve)
 	{
-
-		// 타일 크기 조정 로직 추가
 		for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
 		{
 			if (Tiles[TileIndex].RemainingOptions.Num() == 1)
 			{
 				FWaveFunctionCollapseOptionCustom& SelectedOption = Tiles[TileIndex].RemainingOptions[0];
 
-				// 기본 타일 크기
-				float TileSize = WFCModel->TileSize;
-
-				// 방 타일인지 확인하여 크기 조정
+				// 방 타일 처리
 				if (SelectedOption.bIsRoomTile)
 				{
-					TileSize *= 3.0f;
+					float TileSize = WFCModel->TileSize * 3.0f; // 방 타일 크기
+					FVector RoomTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
+
+					// 주변 타일 탐색 및 삭제
+					TArray<int32> AdjacentIndices = GetAdjacentIndices(TileIndex, Resolution);
+					for (int32 AdjacentIndex : AdjacentIndices)
+					{
+						FVector AdjacentTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(AdjacentIndex, Resolution)) * WFCModel->TileSize;
+
+						// 겹치는 타일 제거 조건
+						if (FVector::DistSquared(RoomTilePosition, AdjacentTilePosition) < FMath::Square(TileSize * 0.5f))
+						{
+							// 삭제: RemainingOptions를 비워서 타일 제거
+							Tiles[AdjacentIndex].RemainingOptions.Empty();
+
+							UE_LOG(LogWFC, Display, TEXT("Removed overlapping tile at index: %d"), AdjacentIndex);
+						}
+					}
+
+					// 방 타일 크기 업데이트
+					SelectedOption.BaseScale3D = FVector(3.0f); // 스케일 반영
 				}
-
-				FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
-
-				// 스케일 계산 (기본 크기를 기준으로 조정된 크기를 반영)
-				SelectedOption.BaseScale3D = FVector(TileSize / WFCModel->TileSize);
-
 			}
 		}
 
@@ -764,7 +773,7 @@ UActorComponent* UWaveFunctionCollapseSubsystem02::AddNamedInstanceComponent(AAc
 
 AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
-	// UEditorActorSubsystem 대신 UWorld를 사용하여 게임 환경에서 액터 스폰
+	// UWorld 참조 확인
 	UWorld* World = GetWorld();
 	if (!World)
 	{
@@ -772,7 +781,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 		return nullptr;
 	}
 
-	// 스폰할 액터 설정
+	// 최상위 부모 액터 생성
 	FActorSpawnParameters SpawnParams;
 	AActor* SpawnedActor = World->SpawnActor<AActor>(AActor::StaticClass(), OriginLocation, Orientation, SpawnParams);
 	if (!SpawnedActor)
@@ -781,9 +790,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 		return nullptr;
 	}
 
-	
-
-	// WFCModel 체크
+	// 부모 액터 이름 설정
 	if (WFCModel)
 	{
 		FActorLabelUtilities::SetActorLabelUnique(SpawnedActor, WFCModel->GetFName().ToString());
@@ -795,103 +802,63 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 
 	// Components 생성
 	TMap<FSoftObjectPath, UInstancedStaticMeshComponent*> BaseObjectToISM;
-	for (int32 index = 0; index < Tiles.Num(); index++)
+	for (int32 Index = 0; Index < Tiles.Num(); Index++)
 	{
-		if (Tiles[index].RemainingOptions.Num() != 1)
+		// 빈 타일 무시
+		if (Tiles[Index].RemainingOptions.IsEmpty())
+		{
+			UE_LOG(LogWFC, Display, TEXT("Skipped empty tile at index: %d"), Index);
+			continue;
+		}
+
+		const FWaveFunctionCollapseOptionCustom& Option = Tiles[Index].RemainingOptions[0];
+
+		// Empty, Void 타일 및 제외된 타일 무시
+		if (Option.BaseObject == FWaveFunctionCollapseOptionCustom::EmptyOption.BaseObject
+			|| Option.BaseObject == FWaveFunctionCollapseOptionCustom::VoidOption.BaseObject
+			|| WFCModel->SpawnExclusion.Contains(Option.BaseObject))
 		{
 			continue;
 		}
 
-		// 빈 옵션 또는 비어있는 옵션 확인
-		FSoftObjectPath BaseObject = Tiles[index].RemainingOptions[0].BaseObject;
-		if (BaseObject == FWaveFunctionCollapseOptionCustom::EmptyOption.BaseObject
-			|| BaseObject == FWaveFunctionCollapseOptionCustom::VoidOption.BaseObject)
-		{
-			continue;
-		}
-
-		// SpawnExclusion 배열 확인
-		if (WFCModel->SpawnExclusion.Contains(BaseObject))
-		{
-			continue;
-		}
-
-		// LoadedObject의 널 체크
-		UObject* LoadedObject = BaseObject.TryLoad();
+		UObject* LoadedObject = Option.BaseObject.TryLoad();
 		if (LoadedObject)
 		{
-			FRotator BaseRotator = Tiles[index].RemainingOptions[0].BaseRotator;
-			FVector BaseScale3D = Tiles[index].RemainingOptions[0].BaseScale3D;
-			FVector PositionOffset = FVector(WFCModel->TileSize * 0.5f);
-			FVector TilePosition = (FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(index, Resolution)) * WFCModel->TileSize) + PositionOffset;
+			FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
+			FRotator TileRotation = Option.BaseRotator;
+			FVector TileScale = Option.BaseScale3D;
 
-			// StaticMesh 처리 (InstancedStaticMeshComponent 사용)
-			
-			// 블루프린트 처리 (ChildActorComponent 사용)
-			if (UBlueprint* LoadedBlueprint = Cast<UBlueprint>(LoadedObject))
-			{
-				if (LoadedBlueprint->GeneratedClass && LoadedBlueprint->GeneratedClass->IsChildOf(AActor::StaticClass()))
-				{
-					TSubclassOf<AActor> ActorClass = *LoadedBlueprint->GeneratedClass;
-
-					// 고유 이름 생성
-					FString UniqueName = FString::Printf(TEXT("%s_%d"), *LoadedObject->GetFName().ToString(), index);  // 'index'는 타일의 인덱스 등 고유한 값을 사용
-					FName ComponentName(*UniqueName);
-
-					// ChildActorComponent 생성
-					UChildActorComponent* ChildActorComponent = NewObject<UChildActorComponent>(SpawnedActor, UChildActorComponent::StaticClass(), ComponentName);
-					if (ChildActorComponent)
-					{
-						// 부모 컴포넌트 설정
-						ChildActorComponent->SetupAttachment(SpawnedActor->GetRootComponent());
-
-						// 컴포넌트 등록
-						ChildActorComponent->RegisterComponent();
-
-						// 자식 액터 클래스 설정
-						ChildActorComponent->SetChildActorClass(ActorClass);
-
-						// 위치, 회전, 크기 설정
-						ChildActorComponent->SetRelativeLocation(TilePosition);
-						ChildActorComponent->SetRelativeRotation(BaseRotator);
-						ChildActorComponent->SetRelativeScale3D(BaseScale3D);
-
-						// 액터에 컴포넌트 추가 및 초기화
-						SpawnedActor->AddInstanceComponent(ChildActorComponent);
-						SpawnedActor->RerunConstructionScripts();
-
-						UE_LOG(LogWFC, Warning, TEXT("Successfully added ChildActorComponent for Blueprint: %s, Component Name: %s"), *LoadedBlueprint->GetName(), *ComponentName.ToString());
-					}
-					else
-					{
-						UE_LOG(LogWFC, Error, TEXT("Failed to create ChildActorComponent for Blueprint: %s"), *LoadedBlueprint->GetName());
-					}
-				}
-			}
-			else if (UStaticMesh* LoadedStaticMesh = Cast<UStaticMesh>(LoadedObject))
+			// Static Mesh 처리
+			if (UStaticMesh* LoadedStaticMesh = Cast<UStaticMesh>(LoadedObject))
 			{
 				UInstancedStaticMeshComponent* ISMComponent;
-				if (UInstancedStaticMeshComponent** FoundISMComponentPtr = BaseObjectToISM.Find(BaseObject))
+				if (UInstancedStaticMeshComponent** FoundISMComponentPtr = BaseObjectToISM.Find(Option.BaseObject))
 				{
 					ISMComponent = *FoundISMComponentPtr;
 				}
 				else
 				{
-					ISMComponent = Cast<UInstancedStaticMeshComponent>(UWaveFunctionCollapseSubsystem02::AddNamedInstanceComponent(SpawnedActor, UInstancedStaticMeshComponent::StaticClass(), LoadedObject->GetFName()));
-					BaseObjectToISM.Add(BaseObject, ISMComponent);
+					ISMComponent = Cast<UInstancedStaticMeshComponent>(
+						AddNamedInstanceComponent(SpawnedActor, UInstancedStaticMeshComponent::StaticClass(), LoadedObject->GetFName()));
+					BaseObjectToISM.Add(Option.BaseObject, ISMComponent);
 				}
 				ISMComponent->SetStaticMesh(LoadedStaticMesh);
-				ISMComponent->SetMobility(EComponentMobility::Static);
-				ISMComponent->AddInstance(FTransform(BaseRotator, TilePosition, BaseScale3D));
+				ISMComponent->AddInstance(FTransform(TileRotation, TilePosition, TileScale));
 			}
-			else
+			// Blueprint 처리
+			else if (UBlueprint* LoadedBlueprint = Cast<UBlueprint>(LoadedObject))
 			{
-				UE_LOG(LogWFC, Warning, TEXT("Invalid Type, skipping: %s"), *BaseObject.ToString());
+				TSubclassOf<AActor> ActorClass = *LoadedBlueprint->GeneratedClass;
+
+				UChildActorComponent* ChildActorComponent = NewObject<UChildActorComponent>(SpawnedActor, UChildActorComponent::StaticClass());
+				ChildActorComponent->SetupAttachment(SpawnedActor->GetRootComponent());
+				ChildActorComponent->RegisterComponent();
+				ChildActorComponent->SetChildActorClass(ActorClass);
+				ChildActorComponent->SetRelativeLocation(TilePosition);
+				ChildActorComponent->SetRelativeRotation(TileRotation);
+				ChildActorComponent->SetRelativeScale3D(TileScale);
+				SpawnedActor->AddInstanceComponent(ChildActorComponent);
 			}
-		}
-		else
-		{
-			UE_LOG(LogWFC, Warning, TEXT("Unable to load object, skipping: %s"), *BaseObject.ToString());
 		}
 	}
 
@@ -1140,4 +1107,25 @@ void UWaveFunctionCollapseSubsystem02::Initialize(FSubsystemCollectionBase& Coll
 
 	// zxzx29 모델 설정
 	SetWFCModel();
+}
+
+TArray<int32> UWaveFunctionCollapseSubsystem02::GetAdjacentIndices(int32 TileIndex, FIntVector GridResolution)
+{
+	TArray<int32> AdjacentIndices;
+
+	FIntVector Position = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, GridResolution);
+
+	// X축 인접 타일
+	if (Position.X > 0)
+		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(-1, 0, 0), GridResolution));
+	if (Position.X < GridResolution.X - 1)
+		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(1, 0, 0), GridResolution));
+
+	// Y축 인접 타일
+	if (Position.Y > 0)
+		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(0, -1, 0), GridResolution));
+	if (Position.Y < GridResolution.Y - 1)
+		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(0, 1, 0), GridResolution));
+
+	return AdjacentIndices;
 }

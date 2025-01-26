@@ -44,6 +44,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFCSettings")
 	TMap<FIntVector, FWaveFunctionCollapseOptionCustom> StarterOptions;
 
+	TArray<int32> GetAdjacentIndices(int32 TileIndex, FIntVector Resolution);
+
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
 	* @param TryCount Amount of times to attempt a successful solve
