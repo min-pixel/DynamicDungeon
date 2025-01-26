@@ -7,6 +7,12 @@ const FWaveFunctionCollapseOptionCustom FWaveFunctionCollapseOptionCustom::Empty
 const FWaveFunctionCollapseOptionCustom FWaveFunctionCollapseOptionCustom::BorderOption(FString(TEXT("/WaveFunctionCollapse/Core/SpecialOptions/Option_Border.Option_Border")));
 const FWaveFunctionCollapseOptionCustom FWaveFunctionCollapseOptionCustom::VoidOption(FString(TEXT("/WaveFunctionCollapse/Core/SpecialOptions/Option_Void.Option_Void")));
 
+UWaveFunctionCollapseModel02::UWaveFunctionCollapseModel02()
+{
+	// 모델 초기화
+	InitializeModel();
+}
+
 void UWaveFunctionCollapseModel02::AddConstraint(const FWaveFunctionCollapseOptionCustom& KeyOption, EWaveFunctionCollapseAdjacencyCustom Adjacency, const FWaveFunctionCollapseOptionCustom& AdjacentOption)
 {
 	Modify(true);
@@ -178,4 +184,18 @@ void UWaveFunctionCollapseModel02::SwapMeshes(TMap<UStaticMesh*, UStaticMesh*> S
 			}
 		}
 	}
+}
+
+void UWaveFunctionCollapseModel02::InitializeModel()
+{
+	// 방 타일 정의
+	FWaveFunctionCollapseOptionCustom RoomTile(TEXT("/Game/Meshes/RoomMesh")); // 방 타일 메쉬 경로
+	RoomTile.bIsRoomTile = true; // 방 타일 플래그 설정
+
+	// 일반 타일 정의
+	FWaveFunctionCollapseOptionCustom OtherTile(TEXT("/Game/Meshes/OtherMesh"));
+
+	// 방 타일과 일반 타일 간 제약 설정
+	AddConstraint(RoomTile, EWaveFunctionCollapseAdjacencyCustom::Front, OtherTile);
+	AddConstraint(OtherTile, EWaveFunctionCollapseAdjacencyCustom::Back, RoomTile);
 }

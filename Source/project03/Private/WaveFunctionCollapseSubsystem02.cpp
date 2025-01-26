@@ -79,6 +79,32 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	// if Successful, Spawn Actor
 	if (bSuccessfulSolve)
 	{
+
+		// 타일 크기 조정 로직 추가
+		for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+		{
+			if (Tiles[TileIndex].RemainingOptions.Num() == 1)
+			{
+				FWaveFunctionCollapseOptionCustom& SelectedOption = Tiles[TileIndex].RemainingOptions[0];
+
+				// 기본 타일 크기
+				float TileSize = WFCModel->TileSize;
+
+				// 방 타일인지 확인하여 크기 조정
+				if (SelectedOption.bIsRoomTile)
+				{
+					TileSize *= 3.0f;
+				}
+
+				FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
+
+				// 스케일 계산 (기본 크기를 기준으로 조정된 크기를 반영)
+				SelectedOption.BaseScale3D = FVector(TileSize / WFCModel->TileSize);
+
+			}
+		}
+
+
 		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
 		UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
 

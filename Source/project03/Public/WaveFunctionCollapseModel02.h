@@ -17,6 +17,7 @@ enum class EWaveFunctionCollapseAdjacencyCustom : uint8
 	Down	UMETA(DisplayName = "Z- Down")
 };
 
+
 /**
 * Base Option Struct which holds an object, its orientation and scale
 */
@@ -33,6 +34,9 @@ struct PROJECT03_API FWaveFunctionCollapseOptionCustom
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
 	FVector BaseScale3D = FVector::OneVector;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
+	bool bIsRoomTile = false; // 방 타일 여부
 
 	FWaveFunctionCollapseOptionCustom() = default;
 
@@ -136,6 +140,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse", meta = (AllowedClasses = "StaticMesh, Blueprint"))
 	TArray<FSoftObjectPath> SpawnExclusion;
 
+	UWaveFunctionCollapseModel02();
+	// 모델 초기화를 위한 함수
+	void InitializeModel();
 	/**
 	* Create a constraint
 	* @param KeyOption Key option
