@@ -91,7 +91,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					float TileSize = WFCModel->TileSize * 3.0f; // 방 타일 크기
 					FVector RoomTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
 
-					// 주변 타일 탐색 및 삭제
+					// 모든 인접 타일 탐색 및 삭제
 					TArray<int32> AdjacentIndices = GetAdjacentIndices(TileIndex, Resolution);
 					for (int32 AdjacentIndex : AdjacentIndices)
 					{
@@ -100,8 +100,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 						// 겹치는 타일 제거 조건
 						if (FVector::DistSquared(RoomTilePosition, AdjacentTilePosition) < FMath::Square(TileSize * 0.5f))
 						{
-							// 삭제: RemainingOptions를 비워서 타일 제거
 							Tiles[AdjacentIndex].RemainingOptions.Empty();
+							Tiles[AdjacentIndex].ShannonEntropy = 0.0f;
 
 							UE_LOG(LogWFC, Display, TEXT("Removed overlapping tile at index: %d"), AdjacentIndex);
 						}
@@ -154,7 +154,8 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 		return;
 	}
 
-	FVector Offset = FVector(WFCModel->TileSize * 0.5f); // 기본 오프셋
+	// 테두리 위치 오프셋 설정
+	FVector Offset = FVector(0.0f, 0.0f, 0.0f); // 가로, 세로, 높이 조정
 
 	for (int32 Z = 0; Z < Resolution.Z; Z++)
 	{
@@ -1083,8 +1084,8 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 
 void UWaveFunctionCollapseSubsystem02::SetWFCModel()
 {
-	// zxzx29 모델의 경로
-	const FStringAssetReference ModelPath(TEXT("/Game/WFCCORE/zxzx29.zxzx29"));
+	// zxzx34 모델의 경로
+	const FStringAssetReference ModelPath(TEXT("/Game/WFCCORE/zxzx34.zxzx34"));
 
 	// 모델 로드
 	FStreamableManager& StreamableManager = UAssetManager::GetStreamableManager();
@@ -1093,7 +1094,7 @@ void UWaveFunctionCollapseSubsystem02::SetWFCModel()
 	if (LoadedModel)
 	{
 		WFCModel = LoadedModel;
-		UE_LOG(LogWFC, Log, TEXT("WFCModel이 zxzx29로 설정되었습니다."));
+		UE_LOG(LogWFC, Log, TEXT("WFCModel이 zxzx34로 설정되었습니다."));
 	}
 	else
 	{
@@ -1105,7 +1106,7 @@ void UWaveFunctionCollapseSubsystem02::Initialize(FSubsystemCollectionBase& Coll
 {
 	Super::Initialize(Collection);
 
-	// zxzx29 모델 설정
+	// zxzx34 모델 설정
 	SetWFCModel();
 }
 
@@ -1113,19 +1114,26 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::GetAdjacentIndices(int32 TileInd
 {
 	TArray<int32> AdjacentIndices;
 
-	FIntVector Position = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, GridResolution);
+	FIntVector Position = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, this->Resolution);
 
-	// X축 인접 타일
-	if (Position.X > 0)
-		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(-1, 0, 0), GridResolution));
-	if (Position.X < GridResolution.X - 1)
-		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(1, 0, 0), GridResolution));
+	// 모든 방향의 오프셋 (3D 격자)
+	TArray<FIntVector> Offsets = {
+		FIntVector(-1, 0, 0), FIntVector(1, 0, 0),  // X축
+		FIntVector(0, -1, 0), FIntVector(0, 1, 0),  // Y축
+		FIntVector(-1, -1, 0), FIntVector(1, 1, 0), // 대각선
+		FIntVector(-1, 1, 0), FIntVector(1, -1, 0), // 대각선
+	};
 
-	// Y축 인접 타일
-	if (Position.Y > 0)
-		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(0, -1, 0), GridResolution));
-	if (Position.Y < GridResolution.Y - 1)
-		AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Position + FIntVector(0, 1, 0), GridResolution));
+	for (const FIntVector& Offset : Offsets)
+	{
+		FIntVector NeighborPosition = Position + Offset;
+		if (NeighborPosition.X >= 0 && NeighborPosition.X < this->Resolution.X &&
+			NeighborPosition.Y >= 0 && NeighborPosition.Y < this->Resolution.Y &&
+			NeighborPosition.Z >= 0 && NeighborPosition.Z < this->Resolution.Z)
+		{
+			AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPosition, this->Resolution));
+		}
+	}
 
 	return AdjacentIndices;
 }
