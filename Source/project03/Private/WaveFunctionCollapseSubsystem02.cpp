@@ -104,14 +104,22 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 						}
 					}
 
-					// 겹치는 경우 해당 방 타일을 삭제
+					// 겹치는 경우 해당 방 타일만 제거하고 다른 타일 유지
 					if (bOverlapsOtherRoomTile)
 					{
-						UE_LOG(LogWFC, Display, TEXT("Room tile at (%s) overlaps with existing room, removing tile."), *RoomTilePosition.ToString());
+						UE_LOG(LogWFC, Display, TEXT("Room tile at (%s) overlaps with existing room, removing room tile but keeping other options."),
+							*RoomTilePosition.ToString());
 
-						// RemainingOptions를 비워 타일 삭제
+						// 대체 타일 설정
+						FWaveFunctionCollapseOptionCustom AlternativeTileOption(TEXT("/Game/BP/t03-back.t03-back")); // 대체 타일 경로
 						Tiles[TileIndex].RemainingOptions.Empty();
-						Tiles[TileIndex].ShannonEntropy = 0.0f;
+						Tiles[TileIndex].RemainingOptions.Add(AlternativeTileOption);
+
+						// ShannonEntropy 재계산
+						Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+							Tiles[TileIndex].RemainingOptions,
+							WFCModel
+						);
 
 						continue; // 다음 타일로 이동
 					}
@@ -119,19 +127,26 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					// **겹치지 않는 경우 처리**
 					RoomTilePositions.Add(RoomTilePosition); // 방 타일 위치 저장
 
+					// 방 타일의 경계 계산
+					FVector MinBound = RoomTilePosition - FVector(TileSize * 1.5f, TileSize * 1.5f, TileSize * 1.5f);
+					FVector MaxBound = RoomTilePosition + FVector(TileSize * 0.4f, TileSize * 0.4f, TileSize * 0.4f);
+
 					// 모든 인접 타일 탐색 및 삭제
 					TArray<int32> AdjacentIndices = GetAdjacentIndices(TileIndex, Resolution);
 					for (int32 AdjacentIndex : AdjacentIndices)
 					{
 						FVector AdjacentTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(AdjacentIndex, Resolution)) * WFCModel->TileSize;
 
-						// 겹치는 타일 제거 조건
-						if (FVector::DistSquared(RoomTilePosition, AdjacentTilePosition) < FMath::Square(TileSize * 0.5f))
+						// 타일이 방 타일의 경계 내부에 있는지 확인
+						if (AdjacentTilePosition.X >= MinBound.X && AdjacentTilePosition.X <= MaxBound.X &&
+							AdjacentTilePosition.Y >= MinBound.Y && AdjacentTilePosition.Y <= MaxBound.Y &&
+							AdjacentTilePosition.Z >= MinBound.Z && AdjacentTilePosition.Z <= MaxBound.Z)
 						{
+							// 경계 내부에 있는 타일만 삭제
 							Tiles[AdjacentIndex].RemainingOptions.Empty();
 							Tiles[AdjacentIndex].ShannonEntropy = 0.0f;
 
-							UE_LOG(LogWFC, Display, TEXT("Removed overlapping tile at index: %d"), AdjacentIndex);
+							UE_LOG(LogWFC, Display, TEXT("Removed overlapping tile inside room boundary at index: %d"), AdjacentIndex);
 						}
 					}
 
