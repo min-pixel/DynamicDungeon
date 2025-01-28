@@ -79,6 +79,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	// if Successful, Spawn Actor
 	if (bSuccessfulSolve)
 	{
+		// 루프 내부에서 SelectedOption 및 TileIndex를 참조
 		for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
 		{
 			if (Tiles[TileIndex].RemainingOptions.Num() == 1)
@@ -90,6 +91,33 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 				{
 					float TileSize = WFCModel->TileSize * 3.0f; // 방 타일 크기
 					FVector RoomTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
+
+					// **겹침 여부 확인**
+					bool bOverlapsOtherRoomTile = false;
+					for (const FVector& ExistingRoomTilePosition : RoomTilePositions)
+					{
+						// 이미 존재하는 방 타일과 겹치는 경우
+						if (FVector::DistSquared(RoomTilePosition, ExistingRoomTilePosition) < FMath::Square(TileSize))
+						{
+							bOverlapsOtherRoomTile = true;
+							break;
+						}
+					}
+
+					// 겹치는 경우 해당 방 타일을 삭제
+					if (bOverlapsOtherRoomTile)
+					{
+						UE_LOG(LogWFC, Display, TEXT("Room tile at (%s) overlaps with existing room, removing tile."), *RoomTilePosition.ToString());
+
+						// RemainingOptions를 비워 타일 삭제
+						Tiles[TileIndex].RemainingOptions.Empty();
+						Tiles[TileIndex].ShannonEntropy = 0.0f;
+
+						continue; // 다음 타일로 이동
+					}
+
+					// **겹치지 않는 경우 처리**
+					RoomTilePositions.Add(RoomTilePosition); // 방 타일 위치 저장
 
 					// 모든 인접 타일 탐색 및 삭제
 					TArray<int32> AdjacentIndices = GetAdjacentIndices(TileIndex, Resolution);
@@ -112,7 +140,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 				}
 			}
 		}
-
+		
 
 		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
 		UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
@@ -165,6 +193,28 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 			{
 				FIntVector Position(X, Y, Z);
 
+				FVector SpawnLocation = FVector(Position) * WFCModel->TileSize;
+
+				// 방 타일과 겹치는지 확인
+				bool bOverlapsRoomTile = false;
+				for (const FVector& RoomPosition : RoomTilePositions)
+				{
+					if (FVector::DistSquared(SpawnLocation, RoomPosition) < FMath::Square(WFCModel->TileSize * 2.0f))
+					{
+						bOverlapsRoomTile = true;
+						break;
+					}
+				}
+
+				// 겹치면 스폰을 건너뜀
+				if (bOverlapsRoomTile)
+				{
+					UE_LOG(LogWFC, Display, TEXT("Skipping Border Actor spawn due to overlap with Room Tile at (%d, %d, %d)"), X, Y, Z);
+					continue;
+				}
+
+
+
 				if (IsPositionInnerBorder(Position))
 				{
 					TSubclassOf<AActor> SelectedBPClass = nullptr;
@@ -216,10 +266,13 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 						PositionOffset.Y += WFCModel->TileSize;
 					}
 
+					// 기존 SpawnLocation 값을 수정
+					SpawnLocation += PositionOffset;
+
 					// 조정된 위치에 블루프린트 액터를 스폰
 					if (SelectedBPClass && GetWorld())
 					{
-						FVector SpawnLocation = FVector(Position) * WFCModel->TileSize + PositionOffset;
+						//FVector SpawnLocation = FVector(Position) * WFCModel->TileSize + PositionOffset;
 						FTransform SpawnTransform = FTransform(SpawnLocation);
 
 						AActor* SpawnedActor = GetWorld()->SpawnActor<AActor>(SelectedBPClass, SpawnTransform);
@@ -513,6 +566,7 @@ bool UWaveFunctionCollapseSubsystem02::Observe(TArray<FWaveFunctionCollapseTileC
 	{
 		MinEntropyIndex = RemainingTiles[0];
 	}
+
 
 	// Rand Selection of Weighted Options using Cumulative Density
 	TArray<float> CumulativeDensity;

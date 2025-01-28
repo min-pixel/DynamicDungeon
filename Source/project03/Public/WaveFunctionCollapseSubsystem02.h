@@ -46,6 +46,7 @@ public:
 
 	TArray<int32> GetAdjacentIndices(int32 TileIndex, FIntVector Resolution);
 
+
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
 	* @param TryCount Amount of times to attempt a successful solve
@@ -135,6 +136,8 @@ public:
 	void DeriveGridFromTransforms(const TArray<FTransform>& Transforms);
 
 private:
+
+	TArray<FVector> RoomTilePositions; // 방 타일의 월드 좌표를 저장
 
 	/**
 	* Builds the Initial Tile which is a tile containing all possible options
