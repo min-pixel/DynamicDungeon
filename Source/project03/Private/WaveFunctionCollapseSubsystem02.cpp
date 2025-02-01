@@ -79,6 +79,10 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	// if Successful, Spawn Actor
 	if (bSuccessfulSolve)
 	{
+
+		
+
+
 		// 루프 내부에서 SelectedOption 및 TileIndex를 참조
 		for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
 		{
@@ -150,19 +154,24 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 						}
 					}
 
+				
+
 					// 방 타일 크기 업데이트
 					SelectedOption.BaseScale3D = FVector(3.0f); // 스케일 반영
 				}
 			}
 		}
 		
+		
+		// 고립된 타일 제거
+		RemoveIsolatedCorridorTiles(Tiles);
 
 		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
 		UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
 
 		// 테두리 블루프린트 소환 함수 호출
 		SpawnBorderBlueprints();
-
+		
 		return SpawnedActor;
 	}
 	else
@@ -340,7 +349,7 @@ void UWaveFunctionCollapseSubsystem02::InitializeWFC(TArray<FWaveFunctionCollaps
 				for (int32 X = 0; X < Resolution.X; X++)
 				{
 					// 첫 타일(0,0,0) 고정 로직 추가
-					if (X == 0 && Y == 0 && Z == 0)
+					if (X == 0 && Y == 0 && Z == 0 || (X == 0 && Y == 1 && Z == 0) || (X == 0 && Y == 2 && Z == 0))
 					{
 						// 고정 옵션 설정
 						FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/t01-01.t01-01"));
@@ -843,6 +852,8 @@ UActorComponent* UWaveFunctionCollapseSubsystem02::AddNamedInstanceComponent(AAc
 
 AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
+
+
 	// UWorld 참조 확인
 	UWorld* World = GetWorld();
 	if (!World)
@@ -890,7 +901,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 		{
 			continue;
 		}
-
+		
 		UObject* LoadedObject = Option.BaseObject.TryLoad();
 		if (LoadedObject)
 		{
@@ -1206,3 +1217,95 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::GetAdjacentIndices(int32 TileInd
 
 	return AdjacentIndices;
 }
+
+
+void UWaveFunctionCollapseSubsystem02::RemoveIsolatedCorridorTiles(TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+{
+	for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+	{
+		// 현재 타일이 비어있으면 건너뜀
+		if (Tiles[TileIndex].RemainingOptions.IsEmpty())
+		{
+			continue;
+		}
+
+		// 현재 타일의 옵션 가져오기
+		const FWaveFunctionCollapseOptionCustom& CurrentOption = Tiles[TileIndex].RemainingOptions[0];
+
+		// 방 타일은 삭제 대상에서 제외
+		if (CurrentOption.bIsRoomTile)
+		{
+			continue;
+		}
+
+		// 4방향 인접 타일 검사
+		TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(TileIndex, this->Resolution);
+		bool bAllAdjacentAreNotCorridor = true; // 인접 타일이 모두 복도 타일이 아닌지 확인
+
+		for (int32 AdjacentIndex : AdjacentIndices)
+		{
+			// 인접 타일이 유효한지 확인
+			if (!Tiles.IsValidIndex(AdjacentIndex))
+			{
+				continue;
+			}
+
+			// 인접 타일의 RemainingOptions이 비어있지 않은지 확인
+			if (Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
+			{
+				continue;
+			}
+
+			// 인접 타일의 옵션 가져오기
+			const FWaveFunctionCollapseOptionCustom& AdjacentOption = Tiles[AdjacentIndex].RemainingOptions[0];
+
+			// 복도 타일이 하나라도 있으면 삭제 대상이 아님
+			if (AdjacentOption.bIsCorridorTile)
+			{
+				bAllAdjacentAreNotCorridor = false;
+				break;
+			}
+		}
+
+		// 인접 타일이 모두 복도 타일이 아닌 경우 현재 타일 삭제
+		if (bAllAdjacentAreNotCorridor)
+		{
+			Tiles[TileIndex].RemainingOptions.Empty();
+			Tiles[TileIndex].ShannonEntropy = 0.0f;
+
+			UE_LOG(LogWFC, Display, TEXT("Removed isolated corridor tile at index: %d"), TileIndex);
+		}
+	}
+}
+
+TArray<int32> UWaveFunctionCollapseSubsystem02::GetCardinalAdjacentIndices(int32 TileIndex, FIntVector GridResolution)
+{
+	TArray<int32> AdjacentIndices;
+
+	FIntVector Position = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, GridResolution);
+
+	// 4방향 오프셋
+	TArray<FIntVector> Offsets = {
+		FIntVector(-1, 0, 0), // 왼쪽
+		FIntVector(1, 0, 0),  // 오른쪽
+		FIntVector(0, -1, 0), // 아래
+		FIntVector(0, 1, 0)   // 위
+	};
+
+	for (const FIntVector& Offset : Offsets)
+	{
+		FIntVector NeighborPosition = Position + Offset;
+
+		if (NeighborPosition.X >= 0 && NeighborPosition.X < GridResolution.X &&
+			NeighborPosition.Y >= 0 && NeighborPosition.Y < GridResolution.Y &&
+			NeighborPosition.Z >= 0 && NeighborPosition.Z < GridResolution.Z)
+		{
+			AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPosition, GridResolution));
+		}
+	}
+
+	return AdjacentIndices;
+}
+ 
+
+

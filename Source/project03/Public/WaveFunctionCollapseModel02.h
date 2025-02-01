@@ -38,6 +38,9 @@ struct PROJECT03_API FWaveFunctionCollapseOptionCustom
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
 	bool bIsRoomTile = false; // 방 타일 여부
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
+	bool bIsCorridorTile = true; // 복도 타일 여부 추가
+
 	FWaveFunctionCollapseOptionCustom() = default;
 
 	FWaveFunctionCollapseOptionCustom(FString Object, FRotator Rotator, FVector Scale3d)
