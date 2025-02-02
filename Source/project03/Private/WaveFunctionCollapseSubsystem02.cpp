@@ -80,7 +80,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	if (bSuccessfulSolve)
 	{
 
-		
+		RemoveDisconnectedCorridors(Tiles);
 
 
 		// 루프 내부에서 SelectedOption 및 TileIndex를 참조
@@ -165,6 +165,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		
 		// 고립된 타일 제거
 		RemoveIsolatedCorridorTiles(Tiles);
+		//RemoveDisconnectedCorridors(Tiles);
 
 		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
 		UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
@@ -1307,5 +1308,89 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::GetCardinalAdjacentIndices(int32
 	return AdjacentIndices;
 }
  
+
+void UWaveFunctionCollapseSubsystem02::RemoveDisconnectedCorridors(TArray<FWaveFunctionCollapseTileCustom>& Tiles) {
+	TSet<int32> VisitedTiles;
+
+	for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex) {
+		if (VisitedTiles.Contains(TileIndex) || Tiles[TileIndex].RemainingOptions.IsEmpty()) {
+			continue;
+		}
+
+		const FWaveFunctionCollapseOptionCustom& CurrentOption = Tiles[TileIndex].RemainingOptions[0];
+
+		// 복도 타일이 아니면 스킵 (룸 타일 포함)
+		if (!CurrentOption.bIsCorridorTile) {
+			continue;
+		}
+
+		// 복도 그룹 탐색
+		TSet<int32> CorridorGroup;
+		FloodFillCorridors(TileIndex, Tiles, CorridorGroup, VisitedTiles);
+
+		// 복도 그룹 크기가 5 미만인 경우 삭제
+		if (CorridorGroup.Num() < 5) {
+			for (int32 CorridorTileIndex : CorridorGroup) {
+				const FWaveFunctionCollapseOptionCustom& TileOption = Tiles[CorridorTileIndex].RemainingOptions[0];
+
+				// 복도 타일만 삭제 (룸 타일은 삭제하지 않음)
+				if (TileOption.bIsCorridorTile) {
+					Tiles[CorridorTileIndex].RemainingOptions.Empty();
+					Tiles[CorridorTileIndex].ShannonEntropy = 0.0f;
+				}
+			}
+
+			UE_LOG(LogWFC, Display, TEXT("Removed disconnected corridor group with %d tiles"), CorridorGroup.Num());
+		}
+	}
+}
+
+void UWaveFunctionCollapseSubsystem02::FloodFillCorridors(
+	int32 StartIndex,
+	const TArray<FWaveFunctionCollapseTileCustom>& Tiles,
+	TSet<int32>& OutGroup,
+	TSet<int32>& VisitedTiles
+) {
+	TQueue<int32> Queue;
+	Queue.Enqueue(StartIndex);
+
+	while (!Queue.IsEmpty()) {
+		int32 CurrentIndex;
+		Queue.Dequeue(CurrentIndex);
+
+		if (VisitedTiles.Contains(CurrentIndex)) {
+			continue;
+		}
+
+		VisitedTiles.Add(CurrentIndex);
+
+		const FWaveFunctionCollapseOptionCustom& CurrentOption = Tiles[CurrentIndex].RemainingOptions[0];
+
+		// 복도 타일만 그룹에 포함, 방 타일은 탐색 및 그룹에서 제외
+		if (CurrentOption.bIsCorridorTile) {
+			OutGroup.Add(CurrentIndex);
+		}
+		else if (CurrentOption.bIsRoomTile) {
+			// 방 타일은 그룹에 포함하지 않고 탐색도 중단
+			continue;
+		}
+
+		// 인접 타일 탐색
+		TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(CurrentIndex, Resolution);
+		for (int32 AdjacentIndex : AdjacentIndices) {
+			if (!VisitedTiles.Contains(AdjacentIndex) &&
+				Tiles.IsValidIndex(AdjacentIndex) &&
+				!Tiles[AdjacentIndex].RemainingOptions.IsEmpty()) {
+
+				const FWaveFunctionCollapseOptionCustom& AdjacentOption = Tiles[AdjacentIndex].RemainingOptions[0];
+
+				// 복도 타일만 탐색 대상으로 추가
+				if (AdjacentOption.bIsCorridorTile) {
+					Queue.Enqueue(AdjacentIndex);
+				}
+			}
+		}
+	}
+}
 
 

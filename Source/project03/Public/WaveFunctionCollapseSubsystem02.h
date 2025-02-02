@@ -49,6 +49,16 @@ public:
 	TArray<int32> GetCardinalAdjacentIndices(int32 TileIndex, FIntVector GridResolution);
 
 	void RemoveIsolatedCorridorTiles(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	void FloodFillCorridors(
+		int32 StartIndex,
+		const TArray<FWaveFunctionCollapseTileCustom>& Tiles,
+		TSet<int32>& OutGroup,
+		TSet<int32>& VisitedTiles);
+
+	void RemoveDisconnectedCorridors(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
 	* @param TryCount Amount of times to attempt a successful solve
