@@ -101,7 +101,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					for (const FVector& ExistingRoomTilePosition : RoomTilePositions)
 					{
 						// 이미 존재하는 방 타일과 겹치는 경우
-						if (FVector::DistSquared(RoomTilePosition, ExistingRoomTilePosition) < FMath::Square(TileSize))
+						if (FVector::DistSquared(RoomTilePosition, ExistingRoomTilePosition) < FMath::Square(TileSize*1.5f))
 						{
 							bOverlapsOtherRoomTile = true;
 							break;
@@ -158,6 +158,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 					// 방 타일 크기 업데이트
 					SelectedOption.BaseScale3D = FVector(3.0f); // 스케일 반영
+					
 				}
 			}
 		}
@@ -165,14 +166,16 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		
 		// 고립된 타일 제거
 		RemoveIsolatedCorridorTiles(Tiles);
-		//RemoveDisconnectedCorridors(Tiles);
+		
+		// 성공한 타일 데이터를 저장
+		LastCollapsedTiles = Tiles;
 
 		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
 		UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
 
 		// 테두리 블루프린트 소환 함수 호출
 		SpawnBorderBlueprints();
-		
+
 		return SpawnedActor;
 	}
 	else
@@ -182,7 +185,10 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	}
 }
 
-
+const TArray<FWaveFunctionCollapseTileCustom>& UWaveFunctionCollapseSubsystem02::GetLastCollapsedTiles() const
+{
+	return LastCollapsedTiles;
+}
 
 
 
@@ -349,24 +355,43 @@ void UWaveFunctionCollapseSubsystem02::InitializeWFC(TArray<FWaveFunctionCollaps
 			{
 				for (int32 X = 0; X < Resolution.X; X++)
 				{
-					// 첫 타일(0,0,0) 고정 로직 추가
-					if (X == 0 && Y == 0 && Z == 0 || (X == 0 && Y == 1 && Z == 0) || (X == 0 && Y == 2 && Z == 0))
-					{
-						// 고정 옵션 설정
-						FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/t01-01.t01-01"));
-						FWaveFunctionCollapseTileCustom FixedTile;
-						FixedTile.RemainingOptions.Add(FixedOption);
+					//// 첫 타일(0,0,0) 고정 로직 추가
+					//if (X == 0 && Y == 0 && Z == 0 || (X == 0 && Y == 1 && Z == 0) || (X == 0 && Y == 2 && Z == 0))
+					//{
+					//	// 고정 옵션 설정
+					//	FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/t01-01.t01-01"));
+					//	FWaveFunctionCollapseTileCustom FixedTile;
+					//	FixedTile.RemainingOptions.Add(FixedOption);
 
-						// Shannon 엔트로피 고정 (필요시 다른 값 설정 가능)
-						FixedTile.ShannonEntropy = 0.0f;
+					//	// Shannon 엔트로피 고정 (필요시 다른 값 설정 가능)
+					//	FixedTile.ShannonEntropy = 0.0f;
 
-						Tiles.Add(FixedTile);
-						RemainingTiles.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(FIntVector(X, Y, Z), Resolution));
+					//	Tiles.Add(FixedTile);
+					//	RemainingTiles.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(FIntVector(X, Y, Z), Resolution));
 
-						// ObservationPropagation 단계에서 수정되지 않도록 RemainingTiles에서 제거
-						RemainingTiles.RemoveAt(RemainingTiles.Num() - 1, 1, false);
-						continue;
-					}
+					//	// ObservationPropagation 단계에서 수정되지 않도록 RemainingTiles에서 제거
+					//	RemainingTiles.RemoveAt(RemainingTiles.Num() - 1, 1, false);
+					//	continue;
+					//}
+
+					//// 첫 타일(0,0,0) 고정 로직 추가
+					//if (X == 0 && Y == 3 && Z == 0)
+					//{
+					//	// 고정 옵션 설정
+					//	FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/t02-r.t02-r"));
+					//	FWaveFunctionCollapseTileCustom FixedTile;
+					//	FixedTile.RemainingOptions.Add(FixedOption);
+
+					//	// Shannon 엔트로피 고정 (필요시 다른 값 설정 가능)
+					//	FixedTile.ShannonEntropy = 0.0f;
+
+					//	Tiles.Add(FixedTile);
+					//	RemainingTiles.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(FIntVector(X, Y, Z), Resolution));
+
+					//	// ObservationPropagation 단계에서 수정되지 않도록 RemainingTiles에서 제거
+					//	RemainingTiles.RemoveAt(RemainingTiles.Num() - 1, 1, false);
+					//	continue;
+					//}
 
 					// Pre-populate with starter tiles
 					if (FWaveFunctionCollapseOptionCustom* StarterOption = StarterOptions.Find(FIntVector(X, Y, Z)))
@@ -1329,7 +1354,7 @@ void UWaveFunctionCollapseSubsystem02::RemoveDisconnectedCorridors(TArray<FWaveF
 		FloodFillCorridors(TileIndex, Tiles, CorridorGroup, VisitedTiles);
 
 		// 복도 그룹 크기가 5 미만인 경우 삭제
-		if (CorridorGroup.Num() < 5) {
+		if (CorridorGroup.Num() < 6) {
 			for (int32 CorridorTileIndex : CorridorGroup) {
 				const FWaveFunctionCollapseOptionCustom& TileOption = Tiles[CorridorTileIndex].RemainingOptions[0];
 
@@ -1392,5 +1417,4 @@ void UWaveFunctionCollapseSubsystem02::FloodFillCorridors(
 		}
 	}
 }
-
 

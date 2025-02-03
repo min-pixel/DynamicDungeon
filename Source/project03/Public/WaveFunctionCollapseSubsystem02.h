@@ -58,6 +58,11 @@ public:
 
 	void RemoveDisconnectedCorridors(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 
+	// CollapseCustom 실행 후 생성된 타일 데이터를 저장
+	const TArray<FWaveFunctionCollapseTileCustom>& GetLastCollapsedTiles() const;
+
+	// CollapseCustom 실행 후 타일 데이터를 저장
+	TArray<FWaveFunctionCollapseTileCustom> LastCollapsedTiles;
 
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
@@ -150,6 +155,8 @@ public:
 private:
 
 	TArray<FVector> RoomTilePositions; // 방 타일의 월드 좌표를 저장
+
+	
 
 	/**
 	* Builds the Initial Tile which is a tile containing all possible options
