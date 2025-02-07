@@ -93,6 +93,10 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 				// 방 타일 처리
 				if (SelectedOption.bIsRoomTile)
 				{
+
+					// 테두리 방 타일의 회전 조정
+					AdjustBorderRoomTileBasedOnNeighbors(TileIndex, Tiles);
+
 					float TileSize = WFCModel->TileSize * 3.0f; // 방 타일 크기
 					FVector RoomTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
 
@@ -107,6 +111,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 							break;
 						}
 					}
+
 
 					// 겹치는 경우 해당 방 타일만 제거하고 다른 타일 유지
 					if (bOverlapsOtherRoomTile)
@@ -154,11 +159,13 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 						}
 					}
 
-				
+					
 
 					// 방 타일 크기 업데이트
 					SelectedOption.BaseScale3D = FVector(3.0f); // 스케일 반영
 					
+					
+
 				}
 			}
 		}
@@ -1354,7 +1361,7 @@ void UWaveFunctionCollapseSubsystem02::RemoveDisconnectedCorridors(TArray<FWaveF
 		FloodFillCorridors(TileIndex, Tiles, CorridorGroup, VisitedTiles);
 
 		// 복도 그룹 크기가 5 미만인 경우 삭제
-		if (CorridorGroup.Num() < 6) {
+		if (CorridorGroup.Num() < 30) {
 			for (int32 CorridorTileIndex : CorridorGroup) {
 				const FWaveFunctionCollapseOptionCustom& TileOption = Tiles[CorridorTileIndex].RemainingOptions[0];
 
@@ -1416,5 +1423,147 @@ void UWaveFunctionCollapseSubsystem02::FloodFillCorridors(
 			}
 		}
 	}
+}
+
+void UWaveFunctionCollapseSubsystem02::AdjustBorderRoomTileBasedOnNeighbors(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+{
+	if (!Tiles.IsValidIndex(TileIndex) || Tiles[TileIndex].RemainingOptions.Num() != 1)
+	{
+		UE_LOG(LogWFC, Warning, TEXT("Invalid TileIndex or RemainingOptions for TileIndex: %d"), TileIndex);
+		return;
+	}
+
+	FWaveFunctionCollapseOptionCustom& RoomTileOption = Tiles[TileIndex].RemainingOptions[0];
+
+	// 방 타일이 아닌 경우 스킵
+	if (!RoomTileOption.bIsRoomTile)
+	{
+		return;
+	}
+
+	// 타일의 현재 위치 가져오기
+	FIntVector TilePosition = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+
+	// 맵의 테두리인지 확인
+	bool bIsOnBorder =
+		TilePosition.X == 0 || TilePosition.Y == 0 ||
+		TilePosition.X == Resolution.X - 1 || TilePosition.Y == Resolution.Y - 1;
+
+	if (!bIsOnBorder)
+	{
+		return; // 테두리 타일이 아닌 경우 처리하지 않음
+	}
+
+	// 문이 맵의 바깥쪽을 향하고 있는지 확인
+	bool bDoorFacingOutside = false;
+
+	if (TilePosition.X == 0 && RoomTileOption.bHasDoorWest) // 맵의 서쪽 테두리에서 서쪽으로 문이 향함
+	{
+		bDoorFacingOutside = true;
+	}
+	else if (TilePosition.X == Resolution.X - 1 && RoomTileOption.bHasDoorEast) // 맵의 동쪽 테두리에서 동쪽으로 문이 향함
+	{
+		bDoorFacingOutside = true;
+	}
+	else if (TilePosition.Y == 0 && RoomTileOption.bHasDoorSouth) // 맵의 남쪽 테두리에서 남쪽으로 문이 향함
+	{
+		bDoorFacingOutside = true;
+	}
+	else if (TilePosition.Y == Resolution.Y - 1 && RoomTileOption.bHasDoorNorth) // 맵의 북쪽 테두리에서 북쪽으로 문이 향함
+	{
+		bDoorFacingOutside = true;
+	}
+
+	if (!bDoorFacingOutside)
+	{
+		return; // 문이 맵 바깥 방향이 아니라면 처리하지 않음
+	}
+
+	// 주변 타일 검사: 한 칸 띄운 타일 검사
+	TArray<FIntVector> DirectionOffsets = {
+		FIntVector(0, 2, 0),   // 북쪽
+		FIntVector(0, -2, 0),  // 남쪽
+		FIntVector(2, 0, 0),   // 동쪽
+		FIntVector(-2, 0, 0)   // 서쪽
+	};
+
+	TArray<FString> DirectionNames = { TEXT("North"), TEXT("South"), TEXT("East"), TEXT("West") };
+	TMap<FString, int32> PriorityMap; // 방향별 우선도 저장
+	PriorityMap.Add(TEXT("North"), 0);
+	PriorityMap.Add(TEXT("South"), 0);
+	PriorityMap.Add(TEXT("East"), 0);
+	PriorityMap.Add(TEXT("West"), 0);
+
+	for (int32 i = 0; i < DirectionOffsets.Num(); ++i)
+	{
+		FIntVector NeighborPosition = TilePosition + DirectionOffsets[i];
+		int32 NeighborIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPosition, Resolution);
+
+		if (Tiles.IsValidIndex(NeighborIndex) && !Tiles[NeighborIndex].RemainingOptions.IsEmpty())
+		{
+			const FWaveFunctionCollapseOptionCustom& NeighborOption = Tiles[NeighborIndex].RemainingOptions[0];
+
+			// 북-남 방향에서는 t01 타일 확인
+			if ((i == 0 || i == 1) && NeighborOption.BaseObject.ToString().Contains(TEXT("t01")))
+			{
+				PriorityMap[DirectionNames[i]]++;
+			}
+			// 동-서 방향에서는 t01-01 타일 확인
+			else if ((i == 2 || i == 3) && NeighborOption.BaseObject.ToString().Contains(TEXT("t01-01")))
+			{
+				PriorityMap[DirectionNames[i]]++;
+			}
+		}
+	}
+
+	// 가장 우선 순위가 높은 방향 찾기
+	FString BestDirection;
+	int32 MaxPriority = 0;
+
+	for (const TPair<FString, int32>& Entry : PriorityMap)
+	{
+		if (Entry.Value > MaxPriority)
+		{
+			MaxPriority = Entry.Value;
+			BestDirection = Entry.Key;
+		}
+	}
+
+	// 우선순위가 높은 방향으로 방 타일 회전
+	if (BestDirection == TEXT("North"))
+	{
+		RoomTileOption.bHasDoorNorth = true;
+		RoomTileOption.bHasDoorSouth = false;
+		RoomTileOption.bHasDoorEast = false;
+		RoomTileOption.bHasDoorWest = false;
+		RoomTileOption.BaseRotator = FRotator(0, 0, 0); // 북쪽
+	}
+	else if (BestDirection == TEXT("South"))
+	{
+		RoomTileOption.bHasDoorNorth = false;
+		RoomTileOption.bHasDoorSouth = true;
+		RoomTileOption.bHasDoorEast = false;
+		RoomTileOption.bHasDoorWest = false;
+		RoomTileOption.BaseRotator = FRotator(0, 180, 0); // 남쪽
+	}
+	else if (BestDirection == TEXT("East"))
+	{
+		RoomTileOption.bHasDoorNorth = false;
+		RoomTileOption.bHasDoorSouth = false;
+		RoomTileOption.bHasDoorEast = true;
+		RoomTileOption.bHasDoorWest = false;
+		RoomTileOption.BaseRotator = FRotator(0, 90, 0); // 동쪽
+	}
+	else if (BestDirection == TEXT("West"))
+	{
+		RoomTileOption.bHasDoorNorth = false;
+		RoomTileOption.bHasDoorSouth = false;
+		RoomTileOption.bHasDoorEast = false;
+		RoomTileOption.bHasDoorWest = true;
+		RoomTileOption.BaseRotator = FRotator(0, 270, 0); // 서쪽
+	}
+
+	UE_LOG(LogWFC, Display, TEXT("Adjusted room tile at (%d, %d, %d) to face %s based on neighbor tiles."),
+		TilePosition.X, TilePosition.Y, TilePosition.Z, *BestDirection);
 }
 

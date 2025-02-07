@@ -64,6 +64,9 @@ public:
 	// CollapseCustom 실행 후 타일 데이터를 저장
 	TArray<FWaveFunctionCollapseTileCustom> LastCollapsedTiles;
 
+	void AdjustBorderRoomTileBasedOnNeighbors(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
 	* @param TryCount Amount of times to attempt a successful solve

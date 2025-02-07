@@ -21,7 +21,7 @@ Awfcex::Awfcex()
 void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
-	ExecuteWFCInSubsystem(60, 0);
+	ExecuteWFCInSubsystem(90, 0);
     SpawnPlayerOnCorridor();
 }
 

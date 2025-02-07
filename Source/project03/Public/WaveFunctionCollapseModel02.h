@@ -39,6 +39,18 @@ struct PROJECT03_API FWaveFunctionCollapseOptionCustom
 	bool bIsRoomTile = false; // 规 鸥老 咯何
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
+	bool bHasDoorNorth = false; // 规 鸥老 咯何
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
+	bool bHasDoorSouth = false; // 规 鸥老 咯何
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
+	bool bHasDoorEast = false; // 规 鸥老 咯何
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
+	bool bHasDoorWest = false; // 规 鸥老 咯何
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
 	bool bIsCorridorTile = true; // 汗档 鸥老 咯何 眠啊
 
 	FWaveFunctionCollapseOptionCustom() = default;
@@ -265,4 +277,6 @@ struct PROJECT03_API FWaveFunctionCollapseQueueElementCustom
 		Adjacency = AdjacencyInput;
 	}
 };
+
+
 
