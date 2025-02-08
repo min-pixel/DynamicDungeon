@@ -64,7 +64,16 @@ public:
 	// CollapseCustom 실행 후 타일 데이터를 저장
 	TArray<FWaveFunctionCollapseTileCustom> LastCollapsedTiles;
 
-	void AdjustBorderRoomTileBasedOnNeighbors(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+	void AdjustRoomTileBasedOnCorridors(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	TSet<int32> FloodFillForCorridors(int32 StartIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	FString FindLongestCorridorDirection(const TSet<int32>& CorridorTiles, const FIntVector& RoomTilePosition);
+	FString GetFallbackDirection(const FIntVector& TilePosition, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	void RotateRoomTile(FWaveFunctionCollapseOptionCustom& RoomTileOption, const FString& Direction);
+
+	bool IsDirectionValid(const FString& Direction, const FIntVector& TilePosition, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 
 
 	/**
