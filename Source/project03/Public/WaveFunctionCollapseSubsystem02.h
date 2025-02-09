@@ -65,16 +65,18 @@ public:
 	TArray<FWaveFunctionCollapseTileCustom> LastCollapsedTiles;
 
 	void AdjustRoomTileBasedOnCorridors(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
-
-	TSet<int32> FloodFillForCorridors(int32 StartIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
-
-	FString FindLongestCorridorDirection(const TSet<int32>& CorridorTiles, const FIntVector& RoomTilePosition);
-	FString GetFallbackDirection(const FIntVector& TilePosition, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+	
 
 	void RotateRoomTile(FWaveFunctionCollapseOptionCustom& RoomTileOption, const FString& Direction);
 
-	bool IsDirectionValid(const FString& Direction, const FIntVector& TilePosition, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+	
 
+	int32 CalculateCorridorLength(
+		const FIntVector& TilePosition, const FString& Direction, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	void AdjustBorderRoomTileBasedOnNeighbors(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	
 
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
