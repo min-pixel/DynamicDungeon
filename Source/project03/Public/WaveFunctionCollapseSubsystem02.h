@@ -69,12 +69,6 @@ public:
 
 	void RotateRoomTile(FWaveFunctionCollapseOptionCustom& RoomTileOption, const FString& Direction);
 
-	
-
-	int32 CalculateCorridorLength(
-		const FIntVector& TilePosition, const FString& Direction, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
-
-	void AdjustBorderRoomTileBasedOnNeighbors(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 
 	
 
