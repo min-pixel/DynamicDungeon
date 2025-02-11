@@ -9,6 +9,8 @@
 
 PROJECT03_API DECLARE_LOG_CATEGORY_EXTERN(LogWFC, Log, All);
 
+
+
 UCLASS()
 class PROJECT03_API UWaveFunctionCollapseSubsystem02 : public UGameInstanceSubsystem
 {
@@ -69,7 +71,13 @@ public:
 
 	void RotateRoomTile(FWaveFunctionCollapseOptionCustom& RoomTileOption, const FString& Direction);
 
+	int32 FindClosestCorridor(int32 StartIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
 
+	TArray<int32> FindPathAStar(int32 StartIndex, int32 GoalIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
+
+	void ConnectIsolatedRooms(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	void FillEmptyTilesAlongPath(const TArray<int32>& Path, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 	
 
 	/**
