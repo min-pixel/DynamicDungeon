@@ -358,11 +358,11 @@ void UWaveFunctionCollapseSubsystem02::InitializeWFC(TArray<FWaveFunctionCollaps
 			{
 				for (int32 X = 0; X < Resolution.X; X++)
 				{
-					//// 첫 타일(0,0,0) 고정 로직 추가
-					//if (X == 0 && Y == 0 && Z == 0 || (X == 0 && Y == 1 && Z == 0) || (X == 0 && Y == 2 && Z == 0))
+					//// 첫 타일(0,0,0) 고정 로직 추가, 02/12 테스트를 위해 추가함.
+					//if (X == 1 && Y == 0 && Z == 0)
 					//{
 					//	// 고정 옵션 설정
-					//	FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/t01-01.t01-01"));
+					//	FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/romm.romm"));
 					//	FWaveFunctionCollapseTileCustom FixedTile;
 					//	FixedTile.RemainingOptions.Add(FixedOption);
 
@@ -378,10 +378,10 @@ void UWaveFunctionCollapseSubsystem02::InitializeWFC(TArray<FWaveFunctionCollaps
 					//}
 
 					//// 첫 타일(0,0,0) 고정 로직 추가
-					//if (X == 0 && Y == 3 && Z == 0)
+					//if (X == 2 && Y == 0 && Z == 0 || X == 0 && Y == 2 && Z == 0 || X == 3 && Y == 0 && Z == 0 || X == 0 && Y == 3 && Z == 0 || X == 0 && Y == 0 && Z == 0 || X == 0 && Y == 1 && Z == 0 || X == 1 && Y == 1 && Z == 0)
 					//{
 					//	// 고정 옵션 설정
-					//	FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/t02-r.t02-r"));
+					//	FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"));
 					//	FWaveFunctionCollapseTileCustom FixedTile;
 					//	FixedTile.RemainingOptions.Add(FixedOption);
 
@@ -1768,12 +1768,15 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::FindPathAStar(
 		TArray<int32> Neighbors = GetCardinalAdjacentIndices(CurrentIndex, this->Resolution);
 		for (int32 NeighborIndex : Neighbors)
 		{
-			if (!Tiles.IsValidIndex(NeighborIndex) || Tiles[NeighborIndex].RemainingOptions.IsEmpty())
+			if (!Tiles.IsValidIndex(NeighborIndex))
 			{
 				continue;
 			}
 
-			if (Tiles[NeighborIndex].RemainingOptions.IsEmpty() || Tiles[NeighborIndex].RemainingOptions[0].bIsCorridorTile)
+			// 빈 공간이거나 복도 타일이면 탐색 가능하도록 수정
+			bool bIsWalkable = Tiles[NeighborIndex].RemainingOptions.IsEmpty() || Tiles[NeighborIndex].RemainingOptions[0].bIsCorridorTile;
+
+			if (bIsWalkable)
 			{
 				float NewCost = CostSoFar[CurrentIndex] + 1.0f;
 				if (!CostSoFar.Contains(NeighborIndex) || NewCost < CostSoFar[NeighborIndex])
@@ -1827,58 +1830,86 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 
 		if (bIsIsolated)
 		{
-			IsolatedRoomIndices.Add(TileIndex);
+			for (int32 AdjacentIndex : AdjacentIndices)
+			{
+				if (Tiles.IsValidIndex(AdjacentIndex) && Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
+				{
+					IsolatedRoomIndices.Add(AdjacentIndex);
+				}
+			}
 		}
 	}
 
 	for (int32 RoomIndex : IsolatedRoomIndices)
 	{
-		int32 ClosestCorridorIndex = FindClosestCorridor(RoomIndex, Tiles, Resolution);
 
-		if (ClosestCorridorIndex != -1)
+		bool bSurroundedByEmptySpace = true;
+		TArray<int32> OffsetIndices = {
+			RoomIndex + 2,  // 오른쪽 2칸
+			RoomIndex - 2,  // 왼쪽 2칸
+			RoomIndex + Resolution.X * 2, // 위쪽 2칸
+			RoomIndex - Resolution.X * 2  // 아래쪽 2칸
+		};
+
+		for (int32 OffsetIndex : OffsetIndices)
 		{
-			TArray<int32> Path = FindPathAStar(RoomIndex, ClosestCorridorIndex, Tiles, Resolution);
-
-			if (Path.IsEmpty())
+			if (Tiles.IsValidIndex(OffsetIndex) && !Tiles[OffsetIndex].RemainingOptions.IsEmpty())
 			{
-				UE_LOG(LogWFC, Warning, TEXT("A* returned an empty path from room %d to corridor %d"), RoomIndex, ClosestCorridorIndex);
+				bSurroundedByEmptySpace = false;
+				break;
 			}
-			else
-			{
-				UE_LOG(LogWFC, Display, TEXT("A* found path from room %d to corridor %d with %d steps"), RoomIndex, ClosestCorridorIndex, Path.Num());
-				FillEmptyTilesAlongPath(Path, Tiles);
-			}
+		}
 
-			FillEmptyTilesAlongPath(Path, Tiles);
+		if (bSurroundedByEmptySpace)
+		{
 
-			for (int32 PathIndex : Path)
+			int32 ClosestCorridorIndex = FindClosestCorridor(RoomIndex, Tiles, Resolution);
+
+			if (ClosestCorridorIndex != -1)
 			{
-				if (Tiles.IsValidIndex(PathIndex) && Tiles[PathIndex].RemainingOptions.IsEmpty())
+				TArray<int32> Path = FindPathAStar(RoomIndex, ClosestCorridorIndex, Tiles, Resolution);
+
+				if (Path.IsEmpty())
 				{
-					FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/BP/t01.t01"));
-					Tiles[PathIndex].RemainingOptions.Add(CorridorOption);
-					Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
-						Tiles[PathIndex].RemainingOptions, WFCModel);
+					UE_LOG(LogWFC, Warning, TEXT("A* returned an empty path from room %d to corridor %d"), RoomIndex, ClosestCorridorIndex);
+				}
+				else
+				{
+					UE_LOG(LogWFC, Display, TEXT("A* found path from room %d to corridor %d with %d steps"), RoomIndex, ClosestCorridorIndex, Path.Num());
+					FillEmptyTilesAlongPath(Path, Tiles);
+				}
 
-					// 복도 액터 스폰
-					UWorld* World = GetWorld();
-					if (World)
+				FillEmptyTilesAlongPath(Path, Tiles);
+
+				for (int32 PathIndex : Path)
+				{
+					if (Tiles.IsValidIndex(PathIndex) && Tiles[PathIndex].RemainingOptions.IsEmpty())
 					{
-						FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(PathIndex, Resolution)) * WFCModel->TileSize;
-						FRotator TileRotation = CorridorOption.BaseRotator;
-						FVector TileScale = CorridorOption.BaseScale3D;
+						FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"));
+						Tiles[PathIndex].RemainingOptions.Add(CorridorOption);
+						Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+							Tiles[PathIndex].RemainingOptions, WFCModel);
 
-						FTransform SpawnTransform = FTransform(TileRotation, TilePosition, TileScale);
-						AActor* SpawnedCorridorActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
+						// 복도 액터 스폰
+						UWorld* World = GetWorld();
+						if (World)
+						{
+							FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(PathIndex, Resolution)) * WFCModel->TileSize;
+							FRotator TileRotation = CorridorOption.BaseRotator;
+							FVector TileScale = CorridorOption.BaseScale3D;
 
-						if (SpawnedCorridorActor)
-						{
-							UE_LOG(LogWFC, Display, TEXT("sdsdsdsdsdsdsdsdsd %s for connecting isolated room at index %d"),
-								*TilePosition.ToString(), RoomIndex);
-						}
-						else
-						{
-							UE_LOG(LogWFC, Error, TEXT("Failed to spawn Corridor Actor at index %d"), PathIndex);
+							FTransform SpawnTransform = FTransform(TileRotation, TilePosition, TileScale);
+							AActor* SpawnedCorridorActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
+
+							if (SpawnedCorridorActor)
+							{
+								UE_LOG(LogWFC, Display, TEXT("sdsdsdsdsdsdsdsdsd %s for connecting isolated room at index %d"),
+									*TilePosition.ToString(), RoomIndex);
+							}
+							else
+							{
+								UE_LOG(LogWFC, Error, TEXT("Failed to spawn Corridor Actor at index %d"), PathIndex);
+							}
 						}
 					}
 				}
@@ -1889,12 +1920,20 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 
 void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(const TArray<int32>& Path, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
-	for (int32 PathIndex : Path)
+	if (Path.Num() <= 1)
 	{
+		return;
+	}
+
+	// 첫 번째 인덱스(시작점)는 제외하고 루프 돌리기
+	for (int32 i = 1; i < Path.Num(); i++)
+	{
+		int32 PathIndex = Path[i];
+
 		if (Tiles.IsValidIndex(PathIndex) && Tiles[PathIndex].RemainingOptions.IsEmpty())
 		{
 			// 복도 타일 추가
-			FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/BP/t01.t01"));
+			FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/BP/testtest1.testtest1"));
 			Tiles[PathIndex].RemainingOptions.Add(CorridorOption);
 			Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
 				Tiles[PathIndex].RemainingOptions, WFCModel);
