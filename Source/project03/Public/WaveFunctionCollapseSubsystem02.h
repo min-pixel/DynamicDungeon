@@ -73,13 +73,19 @@ public:
 
 	int32 FindClosestCorridor(int32 StartIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
 
-	TArray<int32> FindPathAStar(int32 StartIndex, int32 GoalIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
+	TArray<int32> FindPathAStar(int32 StartIndex, int32 GoalIndex, int32 PreviousIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
 
 	void ConnectIsolatedRooms(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 
 	void FillEmptyTilesAlongPath(const TArray<int32>& Path, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 	
+	TArray<int32>GetRoomBoundaryIndices(int32 RoomIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
+	bool IsRoomBoundary(int32 TileIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
+	bool IsInsideRoom(int32 TileIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution);
 
+	TArray<int32>GetAllAdjacentIndices(int32 TileIndex, FIntVector GridResolution);
+
+	TArray<int32>GetTwoStepAdjacentIndices(int32 TileIndex, FIntVector GridResolution);
 
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.

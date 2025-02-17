@@ -90,7 +90,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 			if (Tiles[TileIndex].RemainingOptions.Num() == 1)
 			{
 				FWaveFunctionCollapseOptionCustom& SelectedOption = Tiles[TileIndex].RemainingOptions[0];
-
+				
 				// 방 타일 처리
 				if (SelectedOption.bIsRoomTile)
 				{
@@ -130,6 +130,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 						continue; // 다음 타일로 이동
 					}
 					  
+					
 
 					// **겹치지 않는 경우 처리**
 					RoomTilePositions.Add(RoomTilePosition); // 방 타일 위치 저장
@@ -165,6 +166,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
 
 					ConnectIsolatedRooms(Tiles);
+
+					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
 				}
 			}
 		}
@@ -1688,45 +1691,121 @@ void UWaveFunctionCollapseSubsystem02::RotateRoomTile(FWaveFunctionCollapseOptio
 	UE_LOG(LogWFC, Verbose, TEXT("Rotated room tile: Initial = %s, Target = %s, Rotation = %d degrees"),
 		*InitialDirection, *TargetDirection, RotationAmount);
 }
+//------------------------------------------------------------------------------------------------------
+
+
+
+
+
 
 int32 UWaveFunctionCollapseSubsystem02::FindClosestCorridor(int32 StartIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution)
 {
 	int32 ClosestCorridorIndex = -1;
 	float MinDistance = FLT_MAX;
-	
 
-	FIntVector StartPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(StartIndex, this->Resolution);
+	TArray<int32> RoomBoundaryIndices = GetRoomBoundaryIndices(StartIndex, Tiles, GridResolution);
 
-	for (int32 i = 0; i < Tiles.Num(); i++)
+	for (int32 BoundaryIndex : RoomBoundaryIndices)
 	{
-		if (!Tiles[i].RemainingOptions.IsEmpty() && Tiles[i].RemainingOptions[0].bIsCorridorTile)
-		{
-			FIntVector CorridorPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(i, this->Resolution);
-			float Distance = FMath::Abs(StartPos.X - CorridorPos.X) + FMath::Abs(StartPos.Y - CorridorPos.Y);
+		FIntVector StartPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(BoundaryIndex, GridResolution);
 
-			if (Distance < MinDistance)
+		for (int32 i = 0; i < Tiles.Num(); i++)
+		{
+			if (!Tiles[i].RemainingOptions.IsEmpty())
 			{
-				MinDistance = Distance;
-				ClosestCorridorIndex = i;
+				const FWaveFunctionCollapseOptionCustom& TileOption = Tiles[i].RemainingOptions[0];
+
+				// 기존: 복도 타일만 탐색 → 수정: 옵션 엠티 타일도 포함
+				if (TileOption.bIsCorridorTile && ( TileOption.BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") || 
+					TileOption.BaseObject.ToString() == TEXT("/Game/BP/testtest.testtest")))
+				{
+					FIntVector CorridorPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(i, GridResolution);
+					float Distance = FMath::Abs(StartPos.X - CorridorPos.X) + FMath::Abs(StartPos.Y - CorridorPos.Y);
+
+					if (Distance < MinDistance)
+					{
+						MinDistance = Distance;
+						ClosestCorridorIndex = i;
+					}
+				}
 			}
 		}
 	}
 
 	if (ClosestCorridorIndex == -1)
 	{
-		UE_LOG(LogWFC, Warning, TEXT("No corridor found for StartIndex %d"), StartIndex);
+		UE_LOG(LogWFC, Warning, TEXT("No corridor found for Room at index %d"), StartIndex);
 	}
 
 	return ClosestCorridorIndex;
 }
 
 TArray<int32> UWaveFunctionCollapseSubsystem02::FindPathAStar(
-	int32 StartIndex, int32 GoalIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution)
+	int32 StartIndex, int32 GoalIndex, int32 PreviousIndex,
+	const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution)
 {
 	if (StartIndex == GoalIndex)
 	{
 		return {};
 	}
+
+	
+	int32 IsolatedRoomIndex = -1;
+	TArray<int32> RoomIndices;
+
+	for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+	{
+		if (!Tiles[TileIndex].RemainingOptions.IsEmpty() &&
+			Tiles[TileIndex].RemainingOptions[0].bIsRoomTile)
+		{
+			bool bIsIsolated = true;
+			TArray<int32> AdjacentIndices = GetTwoStepAdjacentIndices(TileIndex, GridResolution);
+
+			for (int32 AdjacentIndex : AdjacentIndices)
+			{
+				if (Tiles.IsValidIndex(AdjacentIndex) && !Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
+				{
+					if (Tiles[AdjacentIndex].RemainingOptions[0].bIsCorridorTile)
+					{
+						bIsIsolated = false;
+						break;
+					}
+				}
+			}
+
+			if (bIsIsolated)
+			{
+				RoomIndices.Add(TileIndex);
+			}
+		}
+	}
+
+	
+	if (!RoomIndices.IsEmpty())
+	{
+		float MinDistance = FLT_MAX;
+		for (int32 RoomIndex : RoomIndices)
+		{
+			float Distance = FVector::DistSquared(
+				FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(RoomIndex, GridResolution)),
+				FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(GoalIndex, GridResolution))
+			);
+
+			if (Distance < MinDistance)
+			{
+				MinDistance = Distance;
+				IsolatedRoomIndex = RoomIndex;
+			}
+		}
+
+		if (IsolatedRoomIndex != -1)
+		{
+			UE_LOG(LogWFC, Display, TEXT("Using isolated room at index %d as new start index"), IsolatedRoomIndex);
+			StartIndex = IsolatedRoomIndex;
+		}
+	}
+
+
 
 	TMap<int32, float> CostSoFar;
 	TMap<int32, int32> CameFrom;
@@ -1737,85 +1816,14 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::FindPathAStar(
 	Heuristic.Add(StartIndex, 0.0f);
 	OpenSet.Add(StartIndex);
 
-	int32 FirstMoveIndex = -1;
-	bool bFirstMove = true; // 첫 이동 여부 체크
-	FIntVector StartPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(StartIndex, this->Resolution);
-	TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(StartIndex, this->Resolution);
 
-
-	for (int32 AdjacentIndex : AdjacentIndices)
-	{
-		if (Tiles.IsValidIndex(AdjacentIndex) && !Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
-		{
-			FIntVector AdjacentPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(AdjacentIndex, this->Resolution);
-
-
-			if (AdjacentPos.X < StartPos.X)
-			{
-				FirstMoveIndex = StartIndex + 1;
-			}
-			else if (AdjacentPos.X > StartPos.X)
-			{
-				FirstMoveIndex = StartIndex - 1;
-			}
-			else if (AdjacentPos.Y < StartPos.Y)
-			{
-				FirstMoveIndex = StartIndex + this->Resolution.X;
-			}
-			else if (AdjacentPos.Y > StartPos.Y)
-			{
-				FirstMoveIndex = StartIndex - this->Resolution.X;
-			}
-		}
-	}
-
-
-
-	// 방 타일의 위치를 저장하여 방 주변 1칸을 계산할 때 사용
-	TSet<int32> RoomAdjacentTiles;
-
-	// 시작 방 타일이 있는 경우, 예외 처리
-	TSet<int32> StartRoomTiles;
-	if (!Tiles[StartIndex].RemainingOptions.IsEmpty() && Tiles[StartIndex].RemainingOptions[0].bIsRoomTile)
-	{
-		// 시작 방 타일 주변 타일 저장
-		TArray<int32> StartAdjacentIndices = GetCardinalAdjacentIndices(StartIndex, this->Resolution);
-		for (int32 AdjacentIndex : StartAdjacentIndices)
-		{
-			if (Tiles.IsValidIndex(AdjacentIndex))
-			{
-				StartRoomTiles.Add(AdjacentIndex);
-			}
-		}
-	}
-
-
-
-
-	//// 다른 방 타일들의 주변을 RoomAdjacentTiles에 추가 (단, 시작 방 타일 주변은 제외)
-	//for (int32 i = 0; i < Tiles.Num(); i++)
-	//{
-	//	if (!Tiles[i].RemainingOptions.IsEmpty() && Tiles[i].RemainingOptions[0].bIsRoomTile && i != StartIndex)
-	//	{
-	//		TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(i, this->Resolution);
-	//		for (int32 AdjacentIndex : AdjacentIndices)
-	//		{
-
-	//			if (Tiles.IsValidIndex(AdjacentIndex) && !StartRoomTiles.Contains(AdjacentIndex))  // 시작 방 타일 주변은 제외
-	//			{
-	//				RoomAdjacentTiles.Add(AdjacentIndex);
-	//			}
-	//		}
-	//	}
-	//}
-
-	
 
 
 	while (!OpenSet.IsEmpty())
 	{
 		int32 CurrentIndex = -1;
 		float MinF = FLT_MAX;
+
 		for (int32 Index : OpenSet)
 		{
 			float F = CostSoFar[Index] + Heuristic[Index];
@@ -1830,54 +1838,58 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::FindPathAStar(
 		{
 			TArray<int32> Path;
 			int32 TraceIndex = GoalIndex;
+
+			
+			if (!CameFrom.Contains(TraceIndex))
+			{
+				UE_LOG(LogWFC, Warning, TEXT("FindPathAStar: GoalIndex %d not found in CameFrom!"), GoalIndex);
+				return {};  // 경로가 실패한 경우 빈 배열 반환
+			}
+
 			while (TraceIndex != StartIndex)
 			{
+				if (!CameFrom.Contains(TraceIndex))  
+				{
+					UE_LOG(LogWFC, Warning, TEXT("FindPathAStar: TraceIndex %d is missing in CameFrom!"), TraceIndex);
+					return {};  // 잘못된 경로 추적 방지
+				}
+
 				Path.Add(TraceIndex);
 				TraceIndex = CameFrom[TraceIndex];
 			}
+
 			Path.Add(StartIndex);
 			Algo::Reverse(Path);
 			return Path;
 		}
 
 		OpenSet.Remove(CurrentIndex);
-		TArray<int32> Neighbors = GetCardinalAdjacentIndices(CurrentIndex, this->Resolution);
+		TArray<int32> Neighbors = GetCardinalAdjacentIndices(CurrentIndex, GridResolution);
+
 		for (int32 NeighborIndex : Neighbors)
 		{
-
 			if (!Tiles.IsValidIndex(NeighborIndex))
 			{
-				continue; 
+				continue;
 			}
 
-			if (bFirstMove && FirstMoveIndex != -1)
-			{
-				if (NeighborIndex != FirstMoveIndex)
-				{
-					continue;  // **첫 이동이 FirstMoveIndex가 아니면 무시**
-				}
-				bFirstMove = false;  // 첫 이동 이후엔 일반적인 A* 탐색 수행
-			}
-
-
-			// 빈 공간이면서 방 타일 근처 1칸 이내이거나, 복도 타일이면 탐색 가능하도록 설정
-			/*bool bIsWalkable = (Tiles[NeighborIndex].RemainingOptions.IsEmpty() && !RoomAdjacentTiles.Contains(NeighborIndex)) ||
-				(Tiles[NeighborIndex].RemainingOptions.Num() > 0 && Tiles[NeighborIndex].RemainingOptions[0].bIsCorridorTile);*/
-
-			bool bIsWalkable = Tiles[NeighborIndex].RemainingOptions.IsEmpty() || Tiles[NeighborIndex].RemainingOptions[0].bIsCorridorTile || !RoomAdjacentTiles.Contains(NeighborIndex);
+			bool bIsWalkable = (Tiles[NeighborIndex].RemainingOptions.IsEmpty() ||
+				Tiles[NeighborIndex].RemainingOptions[0].bIsCorridorTile ||
+				Tiles[NeighborIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty")) ||
+				Tiles[NeighborIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/BP/testtest.testtest");
 
 			if (bIsWalkable)
 			{
-
 				float NewCost = CostSoFar[CurrentIndex] + 1.0f;
 				if (!CostSoFar.Contains(NeighborIndex) || NewCost < CostSoFar[NeighborIndex])
 				{
 					CostSoFar.Add(NeighborIndex, NewCost);
 					Heuristic.Add(NeighborIndex,
-						FMath::Abs(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(NeighborIndex, this->Resolution).X -
-							UWaveFunctionCollapseBPLibrary02::IndexAsPosition(GoalIndex, this->Resolution).X) +
-						FMath::Abs(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(NeighborIndex, this->Resolution).Y -
-							UWaveFunctionCollapseBPLibrary02::IndexAsPosition(GoalIndex, this->Resolution).Y));
+						FMath::Abs(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(NeighborIndex, GridResolution).X -
+							UWaveFunctionCollapseBPLibrary02::IndexAsPosition(GoalIndex, GridResolution).X) +
+						FMath::Abs(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(NeighborIndex, GridResolution).Y -
+							UWaveFunctionCollapseBPLibrary02::IndexAsPosition(GoalIndex, GridResolution).Y));
+
 					CameFrom.Add(NeighborIndex, CurrentIndex);
 					OpenSet.Add(NeighborIndex);
 				}
@@ -1885,8 +1897,8 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::FindPathAStar(
 		}
 	}
 
-	UE_LOG(LogWFC, Warning, TEXT("A* failed to find path from %d to %d"), StartIndex, GoalIndex);
-	return {};
+	UE_LOG(LogWFC, Warning, TEXT("FindPathAStar: No path found from %d to %d"), StartIndex, GoalIndex);
+	return {};  // 경로를 찾지 못하면 빈 배열 반환
 }
 
 void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunctionCollapseTileCustom>& Tiles)
@@ -1915,6 +1927,12 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 		{
 			if (Tiles.IsValidIndex(AdjacentIndex) && !Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
 			{
+
+				if (Tiles[AdjacentIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/BP/testtest.testtest"))
+				{
+					continue;
+				}
+
 				bIsIsolated = false;
 				break;
 			}
@@ -1960,7 +1978,30 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 
 			if (ClosestCorridorIndex != -1)
 			{
-				TArray<int32> Path = FindPathAStar(RoomIndex, ClosestCorridorIndex, Tiles, Resolution);
+
+				
+				int32 PreviousIndex = -1;
+				TArray<int32> RoomAdjacentIndices = GetCardinalAdjacentIndices(RoomIndex, Resolution);
+				for (int32 AdjacentIndex : RoomAdjacentIndices)
+				{
+					if (Tiles.IsValidIndex(AdjacentIndex) &&
+						!Tiles[AdjacentIndex].RemainingOptions.IsEmpty() &&
+						Tiles[AdjacentIndex].RemainingOptions[0].bIsRoomTile)
+					{
+						PreviousIndex = AdjacentIndex;
+						break;
+					}
+				}
+
+				
+				if (PreviousIndex == -1)
+				{
+					PreviousIndex = RoomIndex;
+				}
+
+				
+
+				TArray<int32> Path = FindPathAStar(RoomIndex, ClosestCorridorIndex, PreviousIndex, Tiles, Resolution);
 
 				if (Path.IsEmpty())
 				{
@@ -1978,7 +2019,11 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 				{
 					if (Tiles.IsValidIndex(PathIndex) && Tiles[PathIndex].RemainingOptions.IsEmpty())
 					{
-						FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/BP/testtest1.testtest1")); ///Game/WFCCORE/wfc/SpecialOption/Option_Empty
+
+						bool bIsInsideRoom = IsInsideRoom(PathIndex, Tiles, Resolution);
+
+
+						FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty")); ///Game/WFCCORE/wfc/SpecialOption/Option_Empty
 						Tiles[PathIndex].RemainingOptions.Add(CorridorOption);
 						Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
 							Tiles[PathIndex].RemainingOptions, WFCModel);
@@ -2018,40 +2063,205 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(const TArray<int3
 		return;
 	}
 
-	// 첫 번째 인덱스(시작점)는 제외하고 루프 돌리기
+
+	TSet<int32> RoomTiles;
+	for (int32 i = 0; i < Tiles.Num(); i++)
+	{
+		if (Tiles.IsValidIndex(i) && !Tiles[i].RemainingOptions.IsEmpty() && Tiles[i].RemainingOptions[0].bIsRoomTile)
+		{
+			RoomTiles.Add(i);
+		}
+	}
+
+
+	TSet<int32> ExtendedRoomTiles = RoomTiles;
+	for (int32 RoomIndex : RoomTiles)
+	{
+		TArray<int32> AdjacentIndices = GetAllAdjacentIndices(RoomIndex, Resolution); // 대각선 포함된 함수
+		for (int32 AdjacentIndex : AdjacentIndices)
+		{
+			if (Tiles.IsValidIndex(AdjacentIndex))
+			{
+				ExtendedRoomTiles.Add(AdjacentIndex);
+			}
+		}
+	}
+
+
 	for (int32 i = 1; i < Path.Num(); i++)
 	{
 		int32 PathIndex = Path[i];
 
 		if (Tiles.IsValidIndex(PathIndex))
 		{
-			
-			if (!Tiles[PathIndex].RemainingOptions.IsEmpty() &&
-				!Tiles[PathIndex].RemainingOptions[0].bIsRoomTile &&
-				!Tiles[PathIndex].RemainingOptions[0].bIsCorridorTile)
+
+			if (!Tiles[PathIndex].RemainingOptions.IsEmpty() && Tiles[PathIndex].RemainingOptions[0].bIsCorridorTile)
 			{
-				UE_LOG(LogWFC, Warning, TEXT("Found Option_Empty at index: %d, converting to corridor tile"), PathIndex);
-
-				
-				Tiles[PathIndex].RemainingOptions.Empty();
-				FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/BP/testtest1.testtest1")); 
-				Tiles[PathIndex].RemainingOptions.Add(CorridorOption);
-				Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
-					Tiles[PathIndex].RemainingOptions, WFCModel);
-
-				UE_LOG(LogWFC, Display, TEXT("Converted empty tile to corridor at index: %d"), PathIndex);
+				UE_LOG(LogWFC, Display, TEXT("Skipping modification at index %d (Already Corridor)"), PathIndex);
+				continue;
 			}
 
-			
-			else if (Tiles[PathIndex].RemainingOptions.IsEmpty())
-			{
-				FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/BP/testtest1.testtest1"));
-				Tiles[PathIndex].RemainingOptions.Add(CorridorOption);
-				Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
-					Tiles[PathIndex].RemainingOptions, WFCModel);
 
-				UE_LOG(LogWFC, Display, TEXT("Filled empty tile with corridor at index: %d"), PathIndex);
+			bool bIsInsideRoom = ExtendedRoomTiles.Contains(PathIndex);
+
+			FWaveFunctionCollapseOptionCustom TileOption = bIsInsideRoom
+				? FWaveFunctionCollapseOptionCustom(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty")) // 내부는 Empty
+				: FWaveFunctionCollapseOptionCustom(TEXT("/Game/BP/testtest1.testtest1")); // 복도 타일 적용
+
+			// 기존 옵션 제거 후 새로운 옵션 적용
+			Tiles[PathIndex].RemainingOptions.Empty();
+			Tiles[PathIndex].RemainingOptions.Add(TileOption);
+			Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+				Tiles[PathIndex].RemainingOptions, WFCModel);
+
+			UE_LOG(LogWFC, Display, TEXT("Filled path at index %d with %s"), PathIndex, *TileOption.BaseObject.ToString());
+
+
+			if (bIsInsideRoom)
+			{
+				UE_LOG(LogWFC, Display, TEXT("Skipping actor spawn at index %d (Inside Room)"), PathIndex);
+				continue;
+			}
+
+
+			UWorld* World = GetWorld();
+			if (World)
+			{
+				FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(PathIndex, Resolution)) * WFCModel->TileSize;
+				FRotator TileRotation = TileOption.BaseRotator;
+				FVector TileScale = TileOption.BaseScale3D;
+
+				FTransform SpawnTransform = FTransform(TileRotation, TilePosition, TileScale);
+				AActor* SpawnedCorridorActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
+
+				if (SpawnedCorridorActor)
+				{
+					UE_LOG(LogWFC, Display, TEXT("Spawned %s for path at index %d"), *TilePosition.ToString(), PathIndex);
+				}
+				else
+				{
+					UE_LOG(LogWFC, Error, TEXT("Failed to spawn actor at index %d"), PathIndex);
+				}
 			}
 		}
 	}
+}
+
+
+bool UWaveFunctionCollapseSubsystem02::IsInsideRoom(int32 TileIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution)
+{
+	// 타일 인덱스가 유효한지 확인
+	if (!Tiles.IsValidIndex(TileIndex) || Tiles[TileIndex].RemainingOptions.IsEmpty())
+	{
+		return false;
+	}
+
+	// 방 타일인지 확인
+	if (!Tiles[TileIndex].RemainingOptions[0].bIsRoomTile)
+	{
+		return false;
+	}
+
+	// 방의 경계 타일인지 확인 (경계는 내부로 간주하지 않음)
+	TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(TileIndex, GridResolution);
+	for (int32 AdjacentIndex : AdjacentIndices)
+	{
+		// 인접한 타일이 비어있다면 방의 경계로 간주
+		if (Tiles.IsValidIndex(AdjacentIndex) && Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
+		{
+			return false;
+		}
+	}
+
+	// 방의 경계가 아니라면 내부 타일
+	return true;
+}
+
+TArray<int32> UWaveFunctionCollapseSubsystem02::GetRoomBoundaryIndices(int32 RoomIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution)
+{
+	TArray<int32> BoundaryIndices;
+	TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(RoomIndex, GridResolution);
+
+	for (int32 AdjacentIndex : AdjacentIndices)
+	{
+		if (Tiles.IsValidIndex(AdjacentIndex) && Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
+		{
+			BoundaryIndices.Add(AdjacentIndex);
+		}
+	}
+
+	return BoundaryIndices;
+}
+
+bool UWaveFunctionCollapseSubsystem02::IsRoomBoundary(int32 TileIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles, FIntVector GridResolution)
+{
+	TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(TileIndex, GridResolution);
+	for (int32 AdjacentIndex : AdjacentIndices)
+	{
+		if (Tiles.IsValidIndex(AdjacentIndex) && !Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
+		{
+			if (Tiles[AdjacentIndex].RemainingOptions[0].bIsRoomTile)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+TArray<int32> UWaveFunctionCollapseSubsystem02::GetAllAdjacentIndices(int32 TileIndex, FIntVector GridResolution)
+{
+	TArray<int32> AdjacentIndices;
+
+	FIntVector Position = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, GridResolution);
+
+	// 8방향 오프셋 (상, 하, 좌, 우 + 대각선 4방향)
+	TArray<FIntVector> Offsets = {
+		FIntVector(-1, 0, 0),  FIntVector(1, 0, 0),   // 좌우
+		FIntVector(0, -1, 0),  FIntVector(0, 1, 0),   // 상하
+		FIntVector(-1, -1, 0), FIntVector(1, 1, 0),   // 좌하, 우상
+		FIntVector(-1, 1, 0),  FIntVector(1, -1, 0)   // 좌상, 우하
+	};
+
+	for (const FIntVector& Offset : Offsets)
+	{
+		FIntVector NeighborPosition = Position + Offset;
+
+		if (NeighborPosition.X >= 0 && NeighborPosition.X < GridResolution.X &&
+			NeighborPosition.Y >= 0 && NeighborPosition.Y < GridResolution.Y &&
+			NeighborPosition.Z >= 0 && NeighborPosition.Z < GridResolution.Z)
+		{
+			AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPosition, GridResolution));
+		}
+	}
+
+	return AdjacentIndices;
+}
+
+TArray<int32> UWaveFunctionCollapseSubsystem02::GetTwoStepAdjacentIndices(int32 TileIndex, FIntVector GridResolution)
+{
+	TArray<int32> AdjacentIndices;
+
+	FIntVector Position = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, GridResolution);
+
+	// 2칸 거리의 오프셋 설정
+	TArray<FIntVector> Offsets = {
+		FIntVector(0, -2, 0),  FIntVector(0, 2, 0),   // 좌우 2칸
+		FIntVector(-2, 0, 0),  FIntVector(2, 0, 0)    // 상하 2칸
+	};
+
+	for (const FIntVector& Offset : Offsets)
+	{
+		FIntVector NeighborPosition = Position + Offset;
+
+		// 유효한 타일인지 확인
+		if (NeighborPosition.X >= 0 && NeighborPosition.X < GridResolution.X &&
+			NeighborPosition.Y >= 0 && NeighborPosition.Y < GridResolution.Y &&
+			NeighborPosition.Z >= 0 && NeighborPosition.Z < GridResolution.Z)
+		{
+			AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPosition, GridResolution));
+		}
+	}
+
+	return AdjacentIndices;
 }
