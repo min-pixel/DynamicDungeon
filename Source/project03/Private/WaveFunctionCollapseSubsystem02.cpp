@@ -1732,6 +1732,47 @@ int32 UWaveFunctionCollapseSubsystem02::FindClosestCorridor(int32 StartIndex, co
 		}
 	}
 
+	
+	
+	if (ClosestCorridorIndex != -1)
+	{
+		int32 BestCorridorIndex = ClosestCorridorIndex;
+		float ShortestPathLength = FLT_MAX;
+
+		UE_LOG(LogWFC, Display, TEXT("Checking alternative corridors for better path"));
+
+		// 기존에 찾은 복도와 다른 복도들을 비교
+		for (int32 i = 0; i < Tiles.Num(); i++)
+		{
+			if (!Tiles[i].RemainingOptions.IsEmpty() && Tiles[i].RemainingOptions[0].bIsCorridorTile)
+			{
+				FString TilePath = Tiles[i].RemainingOptions[0].BaseObject.ToString();
+
+				
+				if (TilePath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
+					TilePath == TEXT("/Game/BP/testtest.testtest"))
+				{
+					continue;
+				}
+
+				
+				TArray<int32> Path = FindPathAStar(StartIndex, i, -1, Tiles, GridResolution);
+				float PathLength = Path.Num();
+
+				
+				if (PathLength > 0 && PathLength < ShortestPathLength)
+				{
+					
+					ShortestPathLength = PathLength;
+					BestCorridorIndex = i;
+				}
+			}
+		}
+
+		
+		ClosestCorridorIndex = BestCorridorIndex;
+	}
+
 	if (ClosestCorridorIndex == -1)
 	{
 		UE_LOG(LogWFC, Warning, TEXT("No corridor found for Room at index %d"), StartIndex);
@@ -1875,8 +1916,7 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::FindPathAStar(
 
 			bool bIsWalkable = (Tiles[NeighborIndex].RemainingOptions.IsEmpty() ||
 				Tiles[NeighborIndex].RemainingOptions[0].bIsCorridorTile ||
-				Tiles[NeighborIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty")) ||
-				Tiles[NeighborIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/BP/testtest.testtest");
+				Tiles[NeighborIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
 
 			if (bIsWalkable)
 			{
@@ -2002,6 +2042,7 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 				
 
 				TArray<int32> Path = FindPathAStar(RoomIndex, ClosestCorridorIndex, PreviousIndex, Tiles, Resolution);
+				
 
 				if (Path.IsEmpty())
 				{
@@ -2063,7 +2104,7 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(const TArray<int3
 		return;
 	}
 
-
+	// 방 타일 리스트 저장
 	TSet<int32> RoomTiles;
 	for (int32 i = 0; i < Tiles.Num(); i++)
 	{
@@ -2073,7 +2114,7 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(const TArray<int3
 		}
 	}
 
-
+	// 방 내부 확장 (대각선 포함)
 	TSet<int32> ExtendedRoomTiles = RoomTiles;
 	for (int32 RoomIndex : RoomTiles)
 	{
@@ -2087,60 +2128,84 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(const TArray<int3
 		}
 	}
 
-
+	// 경로를 따라 액터를 배치
 	for (int32 i = 1; i < Path.Num(); i++)
 	{
-		int32 PathIndex = Path[i];
+		int32 CurrentIndex = Path[i];
+		int32 PreviousIndex = Path[i - 1];
 
-		if (Tiles.IsValidIndex(PathIndex))
+		if (Tiles.IsValidIndex(CurrentIndex))
 		{
-
-			if (!Tiles[PathIndex].RemainingOptions.IsEmpty() && Tiles[PathIndex].RemainingOptions[0].bIsCorridorTile)
+			// 이미 복도인 경우 건너뜀
+			if (!Tiles[CurrentIndex].RemainingOptions.IsEmpty() && Tiles[CurrentIndex].RemainingOptions[0].bIsCorridorTile)
 			{
-				UE_LOG(LogWFC, Display, TEXT("Skipping modification at index %d (Already Corridor)"), PathIndex);
+				UE_LOG(LogWFC, Display, TEXT("Skipping modification at index %d (Already Corridor)"), CurrentIndex);
 				continue;
 			}
 
+			// 현재 타일이 방 내부인지 확인
+			bool bIsInsideRoom = ExtendedRoomTiles.Contains(CurrentIndex);
 
-			bool bIsInsideRoom = ExtendedRoomTiles.Contains(PathIndex);
-
-			FWaveFunctionCollapseOptionCustom TileOption = bIsInsideRoom
-				? FWaveFunctionCollapseOptionCustom(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty")) // 내부는 Empty
-				: FWaveFunctionCollapseOptionCustom(TEXT("/Game/BP/testtest1.testtest1")); // 복도 타일 적용
-
-			// 기존 옵션 제거 후 새로운 옵션 적용
-			Tiles[PathIndex].RemainingOptions.Empty();
-			Tiles[PathIndex].RemainingOptions.Add(TileOption);
-			Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
-				Tiles[PathIndex].RemainingOptions, WFCModel);
-
-			UE_LOG(LogWFC, Display, TEXT("Filled path at index %d with %s"), PathIndex, *TileOption.BaseObject.ToString());
-
-
+			// 방향을 판별하여 액터 선택
+			FString SelectedTilePath;
 			if (bIsInsideRoom)
 			{
-				UE_LOG(LogWFC, Display, TEXT("Skipping actor spawn at index %d (Inside Room)"), PathIndex);
-				continue;
+				SelectedTilePath = TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"); // 방 내부는 빈 타일 유지
 			}
-
-
-			UWorld* World = GetWorld();
-			if (World)
+			else
 			{
-				FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(PathIndex, Resolution)) * WFCModel->TileSize;
-				FRotator TileRotation = TileOption.BaseRotator;
-				FVector TileScale = TileOption.BaseScale3D;
+				// 현재 타일과 이전 타일의 위치 비교
+				FIntVector CurrentPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(CurrentIndex, Resolution);
+				FIntVector PreviousPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(PreviousIndex, Resolution);
 
-				FTransform SpawnTransform = FTransform(TileRotation, TilePosition, TileScale);
-				AActor* SpawnedCorridorActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
-
-				if (SpawnedCorridorActor)
+				if (CurrentPos.X != PreviousPos.X)  // 가로 방향
 				{
-					UE_LOG(LogWFC, Display, TEXT("Spawned %s for path at index %d"), *TilePosition.ToString(), PathIndex);
+					SelectedTilePath = TEXT("/Game/BP/t01.t01");  // B 액터 (세로 방향)
+				}
+				else if (CurrentPos.Y != PreviousPos.Y) // 세로 방향
+				{
+					SelectedTilePath = TEXT("/Game/BP/t01-01.t01-01");  // C 액터 (가로 방향)
 				}
 				else
 				{
-					UE_LOG(LogWFC, Error, TEXT("Failed to spawn actor at index %d"), PathIndex);
+					SelectedTilePath = TEXT("/Game/BP/testtest1"); // 기본 복도 액터
+				}
+			}
+
+			// 타일 데이터 갱신
+			Tiles[CurrentIndex].RemainingOptions.Empty();
+			FWaveFunctionCollapseOptionCustom NewOption(SelectedTilePath);
+			Tiles[CurrentIndex].RemainingOptions.Add(NewOption);
+			Tiles[CurrentIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+				Tiles[CurrentIndex].RemainingOptions, WFCModel);
+
+			UE_LOG(LogWFC, Display, TEXT("Filled path at index %d with %s"), CurrentIndex, *SelectedTilePath);
+
+			// 방 내부인 경우 액터 스폰 X (옵션만 변경)
+			if (bIsInsideRoom)
+			{
+				UE_LOG(LogWFC, Display, TEXT("Skipping actor spawn at index %d (Inside Room)"), CurrentIndex);
+				continue;
+			}
+
+			// 액터 스폰
+			UWorld* World = GetWorld();
+			if (World)
+			{
+				FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(CurrentIndex, Resolution)) * WFCModel->TileSize;
+				FRotator TileRotation = NewOption.BaseRotator;
+				FVector TileScale = NewOption.BaseScale3D;
+
+				FTransform SpawnTransform = FTransform(TileRotation, TilePosition, TileScale);
+				AActor* SpawnedActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
+
+				if (SpawnedActor)
+				{
+					UE_LOG(LogWFC, Display, TEXT("Spawned %s for path at index %d"), *TilePosition.ToString(), CurrentIndex);
+				}
+				else
+				{
+					UE_LOG(LogWFC, Error, TEXT("Failed to spawn actor at index %d"), CurrentIndex);
 				}
 			}
 		}
@@ -2265,3 +2330,5 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::GetTwoStepAdjacentIndices(int32 
 
 	return AdjacentIndices;
 }
+
+
