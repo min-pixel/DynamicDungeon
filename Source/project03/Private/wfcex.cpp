@@ -17,15 +17,15 @@ Awfcex::Awfcex()
 
 }
 
-// Called when the game starts or when spawned
+
 void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
-	ExecuteWFCInSubsystem(90, 1967664897); //테스트용 시드 1967664897, 1094396673, 1172835073
+	ExecuteWFCInSubsystem(90, 1967664897); //테스트용 시드 1967664897, 1094396673, 1172835073, 1382874881
     SpawnPlayerOnCorridor();
 }
 
-// Called every frame
+
 void Awfcex::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
