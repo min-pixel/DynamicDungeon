@@ -2269,6 +2269,7 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 			{
 				UE_LOG(LogWFC, Display, TEXT("Spawned %s for path at index %d"), *SelectedTilePath, CurrentIndex);
 
+
 				////모든 경로(Path)에 있는 타일을 타일맵(Tiles)에 반영
 				//for (int32 PathIndex = 0; PathIndex < Path.Num(); PathIndex++) // PathIndex로 변경
 				//{
