@@ -2100,6 +2100,8 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 	const TArray<int32>& Path, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
+
+
 	if (Path.Num() <= 1)
 	{
 		return;
@@ -2251,6 +2253,7 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 
 		UE_LOG(LogWFC, Display, TEXT("Filled path at index %d with %s"), CurrentIndex, *SelectedTilePath);
 
+
 		// 액터 스폰
 		UWorld* World = GetWorld();
 		if (World)
@@ -2265,6 +2268,153 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 			if (SpawnedActor)
 			{
 				UE_LOG(LogWFC, Display, TEXT("Spawned %s for path at index %d"), *SelectedTilePath, CurrentIndex);
+
+				////모든 경로(Path)에 있는 타일을 타일맵(Tiles)에 반영
+				//for (int32 PathIndex = 0; PathIndex < Path.Num(); PathIndex++) // PathIndex로 변경
+				//{
+				//	int32 TileIndex = Path[PathIndex]; // 경로의 각 타일 인덱스
+
+				//	if (!Tiles.IsValidIndex(TileIndex))
+				//	{
+				//		continue;
+				//	}
+
+				//	//현재 타일이 "Option_Empty"인지 확인
+				//	if (Tiles[TileIndex].RemainingOptions.Num() > 0 &&
+				//		Tiles[TileIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"))
+				//	{
+				//		UE_LOG(LogWFC, Display, TEXT("Skipping empty tile at index %d"), TileIndex);
+				//		continue; //"Option_Empty" 타일이면 반영하지 않음
+				//	}
+
+				//	//선택된 복도 타일로 설정
+				//	Tiles[TileIndex].RemainingOptions.Empty();
+				//	Tiles[TileIndex].RemainingOptions.Add(NewOption);
+				//	Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+				//		Tiles[TileIndex].RemainingOptions, WFCModel);
+
+				//	UE_LOG(LogWFC, Display, TEXT("경로 타일 반영: Index %d"), TileIndex);
+
+				//	//주변 타일도 연결 업데이트
+				//	TArray<int32> AdjacentIndices = GetAllAdjacentIndices(TileIndex, Resolution);
+				//	for (int32 AdjIndex : AdjacentIndices)
+				//	{
+				//		if (!Tiles.IsValidIndex(AdjIndex))
+				//		{
+				//			continue;
+				//		}
+
+				//		//"Option_Empty" 타일은 반영하지 않음
+				//		if (Tiles[AdjIndex].RemainingOptions.Num() > 0 &&
+				//			Tiles[AdjIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"))
+				//		{
+				//			UE_LOG(LogWFC, Display, TEXT("Skipping empty adjacent tile at index %d"), AdjIndex);
+				//			continue;
+				//		}
+
+				//		if (Tiles[AdjIndex].RemainingOptions.IsEmpty())
+				//		{
+				//			Tiles[AdjIndex].RemainingOptions = Tiles[TileIndex].RemainingOptions;
+				//		}
+				//		else
+				//		{
+				//			for (const FWaveFunctionCollapseOptionCustom& Option : Tiles[TileIndex].RemainingOptions)
+				//			{
+				//				if (!Tiles[AdjIndex].RemainingOptions.Contains(Option))
+				//				{
+				//					Tiles[AdjIndex].RemainingOptions.Add(Option);
+				//				}
+				//			}
+				//		}
+
+				//		// 엔트로피 갱신
+				//		Tiles[AdjIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+				//			Tiles[AdjIndex].RemainingOptions, WFCModel);
+				//	}
+				//}
+
+
+
+
+				// 목표 지점 타일 보정 (마지막 타일)
+				int32 TargetIndex = Path.Last(); // 목표 지점 인덱스 가져오기
+
+				
+
+				if (Tiles.IsValidIndex(TargetIndex))
+				{
+					UE_LOG(LogWFC, Display, TEXT("aaaaaaaa: Index %d"), TargetIndex);
+
+					UE_LOG(LogWFC, Display, TEXT("qqqqq: Index %d"), TargetIndex);
+
+					//기존 옵션 확인
+					UE_LOG(LogWFC, Display, TEXT("wwwwww: %d"), Tiles[TargetIndex].RemainingOptions.Num());
+
+					//강제 초기화: 기존 옵션 삭제
+					Tiles[TargetIndex].RemainingOptions.Empty();
+
+					//초기화 후 옵션 개수 확인
+					UE_LOG(LogWFC, Display, TEXT("eeeeeee: %d"), Tiles[TargetIndex].RemainingOptions.Num());
+
+					//주변 타일과 연결된 유효한 타일 찾기
+					TArray<int32> AdjacentIndices = GetAllAdjacentIndices(TargetIndex, Resolution);
+					TArray<FWaveFunctionCollapseOptionCustom> ValidOptions;
+
+					for (const int32 AdjIndex : AdjacentIndices)
+					{
+						if (!Tiles.IsValidIndex(AdjIndex) || Tiles[AdjIndex].RemainingOptions.IsEmpty())
+						{
+							continue;
+						}
+
+						for (const FWaveFunctionCollapseOptionCustom& AdjacentOption : Tiles[AdjIndex].RemainingOptions)
+						{
+							if (!ValidOptions.Contains(AdjacentOption))
+							{
+								ValidOptions.Add(AdjacentOption);
+							}
+						}
+					}
+
+					//`ValidOptions`가 비어 있는지 확인
+					UE_LOG(LogWFC, Display, TEXT("ValidOptions GGGG: %d"), ValidOptions.Num());
+
+					//강제 리셋 후에도 옵션이 없으면 새롭게 결정
+					if (ValidOptions.Num() != 0)
+					{
+						//유효한 옵션이 없을 경우, 초기 타일을 새롭게 생성
+						Tiles[TargetIndex] = UWaveFunctionCollapseBPLibrary02::BuildInitialTile(WFCModel);
+
+						// BuildInitialTile 실행 후 옵션 개수 확인
+						UE_LOG(LogWFC, Display, TEXT("BuildInitialTile opopopp: %d"), Tiles[TargetIndex].RemainingOptions.Num());
+
+						if (Tiles[TargetIndex].RemainingOptions.IsEmpty() ||
+							(Tiles[TargetIndex].RemainingOptions.Num() == 1 &&
+								Tiles[TargetIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty")))
+						{
+							UE_LOG(LogWFC, Error, TEXT("BuildInitialTile NO -> You Failed"));
+						}
+
+						UE_LOG(LogWFC, Display, TEXT("ccccccc: Index %d"), TargetIndex);
+					}
+					else
+					{
+						//유효한 옵션이 있다면 해당 옵션을 적용
+						Tiles[TargetIndex].RemainingOptions = ValidOptions;
+						UE_LOG(LogWFC, Display, TEXT("rtcrtcrtc: Index %d"), TargetIndex);
+					}
+
+					//엔트로피 갱신 (타일 정보 변경 시 필수)
+					Tiles[TargetIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+						Tiles[TargetIndex].RemainingOptions, WFCModel);
+
+					//도착 지점만 WFC 실행하여 새롭게 결정
+					TArray<int32> RemainingTiles = { TargetIndex }; // 도착 지점만 다시 처리
+					TMap<int32, FWaveFunctionCollapseQueueElementCustom> ObservationQueue;
+					ObservationPropagation(Tiles, RemainingTiles, ObservationQueue, 0);
+
+					UE_LOG(LogWFC, Display, TEXT("bbbbbbbb: Index %d"), TargetIndex);
+				}
 			}
 			else
 			{
@@ -2364,6 +2514,36 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::GetAllAdjacentIndices(int32 Tile
 
 	return AdjacentIndices;
 }
+
+TArray<int32> UWaveFunctionCollapseSubsystem02::GetAllAdjacentIndices02(int32 TileIndex, FIntVector GridResolution)
+{
+	TArray<int32> AdjacentIndices;
+
+	FIntVector Position = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, GridResolution);
+
+	// 8방향 오프셋 (상, 하, 좌, 우 + 대각선 4방향)
+	TArray<FIntVector> Offsets = {
+		FIntVector(-1, 0, 0),  FIntVector(1, 0, 0),   // 좌우
+		FIntVector(0, -1, 0),  FIntVector(0, 1, 0),   // 상하
+		FIntVector(-1, -1, 0), FIntVector(1, 1, 0),   // 좌하, 우상
+		FIntVector(-1, 1, 0),  FIntVector(1, -1, 0)   // 좌상, 우하
+	};
+
+	for (const FIntVector& Offset : Offsets)
+	{
+		FIntVector NeighborPosition = Position + Offset;
+
+		if (NeighborPosition.X >= 0 && NeighborPosition.X < GridResolution.X &&
+			NeighborPosition.Y >= 0 && NeighborPosition.Y < GridResolution.Y &&
+			NeighborPosition.Z >= 0 && NeighborPosition.Z < GridResolution.Z)
+		{
+			AdjacentIndices.Add(UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPosition, GridResolution));
+		}
+	}
+
+	return AdjacentIndices;
+}
+
 
 TArray<int32> UWaveFunctionCollapseSubsystem02::GetTwoStepAdjacentIndices(int32 TileIndex, FIntVector GridResolution)
 {
