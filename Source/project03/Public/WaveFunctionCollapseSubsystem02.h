@@ -88,8 +88,8 @@ public:
 	TArray<int32>GetAllAdjacentIndices(int32 TileIndex, FIntVector GridResolution);
 
 	TArray<int32>GetTwoStepAdjacentIndices(int32 TileIndex, FIntVector GridResolution);
-
-	TArray<int32> GetAllAdjacentIndices02(int32 TileIndex, FIntVector GridResolution);
+	void ReplaceGoalTileWithCustomTile(
+		int32 GoalTileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 	
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
