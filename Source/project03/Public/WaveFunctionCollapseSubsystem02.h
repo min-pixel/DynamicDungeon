@@ -91,6 +91,13 @@ public:
 	void ReplaceGoalTileWithCustomTile(
 		int32 GoalTileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 	
+	void PlaceGoalTileInFrontOfRoom(
+		int32 RoomTileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	void RemoveIsolatedTestTiles(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	bool IsIsolatedTile(int32 TileIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
 	* @param TryCount Amount of times to attempt a successful solve

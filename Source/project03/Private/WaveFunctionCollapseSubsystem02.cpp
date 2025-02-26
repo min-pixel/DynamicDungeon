@@ -108,7 +108,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 							break;
 						}
 					}
-
+					
 
 					// 겹치는 경우 해당 방 타일만 제거하고 다른 타일 유지
 					if (bOverlapsOtherRoomTile)
@@ -117,15 +117,40 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 							*RoomTilePosition.ToString());
 
 						// 대체 타일 설정
-						FWaveFunctionCollapseOptionCustom AlternativeTileOption(TEXT("/Game/BP/testtest.testtest")); // 대체 타일 경로
+						FWaveFunctionCollapseOptionCustom AlternativeTileOption(TEXT("/Game/BP/goalt01.goalt01")); // 대체 타일 경로
 						Tiles[TileIndex].RemainingOptions.Empty();
 						Tiles[TileIndex].RemainingOptions.Add(AlternativeTileOption);
+
+
 
 						// ShannonEntropy 재계산
 						Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
 							Tiles[TileIndex].RemainingOptions,
 							WFCModel
 						);
+
+						// **여기서 goalt01 타일이 고립되었는지 검사!**
+						if (IsIsolatedTile(TileIndex, Tiles))  // 함수로 고립 체크
+						{
+							UE_LOG(LogWFC, Display, TEXT("Isolated goalt01 tile at (%s), replacing or removing."), *RoomTilePosition.ToString());
+
+							// 삭제할 경우
+							 /*Tiles[TileIndex].RemainingOptions.Empty();
+							 Tiles[TileIndex].ShannonEntropy = 0.0f; */
+
+							// 다른 타일로 대체할 경우 (예: /Game/WFCCORE/wfc/SpecialOption/Option_Empty 타일)
+							FWaveFunctionCollapseOptionCustom ReplacementTile(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"));
+							Tiles[TileIndex].RemainingOptions.Empty();
+							Tiles[TileIndex].RemainingOptions.Add(ReplacementTile);
+
+							// ShannonEntropy 다시 계산
+							Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+								Tiles[TileIndex].RemainingOptions,
+								WFCModel
+							);
+						}
+
+
 
 						continue; // 다음 타일로 이동
 					}
@@ -168,6 +193,11 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					ConnectIsolatedRooms(Tiles);
 
 					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
+
+					// 방 타일 앞에 goalt01을 배치하는 함수 실행
+					PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
+
+					
 				}
 			}
 		}
@@ -1524,7 +1554,7 @@ void UWaveFunctionCollapseSubsystem02::AdjustRoomTileBasedOnCorridors(int32 Tile
 		FString(TEXT("/Game/BP/t03-back_B")),
 		FString(TEXT("/Game/BP/t03-back_L")),
 		FString(TEXT("/Game/BP/t03-back_R")),
-		FString(TEXT("/Game/BP/testtest")),
+		FString(TEXT("/Game/BP/goalt01")),
 		FString(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"))
 	};
 
@@ -1633,6 +1663,43 @@ void UWaveFunctionCollapseSubsystem02::AdjustRoomTileBasedOnCorridors(int32 Tile
 	UE_LOG(LogWFC, Verbose, TEXT("Rotating room tile at (%d, %d, %d) to best direction: %s."),
 		TilePosition.X, TilePosition.Y, TilePosition.Z, *BestDirection);
 	RotateRoomTile(RoomTileOption, BestDirection);
+
+	//// 방 타일이 회전한 후, 문이 있는 방향의 위치에 "goalt01" 배치
+	//FIntVector GoalTilePosition = TilePosition;
+
+	//if (RoomTileOption.bHasDoorNorth)
+	//{
+	//	GoalTilePosition.X += 2; // 북쪽으로 한 칸 띄운 위치
+	//}
+	//else if (RoomTileOption.bHasDoorSouth)
+	//{
+	//	GoalTilePosition.X -= 2; // 남쪽으로 한 칸 띄운 위치
+	//}
+	//else if (RoomTileOption.bHasDoorEast)
+	//{
+	//	GoalTilePosition.Y += 2; // 동쪽으로 한 칸 띄운 위치
+	//}
+	//else if (RoomTileOption.bHasDoorWest)
+	//{
+	//	GoalTilePosition.Y -= 2; // 서쪽으로 한 칸 띄운 위치
+	//}
+
+	//// 해당 위치가 유효한지 확인
+	//int32 GoalTileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(GoalTilePosition, Resolution);
+	//if (Tiles.IsValidIndex(GoalTileIndex) && !Tiles[GoalTileIndex].RemainingOptions.IsEmpty())
+	//{
+	//	UE_LOG(LogWFC, Display, TEXT("Replacing tile at (%d, %d, %d) with goalt01"),
+	//		GoalTilePosition.X, GoalTilePosition.Y, GoalTilePosition.Z);
+
+	//	// 기존 옵션을 제거하고 goalt01을 추가
+	//	Tiles[GoalTileIndex].RemainingOptions.Empty();
+	//	FWaveFunctionCollapseOptionCustom GoalTileOption(TEXT("/Game/BP/goalt01.goalt01"));
+	//	Tiles[GoalTileIndex].RemainingOptions.Add(GoalTileOption);
+
+	//	// 새로운 타일의 ShannonEntropy 업데이트
+	//	Tiles[GoalTileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+	//		Tiles[GoalTileIndex].RemainingOptions, WFCModel);
+	//}
 }
 
 
@@ -1717,7 +1784,7 @@ int32 UWaveFunctionCollapseSubsystem02::FindClosestCorridor(int32 StartIndex, co
 
 				// 기존: 복도 타일만 탐색 → 수정: 옵션 엠티 타일도 포함
 				if (TileOption.bIsCorridorTile && ( TileOption.BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") || 
-					TileOption.BaseObject.ToString() == TEXT("/Game/BP/testtest.testtest")))
+					TileOption.BaseObject.ToString() == TEXT("/Game/BP/goalt01.goalt01")))
 				{
 					FIntVector CorridorPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(i, GridResolution);
 					float Distance = FMath::Abs(StartPos.X - CorridorPos.X) + FMath::Abs(StartPos.Y - CorridorPos.Y);
@@ -1750,7 +1817,7 @@ int32 UWaveFunctionCollapseSubsystem02::FindClosestCorridor(int32 StartIndex, co
 
 				
 				if (TilePath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
-					TilePath == TEXT("/Game/BP/testtest.testtest"))
+					TilePath == TEXT("/Game/BP/goalt01.goalt01"))
 				{
 					continue;
 				}
@@ -1968,7 +2035,7 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 			if (Tiles.IsValidIndex(AdjacentIndex) && !Tiles[AdjacentIndex].RemainingOptions.IsEmpty())
 			{
 
-				if (Tiles[AdjacentIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/BP/testtest.testtest"))
+				if (Tiles[AdjacentIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/BP/goalt01.goalt01"))
 				{
 					continue;
 				}
@@ -2413,11 +2480,11 @@ void UWaveFunctionCollapseSubsystem02::ReplaceGoalTileWithCustomTile(
 	const FWaveFunctionCollapseOptionCustom& CurrentOption = Tiles[GoalTileIndex].RemainingOptions[0];
 	FString CurrentTilePath = CurrentOption.BaseObject.ToString();
 
-	if (CurrentTilePath != TEXT("/Game/BP/t01.t01") && CurrentTilePath != TEXT("/Game/BP/t01-01.t01-01"))
+	/*if (CurrentTilePath != TEXT("/Game/BP/t01.t01") && CurrentTilePath != TEXT("/Game/BP/t01-01.t01-01"))
 	{
 		UE_LOG(LogWFC, Warning, TEXT("Goal Tile is not a corridor tile: %s"), *CurrentTilePath);
 		return;
-	}
+	}*/
 
 	// 목표 타일을 'goalt01' 타일로 변경
 	FString GoalTilePath = TEXT("/Game/BP/goalt01.goalt01"); // t01과 동일한 경로
@@ -2428,4 +2495,114 @@ void UWaveFunctionCollapseSubsystem02::ReplaceGoalTileWithCustomTile(
 		Tiles[GoalTileIndex].RemainingOptions, WFCModel);
 
 	UE_LOG(LogWFC, Display, TEXT("Replaced Goal Tile at index %d with %s"), GoalTileIndex, *GoalTilePath);
+}
+
+void UWaveFunctionCollapseSubsystem02::PlaceGoalTileInFrontOfRoom(
+	int32 RoomTileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+{
+	if (!Tiles.IsValidIndex(RoomTileIndex) || Tiles[RoomTileIndex].RemainingOptions.Num() != 1)
+	{
+		return;
+	}
+
+	const FWaveFunctionCollapseOptionCustom& RoomTileOption = Tiles[RoomTileIndex].RemainingOptions[0];
+
+	// 방 타일인지 확인
+	if (!RoomTileOption.bIsRoomTile)
+	{
+		return;
+	}
+
+	// 방 타일의 위치
+	FIntVector RoomTilePosition = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(RoomTileIndex, Resolution);
+
+	// 문이 있는 방향을 확인하고, 해당 방향 앞에 goal 타일 배치
+	TArray<FIntVector> DoorOffsets;
+	if (RoomTileOption.bHasDoorNorth) DoorOffsets.Add(FIntVector(2, 0, 0));
+	if (RoomTileOption.bHasDoorSouth) DoorOffsets.Add(FIntVector(-2, 0, 0));
+	if (RoomTileOption.bHasDoorEast) DoorOffsets.Add(FIntVector(0, 2, 0));
+	if (RoomTileOption.bHasDoorWest) DoorOffsets.Add(FIntVector(0, -2, 0));
+
+	for (const FIntVector& Offset : DoorOffsets)
+	{
+		FIntVector GoalTilePosition = RoomTilePosition + Offset;
+		int32 GoalTileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(GoalTilePosition, Resolution);
+
+		if (Tiles.IsValidIndex(GoalTileIndex) && !Tiles[GoalTileIndex].RemainingOptions.IsEmpty())
+		{
+			UE_LOG(LogWFC, Display, TEXT("Placing goalt01 at (%d, %d, %d) in front of room tile at (%d, %d, %d)"),
+				GoalTilePosition.X, GoalTilePosition.Y, GoalTilePosition.Z,
+				RoomTilePosition.X, RoomTilePosition.Y, RoomTilePosition.Z);
+
+			// 기존 옵션 제거 후 goalt01 배치
+			Tiles[GoalTileIndex].RemainingOptions.Empty();
+			FWaveFunctionCollapseOptionCustom GoalTileOption(TEXT("/Game/BP/goalt01.goalt01"));
+			Tiles[GoalTileIndex].RemainingOptions.Add(GoalTileOption);
+
+			// ShannonEntropy 업데이트
+			Tiles[GoalTileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+				Tiles[GoalTileIndex].RemainingOptions, WFCModel);
+		}
+	}
+}
+
+bool UWaveFunctionCollapseSubsystem02::IsIsolatedTile(int32 TileIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+{
+	// 타일이 유효한지 확인
+	if (!Tiles.IsValidIndex(TileIndex) || Tiles[TileIndex].RemainingOptions.Num() == 0)
+	{
+		return false; // 잘못된 타일이거나 RemainingOptions이 없는 경우 고립이 아님
+	}
+
+	// **현재 타일이 goalt01인지 확인**
+	auto IsGoalTile = [](const FWaveFunctionCollapseTileCustom& Tile) -> bool
+		{
+			for (const FWaveFunctionCollapseOptionCustom& Option : Tile.RemainingOptions)
+			{
+				if (Option.BaseObject.ToString().Contains(TEXT("goalt01"))) // goalt01이면 true
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+
+	// 현재 타일이 goalt01이 아니면 검사할 필요 없음
+	if (!IsGoalTile(Tiles[TileIndex]))
+	{
+		return false;
+	}
+
+
+	// **복도 타일 여부 검사 함수**
+	auto IsCorridorTile = [](const FWaveFunctionCollapseTileCustom& Tile) -> bool
+		{
+			for (const FWaveFunctionCollapseOptionCustom& Option : Tile.RemainingOptions)
+			{
+				if (Option.bIsCorridorTile) // 옵션 중 하나라도 복도 타일이면 true
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+
+	//현재 타일이 복도인지 확인
+	if (!IsCorridorTile(Tiles[TileIndex]))
+	{
+		return false; // 복도 타일이 아니면 검사할 필요 없음
+	}
+
+	//4방향 인접 타일 확인 (상하좌우)
+	TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(TileIndex, Resolution);
+	for (int32 AdjIndex : AdjacentIndices)
+	{
+		if (Tiles.IsValidIndex(AdjIndex) && IsCorridorTile(Tiles[AdjIndex]))
+		{
+			return false; // 인접 타일 중 하나라도 복도라면 고립되지 않음
+		}
+	}
+
+	// 모든 인접 타일이 복도가 아니라면 고립된 타일!
+	return true;
 }
