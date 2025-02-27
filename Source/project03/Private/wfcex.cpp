@@ -21,7 +21,7 @@ Awfcex::Awfcex()
 void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
-	ExecuteWFCInSubsystem(90, 1094396673); //테스트용 시드 1967664897, 1094396673, 1172835073, 1382874881
+	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 1172835073, 1382874881
     SpawnPlayerOnCorridor();
 }
 
@@ -121,63 +121,56 @@ void Awfcex::SpawnPlayerOnCorridor()
 void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
 {
     UWorld* World = GetWorld();
-    if (World && PlayerClass)
+    if (World)
     {
-        // Z축 살짝 올려서 위치 조정
-        FVector AdjustedLocation = Location + FVector(0.0f, 0.0f, 50.0f); // 바닥과 충돌 방지
+        //**C++ 캐릭터 직접 설정 (기본 C++ 클래스)**
+        if (!PlayerClass)
+        {
+            PlayerClass = AMyDCharacter::StaticClass();
+        }
+
+        // Z축 살짝 올려서 바닥과 충돌 방지
+        FVector AdjustedLocation = Location + FVector(0.0f, 0.0f, 50.0f);
 
         // 플레이어 스폰
         FActorSpawnParameters SpawnParams;
-        AActor* SpawnedPlayer = World->SpawnActor<AActor>(PlayerClass, AdjustedLocation, FRotator::ZeroRotator, SpawnParams);
+        AMyDCharacter* SpawnedPlayer = World->SpawnActor<AMyDCharacter>(PlayerClass, AdjustedLocation, FRotator::ZeroRotator, SpawnParams);
 
         if (SpawnedPlayer)
         {
+            UE_LOG(LogTemp, Log, TEXT("Spawned AMyDCharacter at location: %s"), *AdjustedLocation.ToString());
 
-            // 플레이어 컨트롤러에 스폰된 캐릭터를 연결
+            //컨트롤러 확인
             APlayerController* PlayerController = World->GetFirstPlayerController();
             if (PlayerController)
             {
-                PlayerController->Possess(Cast<APawn>(SpawnedPlayer));
-            }
+                UE_LOG(LogTemp, Log, TEXT("Found PlayerController: %s"), *PlayerController->GetName());
 
-            UE_LOG(LogTemp, Log, TEXT("Player successfully spawned at location: %s"), *AdjustedLocation.ToString());
+                //강제로 Possess 시도
+                PlayerController->Possess(SpawnedPlayer);
+
+                //Possession 성공 여부 확인
+                if (SpawnedPlayer->GetController() == PlayerController)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Player successfully possessed by controller."));
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("Possession failed!"));
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("No PlayerController found!"));
+            }
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("Failed to spawn player at location: %s"), *AdjustedLocation.ToString());
+            UE_LOG(LogTemp, Error, TEXT("Failed to spawn AMyDCharacter at location: %s"), *AdjustedLocation.ToString());
         }
     }
     else
     {
-        if (!PlayerClass)
-        {
-            UE_LOG(LogTemp, Error, TEXT("PlayerClass is not set."));
-        }
-        if (!World)
-        {
-            UE_LOG(LogTemp, Error, TEXT("World is not available."));
-        }
-    }
-}
-
-void Awfcex::UpdatePlayerStartLocation(const FVector& NewLocation)
-{
-    // 월드에서 PlayerStart 액터 검색
-    APlayerStart* PlayerStart = nullptr;
-    for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
-    {
-        PlayerStart = *It;
-        break; // 첫 번째 PlayerStart만 사용
-    }
-
-    if (PlayerStart)
-    {
-        // PlayerStart의 위치를 복도 타일 위치로 이동
-        PlayerStart->SetActorLocation(NewLocation);
-        UE_LOG(LogTemp, Log, TEXT("PlayerStart location updated to: %s"), *NewLocation.ToString());
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("No PlayerStart found in the level."));
+        UE_LOG(LogTemp, Error, TEXT("World is not available."));
     }
 }

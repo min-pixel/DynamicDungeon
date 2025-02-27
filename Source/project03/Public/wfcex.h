@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "WaveFunctionCollapseSubsystem02.h"
+#include "MyDCharacter.h"
 #include "wfcex.generated.h"
 
 UCLASS()
@@ -38,9 +39,7 @@ public:
 	UWaveFunctionCollapseSubsystem02* GetWFCSubsystem();
 
 	// 플레이어 클래스
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<AActor> PlayerClass;
-
-	void UpdatePlayerStartLocation(const FVector& NewLocation);
+	UPROPERTY(EditAnywhere, Category = "Player")
+	TSubclassOf<AMyDCharacter> PlayerClass;
 
 };
