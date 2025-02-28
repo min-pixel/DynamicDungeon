@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Animation/AnimInstance.h"  // 애니메이션 인스턴스 관련 클래스 추가
 #include "MyDCharacter.generated.h"
 
 UCLASS()

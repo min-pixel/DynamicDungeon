@@ -4,6 +4,7 @@
 #include "DynamicDungeonModeBase.h"
 #include "MyDCharacter.h"
 
+
 ADynamicDungeonModeBase::ADynamicDungeonModeBase() {
 	//C++ 클래스는 StaticClass() 사용 (블루프린트가 아니므로 경로 찾기 불필요)
 	DefaultPawnClass = AMyDCharacter::StaticClass();
