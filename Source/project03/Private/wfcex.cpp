@@ -138,7 +138,7 @@ void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
 
         if (SpawnedPlayer)
         {
-            UE_LOG(LogTemp, Log, TEXT("Spawned AMyDCharacter at location: %s"), *AdjustedLocation.ToString());
+            UE_LOG(LogTemp, Log, TEXT("olmkmknunwn: %s"), *AdjustedLocation.ToString());
 
             //컨트롤러 확인
             APlayerController* PlayerController = World->GetFirstPlayerController();

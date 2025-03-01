@@ -7,6 +7,8 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Animation/AnimInstance.h"  // 애니메이션 인스턴스 관련 클래스 추가
+#include "Components/BoxComponent.h"
+#include "DynamicDungeonInstance.h"
 #include "MyDCharacter.generated.h"
 
 UCLASS()
@@ -42,9 +44,30 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
 	class USpringArmComponent* SpringArm;
 
+	/** 오버랩 감지용 콜리전 박스 */
+	UPROPERTY(VisibleAnywhere, Category = "Interaction")
+	class UBoxComponent* InteractionBox;
 
 	// 이동 입력 함수
 	void MoveForward(float Value);
 	void MoveRight(float Value);
+
+	// 오버랩 이벤트
+	UFUNCTION()
+	void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+		bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	// R키 입력 시 상호작용
+	void StartInteraction();
+	void StopInteraction();
+
+	// 현재 오버랩된 액터
+	UPROPERTY()
+	AActor* OverlappedActor;
 
 };

@@ -7,7 +7,10 @@
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "DynamicDungeonInstance.h"
 #include "Animation/AnimInstance.h"  // 애니메이션 관련 클래스 추가
+#include "Components/BoxComponent.h"  // 콜리전 박스 추가
+#include "Kismet/GameplayStatics.h"
 
 // 기본 생성자
 AMyDCharacter::AMyDCharacter()
@@ -21,6 +24,8 @@ AMyDCharacter::AMyDCharacter()
 
 	bUseControllerRotationYaw = true;
 	GetCharacterMovement()->bOrientRotationToMovement =true;
+
+
 
 	//스프링암(SprintArm) 생성 (메쉬와 카메라를 독립적으로 배치하기 위해)
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -74,7 +79,15 @@ AMyDCharacter::AMyDCharacter()
 	GetCharacterMovement()->BrakingDecelerationWalking = 2048.0f; // 감속 설정
 
 
-	
+	// 상호작용 감지를 위한 박스 콜리전 추가
+	InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
+	InteractionBox->SetupAttachment(RootComponent);
+	InteractionBox->SetBoxExtent(FVector(50.0f, 50.0f, 100.0f)); // 콜리전 크기 설정
+	InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	InteractionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+	InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	InteractionBox->OnComponentBeginOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapBegin);
+	InteractionBox->OnComponentEndOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapEnd);
 
 }
 
@@ -149,7 +162,77 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	//마우스 입력 바인딩 (카메라 회전)
 	PlayerInputComponent->BindAxis("Turn", this, &AMyDCharacter::AddControllerYawInput);  // 좌우 회전
 	PlayerInputComponent->BindAxis("LookUp", this, &AMyDCharacter::AddControllerPitchInput);  // 상하 회전
+	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AMyDCharacter::StartInteraction);
+	PlayerInputComponent->BindAction("Interact", IE_Released, this, &AMyDCharacter::StopInteraction);
 
 }
 
+void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor && OtherActor != this)
+	{
+		OverlappedActor = OtherActor;
+		UE_LOG(LogTemp, Log, TEXT("Overlapped with: %s"), *OtherActor->GetName());
+	}
+}
+
+void AMyDCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (OtherActor == OverlappedActor)
+	{
+		OverlappedActor = nullptr;
+
+		// 오버랩 종료 시 NewGameInstance 변수 초기화
+		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+		if (GameInstance)
+		{
+			GameInstance->itemEAt = false;
+			GameInstance->OpenDoor = false;
+			UE_LOG(LogTemp, Log, TEXT("Overlap Ended - Reset GameInstance variables"));
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("Overlap Ended with: %s"), *OtherActor->GetName());
+	}
+}
+
+
+void AMyDCharacter::StartInteraction()
+{
+	// 게임 인스턴스를 가져옴
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+
+	if (GameInstance)
+	{
+		// R 키를 누르면 두 변수 모두 true
+		GameInstance->itemEAt = true;
+		GameInstance->OpenDoor = true;
+
+		UE_LOG(LogTemp, Log, TEXT("StartInteraction() : itemEAt = true, OpenDoor = true"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartInteraction(): GameInstance not found!"));
+	}
+}
+
+void AMyDCharacter::StopInteraction()
+{
+	// 게임 인스턴스를 가져옴
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+
+	if (GameInstance)
+	{
+		// R 키를 떼면 두 변수 모두 false
+		GameInstance->itemEAt = false;
+		GameInstance->OpenDoor = false;
+
+		UE_LOG(LogTemp, Log, TEXT("StopInteraction(): itemEAt = false, OpenDoor = false"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("StopInteraction(): GameInstance not found!"));
+	}
+}
 

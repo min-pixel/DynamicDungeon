@@ -37,6 +37,10 @@
 		{
 			"Name": "WaveFunctionCollapse",
 			"Enabled": true
+		},
+		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
 		}
 	]
 }
