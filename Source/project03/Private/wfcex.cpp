@@ -21,7 +21,7 @@ Awfcex::Awfcex()
 void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
-	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 1172835073, 1382874881
+	ExecuteWFCInSubsystem(90, 1172835073); //테스트용 시드 1967664897, 1094396673, 1172835073, 1966419713
     SpawnPlayerOnCorridor();
 }
 

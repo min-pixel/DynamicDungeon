@@ -36,5 +36,8 @@ public:
 
     UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Interaction")
     bool OpenDoor; // 문 열기 여부
+
+    UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Interaction")
+    bool WeaponEAt; // 무기 상호작용 여부
 	
 };

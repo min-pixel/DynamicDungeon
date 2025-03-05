@@ -9,6 +9,7 @@
 #include "Animation/AnimInstance.h"  // 애니메이션 인스턴스 관련 클래스 추가
 #include "Components/BoxComponent.h"
 #include "DynamicDungeonInstance.h"
+#include "Weapon.h"
 #include "MyDCharacter.generated.h"
 
 UCLASS()
@@ -30,6 +31,10 @@ public:
 
 	// 입력 바인딩 설정
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	void SetOverlappingWeapon(AWeapon* Weapon) { OverlappingWeapon = Weapon; }
+	AWeapon* GetOverlappingWeapon() const { return OverlappingWeapon; }
+	void PickupWeapon();
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
@@ -69,5 +74,11 @@ private:
 	// 현재 오버랩된 액터
 	UPROPERTY()
 	AActor* OverlappedActor;
+
+	UPROPERTY()
+	AWeapon* OverlappingWeapon;
+
+	UPROPERTY()
+	AWeapon* EquippedWeapon;
 
 };

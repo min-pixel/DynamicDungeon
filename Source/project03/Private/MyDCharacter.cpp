@@ -10,6 +10,7 @@
 #include "DynamicDungeonInstance.h"
 #include "Animation/AnimInstance.h"  // 애니메이션 관련 클래스 추가
 #include "Components/BoxComponent.h"  // 콜리전 박스 추가
+#include "Weapon.h"
 #include "Kismet/GameplayStatics.h"
 
 // 기본 생성자
@@ -164,7 +165,7 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAxis("LookUp", this, &AMyDCharacter::AddControllerPitchInput);  // 상하 회전
 	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AMyDCharacter::StartInteraction);
 	PlayerInputComponent->BindAction("Interact", IE_Released, this, &AMyDCharacter::StopInteraction);
-
+	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AMyDCharacter::PickupWeapon);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -190,6 +191,7 @@ void AMyDCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActo
 		{
 			GameInstance->itemEAt = false;
 			GameInstance->OpenDoor = false;
+			GameInstance->WeaponEAt = false;
 			UE_LOG(LogTemp, Log, TEXT("Overlap Ended - Reset GameInstance variables"));
 		}
 
@@ -208,6 +210,7 @@ void AMyDCharacter::StartInteraction()
 		// R 키를 누르면 두 변수 모두 true
 		GameInstance->itemEAt = true;
 		GameInstance->OpenDoor = true;
+		GameInstance->WeaponEAt = true;
 
 		UE_LOG(LogTemp, Log, TEXT("StartInteraction() : itemEAt = true, OpenDoor = true"));
 	}
@@ -227,12 +230,55 @@ void AMyDCharacter::StopInteraction()
 		// R 키를 떼면 두 변수 모두 false
 		GameInstance->itemEAt = false;
 		GameInstance->OpenDoor = false;
+		GameInstance->WeaponEAt = false;
 
 		UE_LOG(LogTemp, Log, TEXT("StopInteraction(): itemEAt = false, OpenDoor = false"));
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("StopInteraction(): GameInstance not found!"));
+	}
+}
+
+// 무기 줍기 함수 (R 키 입력 시 실행)
+void AMyDCharacter::PickupWeapon()
+{
+	if (OverlappingWeapon)
+	{
+		// 기존 무기가 있다면 버리기 (선택 사항)
+		if (EquippedWeapon)
+		{
+			EquippedWeapon->Destroy();
+		}
+
+		// 새로운 무기 장착
+		EquippedWeapon = OverlappingWeapon;
+		OverlappingWeapon = nullptr;
+
+		// 손 소켓이 있는지 확인
+		if (CharacterMesh->DoesSocketExist(FName("hand_r")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("Socket hand_r exists! Attaching weapon."));
+
+			// 손 소켓 위치 출력
+			FTransform HandSocketTransform = CharacterMesh->GetSocketTransform(FName("hand_r"));
+			UE_LOG(LogTemp, Log, TEXT("Socket Location: %s"), *HandSocketTransform.GetLocation().ToString());
+
+			// 무기 부착
+			FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
+			EquippedWeapon->AttachToComponent(CharacterMesh, AttachRules, FName("hand_r"));
+
+			// 무기 크기 조정
+			EquippedWeapon->SetActorScale3D(FVector(0.25f, 0.25f, 1.0f));
+
+			// 무기 충돌 비활성화 및 숨김 해제
+			EquippedWeapon->SetActorEnableCollision(false);
+			EquippedWeapon->SetActorHiddenInGame(false);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Socket hand_r NOT found!"));
+		}
 	}
 }
 
