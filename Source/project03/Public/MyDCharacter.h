@@ -36,6 +36,32 @@ public:
 	AWeapon* GetOverlappingWeapon() const { return OverlappingWeapon; }
 	void PickupWeapon();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float Health; // 체력
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float MaxHealth; // 최대 체력
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float Agility; // 민첩성 (이동 속도와 연결)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float Knowledge; // 지식 (마나량)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float MaxKnowledge; // 최대 마나량
+
+	/** HUD 위젯 클래스 */
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UUCharacterHUDWidget> HUDWidgetClass;
+
+	/** HUD 위젯 */
+	UPROPERTY()
+	UUCharacterHUDWidget* HUDWidget;
+
+	/** 체력 & 마나 UI 업데이트 */
+	void UpdateHUD();
+
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
 	UPROPERTY(VisibleAnywhere, Category = "Components")

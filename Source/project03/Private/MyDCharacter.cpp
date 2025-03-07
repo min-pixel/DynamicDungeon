@@ -12,6 +12,8 @@
 #include "Components/BoxComponent.h"  // 콜리전 박스 추가
 #include "Weapon.h"
 #include "Kismet/GameplayStatics.h"
+#include "UCharacterHUDWidget.h"
+#include "Blueprint/UserWidget.h"
 
 // 기본 생성자
 AMyDCharacter::AMyDCharacter()
@@ -27,6 +29,12 @@ AMyDCharacter::AMyDCharacter()
 	GetCharacterMovement()->bOrientRotationToMovement =true;
 
 
+	//기본 속성 설정
+	MaxHealth = 100.0f;
+	Health = MaxHealth;
+	Agility = 1.0f; // 기본 민첩성 (이동 속도 배율)
+	MaxKnowledge = 100.0f;
+	Knowledge = MaxKnowledge;
 
 	//스프링암(SprintArm) 생성 (메쉬와 카메라를 독립적으로 배치하기 위해)
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -90,12 +98,27 @@ AMyDCharacter::AMyDCharacter()
 	InteractionBox->OnComponentBeginOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapBegin);
 	InteractionBox->OnComponentEndOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapEnd);
 
+	// HUDWidgetClass를 블루프린트 경로에서 로드
+	static ConstructorHelpers::FClassFinder<UUCharacterHUDWidget> WidgetBPClass(TEXT("/Game/BP/UI/CharacterHUDWidget_BP.CharacterHUDWidget_BP_C"));
+
+	if (WidgetBPClass.Succeeded())
+	{
+		HUDWidgetClass = WidgetBPClass.Class;
+		UE_LOG(LogTemp, Log, TEXT("Successfully loaded CharacterHUDWidget_BP."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load CharacterHUDWidget_BP! Check the path."));
+	}
+
 }
 
 // 게임 시작 시 호출
 void AMyDCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+
 	// 애니메이션 블루프린트 수동 설정
 	UClass* AnimClass = LoadObject<UClass>(nullptr, TEXT("/Game/Characters/Mannequins/Animations/ABP_Manny.ABP_Manny_C"));
 	if (AnimClass)
@@ -106,6 +129,29 @@ void AMyDCharacter::BeginPlay()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to load ABP_Manny via LoadObject"));
+	}
+	// Agility 값에 따라 초기 이동 속도 설정
+	GetCharacterMovement()->MaxWalkSpeed = 600.0f * Agility;
+	
+	
+	if (HUDWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("HUDWidgetClass is valid, attempting to create widget..."));
+
+		HUDWidget = CreateWidget<UUCharacterHUDWidget>(GetWorld(), HUDWidgetClass);
+		if (HUDWidget)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Widget successfully created, adding to viewport..."));
+			HUDWidget->AddToViewport(10);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to create widget!"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is NULL!"));
 	}
 
 }
@@ -282,3 +328,11 @@ void AMyDCharacter::PickupWeapon()
 	}
 }
 
+void AMyDCharacter::UpdateHUD()
+{
+	if (HUDWidget)
+	{
+		HUDWidget->UpdateHealth(Health, MaxHealth);
+		HUDWidget->UpdateMana(Knowledge, MaxKnowledge);
+	}
+}
