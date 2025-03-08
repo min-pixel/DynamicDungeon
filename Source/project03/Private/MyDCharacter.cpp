@@ -131,7 +131,7 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load ABP_Manny via LoadObject"));
 	}
 	// Agility 값에 따라 초기 이동 속도 설정
-	GetCharacterMovement()->MaxWalkSpeed = 600.0f * Agility;
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
 	
 	
 	if (HUDWidgetClass)
@@ -195,6 +195,18 @@ void AMyDCharacter::MoveRight(float Value)
 	}
 }
 
+// 달리기 시작
+void AMyDCharacter::StartSprinting()
+{
+	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed * Agility;
+}
+
+// 달리기 중지
+void AMyDCharacter::StopSprinting()
+{
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
+}
+
 // 입력 바인딩 설정
 void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -206,12 +218,23 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAxis("MoveForward", this, &AMyDCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AMyDCharacter::MoveRight);
 
+	// 달리기 (Shift 키)
+	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &AMyDCharacter::StartSprinting);
+	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &AMyDCharacter::StopSprinting);
+
+	// 점프 입력 바인딩
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &AMyDCharacter::StartJump);
+	PlayerInputComponent->BindAction("Jump", IE_Released, this, &AMyDCharacter::StopJump);
+
+
 	//마우스 입력 바인딩 (카메라 회전)
 	PlayerInputComponent->BindAxis("Turn", this, &AMyDCharacter::AddControllerYawInput);  // 좌우 회전
 	PlayerInputComponent->BindAxis("LookUp", this, &AMyDCharacter::AddControllerPitchInput);  // 상하 회전
 	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AMyDCharacter::StartInteraction);
 	PlayerInputComponent->BindAction("Interact", IE_Released, this, &AMyDCharacter::StopInteraction);
 	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AMyDCharacter::PickupWeapon);
+
+	PlayerInputComponent->BindAction("DropWeapon", IE_Pressed, this, &AMyDCharacter::DropWeapon);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -314,6 +337,13 @@ void AMyDCharacter::PickupWeapon()
 			FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
 			EquippedWeapon->AttachToComponent(CharacterMesh, AttachRules, FName("hand_r"));
 
+			// 무기 중력 및 물리 시뮬레이션 비활성화
+			if (EquippedWeapon->WeaponMesh)
+			{
+				EquippedWeapon->WeaponMesh->SetSimulatePhysics(false);  //물리 비활성화
+				EquippedWeapon->WeaponMesh->SetEnableGravity(false);    //중력 비활성화
+			}
+
 			// 무기 크기 조정
 			EquippedWeapon->SetActorScale3D(FVector(0.25f, 0.25f, 1.0f));
 
@@ -328,6 +358,36 @@ void AMyDCharacter::PickupWeapon()
 	}
 }
 
+// 무기 내려놓기 함수 (G 키)
+void AMyDCharacter::DropWeapon()
+{
+	if (EquippedWeapon)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Dropping weapon: %s"), *EquippedWeapon->GetName());
+
+		// 부착 해제
+		EquippedWeapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+		// 무기 충돌 활성화
+		EquippedWeapon->SetActorEnableCollision(true);
+
+		// 무기 중력 및 물리 시뮬레이션 활성화
+		if (EquippedWeapon->WeaponMesh)
+		{
+			EquippedWeapon->WeaponMesh->SetSimulatePhysics(true);  //물리 활성화
+			EquippedWeapon->WeaponMesh->SetEnableGravity(true);    //중력 활성화
+		}
+
+		// 무기를 캐릭터 앞쪽에 놓기
+		FVector DropLocation = GetActorLocation() + GetActorForwardVector() * 100.0f; // 캐릭터 앞 100cm 위치
+		EquippedWeapon->SetActorLocation(DropLocation);
+
+		// 무기 초기화
+		EquippedWeapon = nullptr;
+	}
+}
+
+
 void AMyDCharacter::UpdateHUD()
 {
 	if (HUDWidget)
@@ -335,4 +395,16 @@ void AMyDCharacter::UpdateHUD()
 		HUDWidget->UpdateHealth(Health, MaxHealth);
 		HUDWidget->UpdateMana(Knowledge, MaxKnowledge);
 	}
+}
+
+// 점프 시작
+void AMyDCharacter::StartJump()
+{
+	Jump();  // ACharacter의 기본 점프 기능 호출
+}
+
+// 점프 멈추기
+void AMyDCharacter::StopJump()
+{
+	StopJumping();  // 점프 멈추는 함수 호출
 }

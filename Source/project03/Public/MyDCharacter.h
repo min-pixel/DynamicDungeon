@@ -35,6 +35,7 @@ public:
 	void SetOverlappingWeapon(AWeapon* Weapon) { OverlappingWeapon = Weapon; }
 	AWeapon* GetOverlappingWeapon() const { return OverlappingWeapon; }
 	void PickupWeapon();
+	void DropWeapon();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float Health; // 체력
@@ -50,6 +51,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float MaxKnowledge; // 최대 마나량
+
+	// 기본 이동 속도
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+	float WalkSpeed = 600.0f;
+
+	// 달리기 속도
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+	float SprintSpeed = 1200.0f;
 
 	/** HUD 위젯 클래스 */
 	UPROPERTY(EditAnywhere, Category = "UI")
@@ -82,6 +91,14 @@ private:
 	// 이동 입력 함수
 	void MoveForward(float Value);
 	void MoveRight(float Value);
+
+	// 달리기 관련 함수
+	void StartSprinting();
+	void StopSprinting();
+
+	// 점프 기능 추가
+	void StartJump();
+	void StopJump();
 
 	// 오버랩 이벤트
 	UFUNCTION()

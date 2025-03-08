@@ -30,6 +30,11 @@ AWeapon::AWeapon()
     CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
     CollisionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     CollisionBox->OnComponentBeginOverlap.AddDynamic(this, &AWeapon::OnOverlapBegin);
+
+    // 물리 적용 (기본 상태)
+    WeaponMesh->SetSimulatePhysics(true);
+    WeaponMesh->SetEnableGravity(true);
+    WeaponMesh->SetMassOverrideInKg(NAME_None, Weight); // 무게 적용
 }
 
 // 게임 시작 시 호출

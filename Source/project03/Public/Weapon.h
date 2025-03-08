@@ -30,6 +30,10 @@ public:
     UPROPERTY(VisibleAnywhere, Category = "Weapon")
     class UBoxComponent* CollisionBox;
 
+    // 무기의 무게(기본값: 100.0)
+        UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    float Weight = 100.0f;
+
     // 플레이어와 오버랩 감지 함수
     UFUNCTION()
     void OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
