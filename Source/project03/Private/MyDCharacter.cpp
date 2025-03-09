@@ -14,6 +14,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "UCharacterHUDWidget.h"
 #include "Blueprint/UserWidget.h"
+#include "Animation/AnimBlueprintGeneratedClass.h"
 
 // 기본 생성자
 AMyDCharacter::AMyDCharacter()
@@ -65,6 +66,17 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Animation Blueprint!"));
 	}
 
+	// 공격 애니메이션 로드
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> AttackAnimObj(TEXT("/Game/BP/character/Retarget/RTA_Stable_Sword_Outward_Slash_Anim_mixamo_com.RTA_Stable_Sword_Outward_Slash_Anim_mixamo_com"));
+	if (AttackAnimObj.Succeeded())
+	{
+		AttackAnimation = AttackAnimObj.Object;
+		UE_LOG(LogTemp, Log, TEXT("Attack Animation (Sequence) Loaded Successfully!"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Attack Animation! Check the path."));
+	}
 
 	//**메쉬 방향 조정 (Z축 90도 회전)**
 	CharacterMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));  // 메쉬 방향만 조정
@@ -235,6 +247,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AMyDCharacter::PickupWeapon);
 
 	PlayerInputComponent->BindAction("DropWeapon", IE_Pressed, this, &AMyDCharacter::DropWeapon);
+
+	// 공격 입력 추가 (마우스 좌클릭)
+	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &AMyDCharacter::PlayAttackAnimation);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -407,4 +422,37 @@ void AMyDCharacter::StartJump()
 void AMyDCharacter::StopJump()
 {
 	StopJumping();  // 점프 멈추는 함수 호출
+}
+
+// 공격 애니메이션 실행
+void AMyDCharacter::PlayAttackAnimation()
+{
+	if (AttackAnimation && CharacterMesh)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Playing Attack Animation!"));
+
+		// 애니메이션 실행
+		CharacterMesh->PlayAnimation(AttackAnimation, false); // false: 한 번만 실행
+
+		// 일정 시간이 지난 후 원래 애니메이션 블루프린트로 되돌리기
+		FTimerHandle TimerHandle;
+		float AttackAnimDuration = AttackAnimation->GetPlayLength(); // 애니메이션 길이 가져오기
+
+		GetWorldTimerManager().SetTimer(TimerHandle, this, &AMyDCharacter::ResetToIdleAnimation, AttackAnimDuration, false);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Attack Animation is NULL or CharacterMesh is missing!"));
+	}
+}
+
+void AMyDCharacter::ResetToIdleAnimation()
+{
+	if (CharacterMesh)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Resetting to Idle Animation..."));
+
+		// 원래 애니메이션 블루프린트로 복구
+		CharacterMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+	}
 }

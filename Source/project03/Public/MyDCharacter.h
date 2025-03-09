@@ -10,6 +10,7 @@
 #include "Components/BoxComponent.h"
 #include "DynamicDungeonInstance.h"
 #include "Weapon.h"
+#include "Animation/AnimSequence.h"
 #include "MyDCharacter.generated.h"
 
 UCLASS()
@@ -68,8 +69,18 @@ public:
 	UPROPERTY()
 	UUCharacterHUDWidget* HUDWidget;
 
+
 	/** 체력 & 마나 UI 업데이트 */
 	void UpdateHUD();
+
+	/** 공격 애니메이션 */
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UAnimSequence* AttackAnimation;
+
+	/** 공격 애니메이션 실행 */
+	void PlayAttackAnimation();
+	//애니메이션 복구
+	void ResetToIdleAnimation();
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
@@ -123,5 +134,4 @@ private:
 
 	UPROPERTY()
 	AWeapon* EquippedWeapon;
-
 };
