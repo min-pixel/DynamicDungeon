@@ -13,6 +13,17 @@
 #include "Animation/AnimSequence.h"
 #include "MyDCharacter.generated.h"
 
+//**여기에 추가!** (클래스 선언 전)
+UENUM(BlueprintType)
+enum class EAttackType : uint8
+{
+	None UMETA(DisplayName = "None"),
+	Unarmed UMETA(DisplayName = "Unarmed Attack"),
+	Weapon UMETA(DisplayName = "Weapon Attack")
+};
+
+
+
 UCLASS()
 class PROJECT03_API AMyDCharacter : public ACharacter
 {
@@ -73,10 +84,6 @@ public:
 	/** 체력 & 마나 UI 업데이트 */
 	void UpdateHUD();
 
-	/** 공격 애니메이션 */
-	UPROPERTY(EditDefaultsOnly, Category = "Animation")
-	UAnimSequence* AttackAnimation;
-
 	/** 공격 애니메이션 실행 */
 	void PlayAttackAnimation();
 	//애니메이션 복구
@@ -134,4 +141,34 @@ private:
 
 	UPROPERTY()
 	AWeapon* EquippedWeapon;
+
+	// 현재 공격 가능한 상태인지 (공격 중이 아닐 때만 새로운 공격 입력 가능)
+	bool bIsAttacking = false;
+
+	// 콤보 가능 여부 (애니메이션 도중 특정 타이밍에만 가능)
+	bool bCanCombo = false;
+
+	// 현재 콤보 인덱스
+	int32 AttackComboIndex = 0;
+
+	// 주먹 공격 애니메이션 배열
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
+	TArray<UAnimSequence*> UnarmedAttackAnimations;
+
+	// 무기 공격 애니메이션 배열
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
+	TArray<UAnimSequence*> WeaponAttackAnimations;
+
+	// 콤보 타이밍을 활성화하는 함수
+	void EnableCombo();
+
+	// 공격 종료 및 초기화 함수
+	void ResetAttack();
+	void ForceResetCombo();
+
+	FTimerHandle TimerHandle_Combo; // 콤보 타이밍 활성화 타이머
+	FTimerHandle TimerHandle_Reset; // 공격 종료 타이머
+
+	FTimerHandle TimerHandle_ForceReset;
+
 };
