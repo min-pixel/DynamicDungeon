@@ -66,34 +66,28 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Animation Blueprint!"));
 	}
 
-	// 주먹 공격 애니메이션 로드 (콤보 시스템 적용)
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> PunchAnim1(TEXT("/Game/BP/character/Retarget/RTA_Punching_Anim_mixamo_com.RTA_Punching_Anim_mixamo_com"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> PunchAnim2(TEXT("/Game/BP/character/Retarget/RTA_Punching__1__Anim_mixamo_com.RTA_Punching__1__Anim_mixamo_com"));
-
-	if (PunchAnim1.Succeeded() && PunchAnim2.Succeeded())
+	// 맨주먹 콤보 공격 몽타주 로드
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> PunchMontage(TEXT("/Game/BP/character/Retarget/RTA_Punching_Anim_mixamo_com_Montage.RTA_Punching_Anim_mixamo_com_Montage"));
+	if (PunchMontage.Succeeded())
 	{
-		UnarmedAttackAnimations.Add(PunchAnim1.Object);
-		UnarmedAttackAnimations.Add(PunchAnim2.Object);
-		UE_LOG(LogTemp, Log, TEXT("Unarmed Attack Animations Loaded Successfully!"));
+		UnarmedAttackMontage = PunchMontage.Object;
+		UE_LOG(LogTemp, Log, TEXT("Unarmed Attack Montage Loaded Successfully!"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to load one or more Unarmed Attack Animations! Check the path."));
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Unarmed Attack Montage!"));
 	}
 
-	// 무기 공격 애니메이션 로드 (콤보 시스템 적용)
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> SwordSlash1(TEXT("/Game/BP/character/Retarget/RTA_Stable_Sword_Outward_Slash_Anim_mixamo_com.RTA_Stable_Sword_Outward_Slash_Anim_mixamo_com"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> SwordSlash2(TEXT("/Game/BP/character/Retarget/RTA_Stable_Sword_Inward_Slash_Anim_mixamo_com.RTA_Stable_Sword_Inward_Slash_Anim_mixamo_com"));
-
-	if (SwordSlash1.Succeeded() && SwordSlash2.Succeeded())
+	// 무기 공격 콤보 몽타주 로드
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> SwordMontage(TEXT("/Game/BP/character/Retarget/RTA_Stable_Sword_Outward_Slash_Anim_mixamo_com_Montage.RTA_Stable_Sword_Outward_Slash_Anim_mixamo_com_Montage"));
+	if (SwordMontage.Succeeded())
 	{
-		WeaponAttackAnimations.Add(SwordSlash1.Object);
-		WeaponAttackAnimations.Add(SwordSlash2.Object);
-		UE_LOG(LogTemp, Log, TEXT("Weapon Attack Animations Loaded Successfully!"));
+		WeaponAttackMontage = SwordMontage.Object;
+		UE_LOG(LogTemp, Log, TEXT("Weapon Attack Montage Loaded Successfully!"));
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to load one or more Weapon Attack Animations! Check the path."));
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Weapon Attack Montage!"));
 	}
 
 	//**메쉬 방향 조정 (Z축 90도 회전)**
@@ -449,76 +443,44 @@ void AMyDCharacter::StopJump()
 	StopJumping();  // 점프 멈추는 함수 호출
 }
 
-// 공격 애니메이션 실행
 void AMyDCharacter::PlayAttackAnimation()
 {
-
-	// 이미 공격 중이면 입력을 무시
 	if (bIsAttacking)
 	{
-		// 콤보가 가능하면 콤보 입력을 받아서 다음 공격 준비
+		// 콤보 입력 가능하면 다음 공격으로 연결
 		if (bCanCombo)
 		{
 			UE_LOG(LogTemp, Log, TEXT("Combo Attack Registered!"));
-			AttackComboIndex++; // 콤보 인덱스 증가
-			bCanCombo = false;  // 콤보 입력 후 다시 false로 설정
+			AttackComboIndex++;
+			bCanCombo = false;
 		}
 		return;
 	}
 
-	// 공격 시작
 	bIsAttacking = true;
-	AttackComboIndex = (AttackComboIndex) % 2; // 0과 1을 반복 (2타 콤보)
 
+	// 공격 타입 결정 (무기 or 맨손)
+	UAnimMontage* SelectedMontage = (EquippedWeapon != nullptr) ? WeaponAttackMontage : UnarmedAttackMontage;
 
-	// 현재 공격 타입 결정 (무기 or 맨손)
-	EAttackType AttackType = (EquippedWeapon != nullptr) ? EAttackType::Weapon : EAttackType::Unarmed;
-	UAnimSequence* SelectedAnimation = nullptr;
-
-	// 애니메이션 선택 (콤보 인덱스 활용)
-	switch (AttackType)
+	if (SelectedMontage && CharacterMesh->GetAnimInstance())
 	{
-	case EAttackType::Weapon:
-		if (!WeaponAttackAnimations.IsEmpty())
-		{
-			SelectedAnimation = WeaponAttackAnimations[AttackComboIndex % WeaponAttackAnimations.Num()];
-		}
-		break;
+		UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage"));
 
-	case EAttackType::Unarmed:
-		if (!UnarmedAttackAnimations.IsEmpty())
-		{
-			SelectedAnimation = UnarmedAttackAnimations[AttackComboIndex % UnarmedAttackAnimations.Num()];
-		}
-		break;
+		// 몽타주 실행
+		float MontageDuration = CharacterMesh->GetAnimInstance()->Montage_Play(SelectedMontage, 1.2f); // 1.2배속
 
-	default:
-		UE_LOG(LogTemp, Error, TEXT("No valid attack animation found!"));
-		bIsAttacking = false; // 공격 불가 상태 해제
-		return;
-	}
+		// 콤보 입력을 받을 수 있도록 활성화
+		GetWorldTimerManager().SetTimer(TimerHandle_Combo, this, &AMyDCharacter::EnableCombo, MontageDuration * 0.4f, false);
 
-	// 선택된 애니메이션이 유효하면 실행
-	if (SelectedAnimation)
-	{
-		UE_LOG(LogTemp, Log, TEXT("Playing Attack Animation: %d"), AttackComboIndex);
-		CharacterMesh->PlayAnimation(SelectedAnimation, false);
+		// 공격 종료 후 상태 초기화
+		GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, MontageDuration, false);
 
-		// 애니메이션 길이 가져오기
-		float AttackAnimDuration = SelectedAnimation->GetPlayLength();
-
-		// 콤보 입력을 받을 수 있도록 활성화 (애니메이션 중반에 콤보 가능)
-		GetWorldTimerManager().SetTimer(TimerHandle_Combo, this, &AMyDCharacter::EnableCombo, AttackAnimDuration * 0.4f, false);
-
-		// 공격이 끝난 후 상태 초기화
-		GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, AttackAnimDuration, false);
-
-		// 공격 중 일정 시간이 지나면 강제로 초기화 (콤보 초기화용)
+		// 일정 시간이 지나면 강제 초기화 (콤보 초기화용)
 		GetWorldTimerManager().SetTimer(TimerHandle_ForceReset, this, &AMyDCharacter::ForceResetCombo, 1.5f, false);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to play attack animation."));
+		UE_LOG(LogTemp, Error, TEXT("Failed to play attack montage."));
 		bIsAttacking = false;
 	}
 }

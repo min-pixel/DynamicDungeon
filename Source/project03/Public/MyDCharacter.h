@@ -151,13 +151,12 @@ private:
 	// 현재 콤보 인덱스
 	int32 AttackComboIndex = 0;
 
-	// 주먹 공격 애니메이션 배열
+	// 공격 애니메이션 몽타주
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
-	TArray<UAnimSequence*> UnarmedAttackAnimations;
+	UAnimMontage* UnarmedAttackMontage;
 
-	// 무기 공격 애니메이션 배열
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
-	TArray<UAnimSequence*> WeaponAttackAnimations;
+	UAnimMontage* WeaponAttackMontage;
 
 	// 콤보 타이밍을 활성화하는 함수
 	void EnableCombo();
