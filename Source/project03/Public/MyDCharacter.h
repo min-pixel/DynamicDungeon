@@ -80,14 +80,18 @@ public:
 	UPROPERTY()
 	UUCharacterHUDWidget* HUDWidget;
 
+	
+
 
 	/** 체력 & 마나 UI 업데이트 */
 	void UpdateHUD();
 
 	/** 공격 애니메이션 실행 */
 	void PlayAttackAnimation();
-	//애니메이션 복구
-	void ResetToIdleAnimation();
+
+
+	
+
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
@@ -158,16 +162,16 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
 	UAnimMontage* WeaponAttackMontage;
 
-	// 콤보 타이밍을 활성화하는 함수
-	void EnableCombo();
 
 	// 공격 종료 및 초기화 함수
 	void ResetAttack();
-	void ForceResetCombo();
+	
+
+
 
 	FTimerHandle TimerHandle_Combo; // 콤보 타이밍 활성화 타이머
 	FTimerHandle TimerHandle_Reset; // 공격 종료 타이머
 
-	FTimerHandle TimerHandle_ForceReset;
-
+	FTimerHandle TimerHandle_ComboReset;
+	FTimerHandle ComboTimerHandle;
 };

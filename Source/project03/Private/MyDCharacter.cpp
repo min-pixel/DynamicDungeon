@@ -178,6 +178,8 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is NULL!"));
 	}
 
+	
+
 }
 
 // 매 프레임 호출
@@ -190,6 +192,9 @@ void AMyDCharacter::Tick(float DeltaTime)
 // 이동 함수 (W/S)
 void AMyDCharacter::MoveForward(float Value)
 {
+
+	if (bIsAttacking) return; // 공격 중이면 이동 입력 무시
+
 	if (Value != 0.0f)
 	{
 		//컨트롤러(카메라)의 회전 방향을 가져옴
@@ -203,6 +208,9 @@ void AMyDCharacter::MoveForward(float Value)
 // 이동 함수 (A/D)
 void AMyDCharacter::MoveRight(float Value)
 {
+
+	if (bIsAttacking) return; 
+
 	if (Value != 0.0f)
 	{
 		//컨트롤러(카메라)의 회전 방향을 가져옴
@@ -445,79 +453,58 @@ void AMyDCharacter::StopJump()
 
 void AMyDCharacter::PlayAttackAnimation()
 {
-	if (bIsAttacking)
+	if (bIsAttacking)  // 공격 중이면 입력 무시
 	{
-		// 콤보 입력 가능하면 다음 공격으로 연결
-		if (bCanCombo)
-		{
-			UE_LOG(LogTemp, Log, TEXT("Combo Attack Registered!"));
-			AttackComboIndex++;
-			bCanCombo = false;
-		}
+		UE_LOG(LogTemp, Log, TEXT("Already attacking! Ignoring input."));
 		return;
 	}
 
+	// 공격 상태 설정
 	bIsAttacking = true;
 
-	// 공격 타입 결정 (무기 or 맨손)
+	// 사용할 몽타주 결정 (무기 장착 여부에 따라 다르게 설정)
 	UAnimMontage* SelectedMontage = (EquippedWeapon != nullptr) ? WeaponAttackMontage : UnarmedAttackMontage;
-
-	if (SelectedMontage && CharacterMesh->GetAnimInstance())
+	if (!SelectedMontage || !CharacterMesh->GetAnimInstance())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage"));
-
-		// 몽타주 실행
-		float MontageDuration = CharacterMesh->GetAnimInstance()->Montage_Play(SelectedMontage, 1.2f); // 1.2배속
-
-		// 콤보 입력을 받을 수 있도록 활성화
-		GetWorldTimerManager().SetTimer(TimerHandle_Combo, this, &AMyDCharacter::EnableCombo, MontageDuration * 0.4f, false);
-
-		// 공격 종료 후 상태 초기화
-		GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, MontageDuration, false);
-
-		// 일정 시간이 지나면 강제 초기화 (콤보 초기화용)
-		GetWorldTimerManager().SetTimer(TimerHandle_ForceReset, this, &AMyDCharacter::ForceResetCombo, 1.5f, false);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to play attack montage."));
+		UE_LOG(LogTemp, Error, TEXT("Attack montage or anim instance is missing!"));
 		bIsAttacking = false;
+		return;
 	}
-}
 
-void AMyDCharacter::ResetToIdleAnimation()
-{
-	if (CharacterMesh)
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+
+	// 현재 콤보 인덱스에 따라 실행할 섹션 선택
+	FName NextComboSection = (AttackComboIndex == 0) ? FName("Combo1") : FName("Combo2");
+
+	// 애니메이션 실행
+	if (!AnimInstance->Montage_IsPlaying(SelectedMontage))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Resetting to Idle Animation..."));
-
-		// 원래 애니메이션 블루프린트로 복구
-		CharacterMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+		AnimInstance->Montage_Play(SelectedMontage, 1.0f);
 	}
+
+	// 선택한 섹션으로 점프
+	AnimInstance->Montage_JumpToSection(NextComboSection, SelectedMontage);
+	UE_LOG(LogTemp, Log, TEXT("Jumped to section: %s"), *NextComboSection.ToString());
+
+	//*현재 섹션의 길이 가져오기
+	float SectionDuration = SelectedMontage->GetSectionLength(SelectedMontage->GetSectionIndex(NextComboSection));
+
+	// 타이머 설정: 정확한 섹션 종료 후 공격 상태 초기화
+	GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, SectionDuration, false);
+
+	// 다음 입력 시 다른 섹션 실행되도록 설정
+	AttackComboIndex = (AttackComboIndex == 0) ? 1 : 0;
 }
 
-void AMyDCharacter::EnableCombo()
-{
-	bCanCombo = true;
-	//AttackComboIndex = (AttackComboIndex + 1) % 2; // 0과 1을 반복 (2타 콤보)
-	UE_LOG(LogTemp, Log, TEXT("Combo Window Open!"));
-}
 
 void AMyDCharacter::ResetAttack()
 {
 	// 공격 상태 초기화
 	bIsAttacking = false;
-	bCanCombo = false;
-	
-
 	UE_LOG(LogTemp, Log, TEXT("Attack Ended, Resetting Attack State"));
 
-	// 원래 애니메이션 블루프린트로 복구, 얘가 문제...
-	CharacterMesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+	
 }
 
-void AMyDCharacter::ForceResetCombo()
-{
-	AttackComboIndex = 0;
-	UE_LOG(LogTemp, Log, TEXT("Combo reset due to timeout."));
-}
+
+
