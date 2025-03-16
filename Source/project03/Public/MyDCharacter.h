@@ -13,7 +13,7 @@
 #include "Animation/AnimSequence.h"
 #include "MyDCharacter.generated.h"
 
-//**여기에 추가!** (클래스 선언 전)
+//(클래스 선언 전)
 UENUM(BlueprintType)
 enum class EAttackType : uint8
 {
@@ -89,9 +89,40 @@ public:
 	/** 공격 애니메이션 실행 */
 	void PlayAttackAnimation();
 
+	// 구르기 시 적용할 속도
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float RollStrength = 1000.0f;  // (적절한 값으로 조정 가능)
 
+	// 구르기 실행 함수 (수정)
+	void PlayRollAnimation();
+
+	// 구르기 이동 처리
+	void ApplyRollMovement(FVector RollDirection);
 	
+	// 구르기 애니메이션 몽타주
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UAnimMontage* RollMontage;
 
+	// 구르기 속도 관련 변수
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float RollSpeed = 1500.0f;  // 적절한 값으로 조절
+
+	UPROPERTY(EditDefaultsOnly, Category = "Movement")
+	float RollDuration = 0.7f;  // 구르기 지속 시간
+
+	// 구르기 상태 변수 (중복 입력 방지)
+	bool bIsRolling = false;
+
+	// 구르기 상태 초기화 함수
+	void ResetRoll();
+
+	// 입력된 방향 저장
+	float MoveForwardValue = 0.0f;
+	float MoveRightValue = 0.0f;
+
+	// 이동 입력 업데이트 함수
+	void UpdateMoveForward(float Forward);
+	void UpdateMoveRight(float Right);
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
@@ -165,8 +196,6 @@ private:
 
 	// 공격 종료 및 초기화 함수
 	void ResetAttack();
-	
-
 
 
 	FTimerHandle TimerHandle_Combo; // 콤보 타이밍 활성화 타이머

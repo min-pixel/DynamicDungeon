@@ -90,6 +90,21 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Weapon Attack Montage!"));
 	}
 
+	// 구르기 몽타주 로드
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> RollMontageAsset(TEXT("/Script/Engine.AnimMontage'/Game/BP/character/Retarget/RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage.RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage'"));
+	if (RollMontageAsset.Succeeded())
+	{
+		RollMontage = RollMontageAsset.Object;
+		UE_LOG(LogTemp, Log, TEXT("Roll Montage Loaded Successfully!"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Roll Montage!"));
+	}
+
+	// 초기 구르기 상태 설정
+	bIsRolling = false;
+
 	//**메쉬 방향 조정 (Z축 90도 회전)**
 	CharacterMesh->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));  // 메쉬 방향만 조정
 	//**메쉬 위치 조정 (몸이 바닥에 파묻히지 않도록)**
@@ -187,6 +202,9 @@ void AMyDCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// 구르는 동안 카메라 부드럽게 이동
+	//moothCameraFollow();
+
 }
 
 // 이동 함수 (W/S)
@@ -250,6 +268,10 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAxis("MoveForward", this, &AMyDCharacter::MoveForward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AMyDCharacter::MoveRight);
 
+	// 방향 입력을 저장하기 위한 함수 (구르기 방향 계산에 사용)
+	PlayerInputComponent->BindAxis("MoveForward", this, &AMyDCharacter::UpdateMoveForward);
+	PlayerInputComponent->BindAxis("MoveRight", this, &AMyDCharacter::UpdateMoveRight);
+
 	// 달리기 (Shift 키)
 	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &AMyDCharacter::StartSprinting);
 	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &AMyDCharacter::StopSprinting);
@@ -270,6 +292,8 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	// 공격 입력 추가 (마우스 좌클릭)
 	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &AMyDCharacter::PlayAttackAnimation);
+
+	PlayerInputComponent->BindAction("Roll", IE_Pressed, this, &AMyDCharacter::PlayRollAnimation);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -459,6 +483,12 @@ void AMyDCharacter::PlayAttackAnimation()
 		return;
 	}
 
+	if (bIsAttacking || bIsRolling)  // 구르기 중이면 공격 입력 무시
+	{
+		UE_LOG(LogTemp, Log, TEXT("Already attacking or rolling! Ignoring input."));
+		return;
+	}
+
 	// 공격 상태 설정
 	bIsAttacking = true;
 
@@ -473,26 +503,22 @@ void AMyDCharacter::PlayAttackAnimation()
 
 	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
 
-	// 현재 콤보 인덱스에 따라 실행할 섹션 선택
-	FName NextComboSection = (AttackComboIndex == 0) ? FName("Combo1") : FName("Combo2");
+	// **현재 콤보 수에 따라 재생할 섹션 선택**
+	FName SelectedSection = (AttackComboIndex == 0) ? FName("Combo1") : FName("Combo2");
 
-	// 애니메이션 실행
-	if (!AnimInstance->Montage_IsPlaying(SelectedMontage))
-	{
-		AnimInstance->Montage_Play(SelectedMontage, 1.0f);
-	}
+	// 애니메이션 실행 (선택된 섹션 처음부터 재생)
+	AnimInstance->Montage_Play(SelectedMontage, 1.0f);
+	AnimInstance->Montage_JumpToSection(SelectedSection, SelectedMontage);
 
-	// 선택한 섹션으로 점프
-	AnimInstance->Montage_JumpToSection(NextComboSection, SelectedMontage);
-	UE_LOG(LogTemp, Log, TEXT("Jumped to section: %s"), *NextComboSection.ToString());
+	UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage Section: %s"), *SelectedSection.ToString());
 
-	//*현재 섹션의 길이 가져오기
-	float SectionDuration = SelectedMontage->GetSectionLength(SelectedMontage->GetSectionIndex(NextComboSection));
+	// **현재 섹션의 길이 가져오기**
+	float SectionDuration = SelectedMontage->GetSectionLength(SelectedMontage->GetSectionIndex(SelectedSection));
 
-	// 타이머 설정: 정확한 섹션 종료 후 공격 상태 초기화
+	// **타이머 설정: 정확한 섹션 종료 후 공격 상태 초기화**
 	GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, SectionDuration, false);
 
-	// 다음 입력 시 다른 섹션 실행되도록 설정
+	// **다음 입력 시 다른 섹션 실행되도록 설정 (콤보 증가)**
 	AttackComboIndex = (AttackComboIndex == 0) ? 1 : 0;
 }
 
@@ -502,9 +528,107 @@ void AMyDCharacter::ResetAttack()
 	// 공격 상태 초기화
 	bIsAttacking = false;
 	UE_LOG(LogTemp, Log, TEXT("Attack Ended, Resetting Attack State"));
-
-	
 }
 
 
+void AMyDCharacter::PlayRollAnimation()
+{
+	if (bIsRolling || !RollMontage) return;
 
+	bIsRolling = true;
+
+	// 현재 이동 방향 계산
+	FVector RollDirection;
+	FName SelectedSection = "RollF"; // 기본값 (앞구르기)
+
+	if (FMath::Abs(MoveForwardValue) > 0.1f || FMath::Abs(MoveRightValue) > 0.1f)
+	{
+		// 방향키 입력이 있을 경우: 해당 방향으로 구르기
+		FRotator ControlRotation = GetControlRotation();
+		FVector ForwardVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::X);
+		FVector RightVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::Y);
+
+		RollDirection = ForwardVector * MoveForwardValue + RightVector * MoveRightValue;
+		RollDirection.Normalize();
+
+		// **입력 방향에 따라 적절한 섹션 선택**
+		if (MoveForwardValue > 0.1f)
+		{
+			SelectedSection = "RollF";  // 앞구르기
+		}
+		else if (MoveForwardValue < -0.1f)
+		{
+			SelectedSection = "RollB";  // 뒤구르기
+		}
+		else if (MoveRightValue > 0.1f)
+		{
+			SelectedSection = "RollR";  // 오른쪽 구르기
+		}
+		else if (MoveRightValue < -0.1f)
+		{
+			SelectedSection = "RollL";  // 왼쪽 구르기
+		}
+	}
+	else
+	{
+		// 방향키 입력이 없을 경우: 기본적으로 앞구르기
+		RollDirection = GetActorForwardVector();
+	}
+
+	// **구르기 방향으로 캐릭터 회전 (카메라는 고정)**
+	if (RollDirection.SizeSquared() > 0)
+	{
+		FRotator NewRotation = RollDirection.Rotation();
+		SetActorRotation(NewRotation);
+	}
+
+	// **애니메이션 실행 (선택된 섹션으로 점프)**
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+	if (AnimInstance)
+	{
+		AnimInstance->Montage_Play(RollMontage, 1.0f);
+		AnimInstance->Montage_JumpToSection(SelectedSection, RollMontage);
+		UE_LOG(LogTemp, Log, TEXT("Playing Roll Montage Section: %s"), *SelectedSection.ToString());
+	}
+
+	// **구르기 이동 적용**
+	ApplyRollMovement(RollDirection);
+
+	// **구르기 후 원래 상태 복구**
+	GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetRoll, RollDuration, false);
+}
+
+void AMyDCharacter::ResetRoll()
+{
+	bIsRolling = false;
+	bIsAttacking = false;  // 구르기가 끝나면 공격 상태도 초기화
+	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
+}
+
+
+void AMyDCharacter::ApplyRollMovement(FVector RollDirection)
+{
+	if (RollDirection.SizeSquared() > 0)
+	{
+		RollDirection.Z = 0.0f;
+		RollDirection.Normalize();
+
+		FVector RollImpulse = RollDirection * RollSpeed;
+
+		// 물리 기반 이동
+		GetCharacterMovement()->Launch(RollImpulse);
+
+		// 구르는 동안 중력 적용 가능 (필요하면 주석 해제)
+		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
+	}
+}
+
+void AMyDCharacter::UpdateMoveForward(float Value)
+{
+	MoveForwardValue = Value;
+}
+
+void AMyDCharacter::UpdateMoveRight(float Value)
+{
+	MoveRightValue = Value;
+}
