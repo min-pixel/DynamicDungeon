@@ -64,6 +64,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float MaxKnowledge; // 최대 마나량
 
+	//스테미나 관련 변수
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float Stamina;  // 현재 스테미나
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float MaxStamina;  // 최대 스테미나
+
+
 	// 기본 이동 속도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed = 600.0f;
@@ -110,8 +118,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float RollDuration = 0.7f;  // 구르기 지속 시간
 
-	// 구르기 상태 변수 (중복 입력 방지)
-	bool bIsRolling = false;
+	
+	bool bIsRolling;
 
 	// 구르기 상태 초기화 함수
 	void ResetRoll();
@@ -119,6 +127,7 @@ public:
 	// 입력된 방향 저장
 	float MoveForwardValue = 0.0f;
 	float MoveRightValue = 0.0f;
+	FVector StoredRollDirection; // 구르기 시작할 때 저장된 방향
 
 	// 이동 입력 업데이트 함수
 	void UpdateMoveForward(float Forward);
@@ -148,6 +157,8 @@ private:
 	// 달리기 관련 함수
 	void StartSprinting();
 	void StopSprinting();
+	
+
 
 	// 점프 기능 추가
 	void StartJump();
@@ -203,4 +214,6 @@ private:
 
 	FTimerHandle TimerHandle_ComboReset;
 	FTimerHandle ComboTimerHandle;
+
+	
 };

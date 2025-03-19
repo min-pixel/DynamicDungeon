@@ -23,6 +23,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "UI")
     void UpdateMana(float CurrentMana, float MaxMana);
 
+    UFUNCTION(BlueprintCallable, Category = "HUD")
+    void UpdateStamina(float CurrentStamina, float MaxStamina);
+
     /** 체력바 (BP에서 바인딩) */
     UPROPERTY(meta = (BindWidget))
     class UProgressBar* HealthProgressBar;
@@ -30,4 +33,7 @@ public:
     /** 마나바 (BP에서 바인딩) */
     UPROPERTY(meta = (BindWidget))
     class UProgressBar* ManaProgressBar;
+
+    UPROPERTY(meta = (BindWidget))
+    class UProgressBar* StaminaProgressBar;
 };

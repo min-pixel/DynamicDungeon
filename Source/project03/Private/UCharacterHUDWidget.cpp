@@ -22,3 +22,12 @@ void UUCharacterHUDWidget::UpdateMana(float CurrentMana, float MaxMana)
     }
 }
 
+void UUCharacterHUDWidget::UpdateStamina(float CurrentStamina, float MaxStamina)
+{
+    if (StaminaProgressBar)
+    {
+        float StaminaPercent = CurrentStamina / MaxStamina;
+        StaminaProgressBar->SetPercent(StaminaPercent);
+    }
+}
+

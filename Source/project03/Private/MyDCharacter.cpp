@@ -36,6 +36,9 @@ AMyDCharacter::AMyDCharacter()
 	Agility = 1.0f; // 기본 민첩성 (이동 속도 배율)
 	MaxKnowledge = 100.0f;
 	Knowledge = MaxKnowledge;
+	// 생성자에서 스테미나 값 초기화
+	MaxStamina = 100.0f;
+	Stamina = MaxStamina;
 
 	//스프링암(SprintArm) 생성 (메쉬와 카메라를 독립적으로 배치하기 위해)
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -67,7 +70,7 @@ AMyDCharacter::AMyDCharacter()
 	}
 
 	// 맨주먹 콤보 공격 몽타주 로드
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> PunchMontage(TEXT("/Game/BP/character/Retarget/RTA_Punching_Anim_mixamo_com_Montage.RTA_Punching_Anim_mixamo_com_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> PunchMontage(TEXT("/Game/BP/character/Retarget/RTA_Punching_Anim_mixamo_com_Montage1.RTA_Punching_Anim_mixamo_com_Montage1"));
 	if (PunchMontage.Succeeded())
 	{
 		UnarmedAttackMontage = PunchMontage.Object;
@@ -211,7 +214,13 @@ void AMyDCharacter::Tick(float DeltaTime)
 void AMyDCharacter::MoveForward(float Value)
 {
 
-	if (bIsAttacking) return; // 공격 중이면 이동 입력 무시
+	if (bIsRolling)
+	{
+		// 구르는 방향이 앞이나 뒤일 때만 이동 허용
+		float DotProductF = FVector::DotProduct(GetActorForwardVector(), StoredRollDirection);
+		if (FMath::Abs(DotProductF) < 0.8f) return; // 앞/뒤 방향이 아니라면 이동 차단
+	}
+	
 
 	if (Value != 0.0f)
 	{
@@ -227,7 +236,13 @@ void AMyDCharacter::MoveForward(float Value)
 void AMyDCharacter::MoveRight(float Value)
 {
 
-	if (bIsAttacking) return; 
+	if (bIsRolling)
+	{
+		// 구르는 방향이 좌우일 때만 이동 허용
+		float DotProductR = FVector::DotProduct(GetActorRightVector(), StoredRollDirection);
+		if (FMath::Abs(DotProductR) < 0.8f) return; // 좌/우 방향이 아니라면 이동 차단
+	}
+	
 
 	if (Value != 0.0f)
 	{
@@ -460,6 +475,8 @@ void AMyDCharacter::UpdateHUD()
 	{
 		HUDWidget->UpdateHealth(Health, MaxHealth);
 		HUDWidget->UpdateMana(Knowledge, MaxKnowledge);
+		HUDWidget->UpdateStamina(Stamina, MaxStamina);
+		
 	}
 }
 
@@ -506,10 +523,20 @@ void AMyDCharacter::PlayAttackAnimation()
 	// **현재 콤보 수에 따라 재생할 섹션 선택**
 	FName SelectedSection = (AttackComboIndex == 0) ? FName("Combo1") : FName("Combo2");
 
+	// 특정 슬롯에서만 실행 (UpperBody 슬롯에서 재생)
+	FName UpperBodySlot = FName("UpperBody");
+
+	// UpperBody 슬롯에서 실행되도록 설정
+	FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(SelectedMontage); 
+	if (MontageInstance) 
+	{
+		MontageInstance->Montage->SlotAnimTracks[0].SlotName = UpperBodySlot; 
+	}
+
 	// 애니메이션 실행 (선택된 섹션 처음부터 재생)
 	AnimInstance->Montage_Play(SelectedMontage, 1.0f);
 	AnimInstance->Montage_JumpToSection(SelectedSection, SelectedMontage);
-
+	
 	UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage Section: %s"), *SelectedSection.ToString());
 
 	// **현재 섹션의 길이 가져오기**
@@ -575,6 +602,9 @@ void AMyDCharacter::PlayRollAnimation()
 		RollDirection = GetActorForwardVector();
 	}
 
+	// RollDirection을 멤버 변수로 저장 (이동 함수에서 사용)
+	StoredRollDirection = RollDirection;
+
 	// **구르기 방향으로 캐릭터 회전 (카메라는 고정)**
 	if (RollDirection.SizeSquared() > 0)
 	{
@@ -608,6 +638,7 @@ void AMyDCharacter::ResetRoll()
 
 void AMyDCharacter::ApplyRollMovement(FVector RollDirection)
 {
+
 	if (RollDirection.SizeSquared() > 0)
 	{
 		RollDirection.Z = 0.0f;
