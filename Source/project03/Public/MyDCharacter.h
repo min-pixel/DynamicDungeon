@@ -71,6 +71,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float MaxStamina;  // 최대 스테미나
 
+	// 스태미나 소모량 변수 추가
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float SprintStaminaCost = 5.0f;   // 달리기 스태미나 소모량 (1초당)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float RollStaminaCost = 30.0f;    // 구르기 스태미나 소모량
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float AttackStaminaCost = 20.0f;  // 공격 시 스태미나 소모량
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	float StaminaRegenRate = 10.0f;
+
+	void SprintStaminaDrain();
+
+	void ReduceStamina(float StaminaCost);
+
+	void ManageStaminaRegen();
+	void StartStaminaRegen();
+	void RegenerateStamina();
 
 	// 기본 이동 속도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
@@ -214,6 +234,8 @@ private:
 
 	FTimerHandle TimerHandle_ComboReset;
 	FTimerHandle ComboTimerHandle;
-
+	FTimerHandle TimerHandle_SprintDrain;
+	FTimerHandle TimerHandle_StaminaRegen;
+	FTimerHandle TimerHandle_StaminaRegenDelay;
 	
 };

@@ -264,14 +264,28 @@ void AMyDCharacter::MoveRight(float Value)
 void AMyDCharacter::StartSprinting()
 {
 	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed * Agility;
+	GetWorldTimerManager().SetTimer(TimerHandle_SprintDrain, this, &AMyDCharacter::SprintStaminaDrain, 0.1f, true);
 }
 
 // 달리기 중지
 void AMyDCharacter::StopSprinting()
 {
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
+	GetWorldTimerManager().ClearTimer(TimerHandle_SprintDrain);
+	ManageStaminaRegen();  //달리기 끝나고 스테미나 회복 시키기
 }
 
+void AMyDCharacter::SprintStaminaDrain()
+{
+	if (Stamina > 0)
+	{
+		ReduceStamina(SprintStaminaCost);
+	}
+	else
+	{
+		StopSprinting();
+	}
+}
 // 입력 바인딩 설정
 void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -506,8 +520,16 @@ void AMyDCharacter::PlayAttackAnimation()
 		return;
 	}
 
+	if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
+	{
+		ReduceStamina(0.0f);
+		return;
+	}
+
 	// 공격 상태 설정
 	bIsAttacking = true;
+
+	ReduceStamina(AttackStaminaCost);
 
 	// 사용할 몽타주 결정 (무기 장착 여부에 따라 다르게 설정)
 	UAnimMontage* SelectedMontage = (EquippedWeapon != nullptr) ? WeaponAttackMontage : UnarmedAttackMontage;
@@ -562,11 +584,19 @@ void AMyDCharacter::PlayRollAnimation()
 {
 	if (bIsRolling || !RollMontage) return;
 
+	if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
+	{
+		ReduceStamina(0.0f);
+		return;
+	}
+
 	bIsRolling = true;
 
 	// 현재 이동 방향 계산
 	FVector RollDirection;
 	FName SelectedSection = "RollF"; // 기본값 (앞구르기)
+
+	ReduceStamina(RollStaminaCost);
 
 	if (FMath::Abs(MoveForwardValue) > 0.1f || FMath::Abs(MoveRightValue) > 0.1f)
 	{
@@ -662,4 +692,60 @@ void AMyDCharacter::UpdateMoveForward(float Value)
 void AMyDCharacter::UpdateMoveRight(float Value)
 {
 	MoveRightValue = Value;
+}
+
+void AMyDCharacter::ReduceStamina(float StaminaCost)
+{
+	//스태미나 감소
+	Stamina -= StaminaCost;
+	Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
+
+	// UI 업데이트
+	UpdateHUD();
+
+	// 회복 중단 & 재생성 대기
+	GetWorldTimerManager().ClearTimer(TimerHandle_StaminaRegen);
+	ManageStaminaRegen();
+}
+
+void AMyDCharacter::ManageStaminaRegen()
+{
+	//달리기 중이면 회복 금지 (삭제예정)
+	if (GetCharacterMovement()->IsFalling() || GetCharacterMovement()->MaxWalkSpeed > WalkSpeed)
+	{
+		GetWorldTimerManager().ClearTimer(TimerHandle_StaminaRegen);
+		return;
+	}
+
+	// 3초간 행동이 없으면 회복 시작
+	if (!GetWorldTimerManager().IsTimerActive(TimerHandle_StaminaRegenDelay))
+	{
+		GetWorldTimerManager().SetTimer(TimerHandle_StaminaRegenDelay, this, &AMyDCharacter::StartStaminaRegen, 3.0f, false);
+	}
+}
+
+// 스태미나 실제 회복 함수
+void AMyDCharacter::StartStaminaRegen()
+{
+	if (!bIsAttacking && !bIsRolling && GetCharacterMovement()->MaxWalkSpeed == WalkSpeed)
+	{
+		GetWorldTimerManager().SetTimer(TimerHandle_StaminaRegen, this, &AMyDCharacter::RegenerateStamina, 0.5f, true);
+	}
+}
+
+void AMyDCharacter::RegenerateStamina() // 스태미나 회복 진행
+{
+
+	if (Stamina < MaxStamina)
+	{
+		Stamina += StaminaRegenRate;
+		Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
+
+		//UI 업데이트 반영
+		HUDWidget->UpdateStamina(Stamina, MaxStamina);
+	}
+	else
+	{
+		GetWorldTimerManager().ClearTimer(TimerHandle_StaminaRegen);
+	}
 }
