@@ -749,3 +749,22 @@ void AMyDCharacter::RegenerateStamina() // 스태미나 회복 진행
 		GetWorldTimerManager().ClearTimer(TimerHandle_StaminaRegen);
 	}
 }
+
+void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage)
+{
+	if (Health <= 0)
+		return;
+
+	Health -= Damage;
+	Health = FMath::Clamp(Health, 0.0f, MaxHealth);
+
+	UpdateHUD();
+
+	//UE_LOG(LogTemp, Log, TEXT("Player Hit by %s, Damage: %f, Remaining HP: %f"), *InstigatorActor->GetName(), Damage, Health);
+
+	if (Health <= 0)
+	{
+		// 죽음 처리 로직
+		UE_LOG(LogTemp, Warning, TEXT("Player died!"));
+	}
+}

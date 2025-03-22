@@ -11,6 +11,7 @@
 #include "DynamicDungeonInstance.h"
 #include "Weapon.h"
 #include "Animation/AnimSequence.h"
+#include "HitInterface.h"
 #include "MyDCharacter.generated.h"
 
 //(클래스 선언 전)
@@ -25,7 +26,7 @@ enum class EAttackType : uint8
 
 
 UCLASS()
-class PROJECT03_API AMyDCharacter : public ACharacter
+class PROJECT03_API AMyDCharacter : public ACharacter, public IHitInterface
 {
 	GENERATED_BODY()
 
@@ -108,7 +109,7 @@ public:
 	UPROPERTY()
 	UUCharacterHUDWidget* HUDWidget;
 
-	
+	virtual void GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage);
 
 
 	/** 체력 & 마나 UI 업데이트 */
