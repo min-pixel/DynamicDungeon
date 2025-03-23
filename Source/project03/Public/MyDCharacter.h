@@ -47,6 +47,9 @@ public:
 
 	void SetOverlappingWeapon(AWeapon* Weapon) { OverlappingWeapon = Weapon; }
 	AWeapon* GetOverlappingWeapon() const { return OverlappingWeapon; }
+
+	FORCEINLINE AWeapon* GetEquippedWeapon() const { return EquippedWeapon; }
+
 	void PickupWeapon();
 	void DropWeapon();
 
@@ -138,6 +141,8 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Movement")
 	float RollDuration = 0.7f;  // 구르기 지속 시간
+
+	void DoRagDoll();
 
 	
 	bool bIsRolling;

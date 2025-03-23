@@ -50,6 +50,11 @@ AMyDCharacter::AMyDCharacter()
 	CharacterMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("CharacterMesh"));
 	CharacterMesh->SetupAttachment(SpringArm);
 
+	// 충돌 설정: 래그돌 전환을 위한 기본 설정
+	CharacterMesh->SetCollisionProfileName(TEXT("CharacterMesh")); // 나중에 Ragdoll로 바꿀 수 있도록
+	CharacterMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+
 	// 메쉬 로드 (ConstructorHelpers 사용)
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Script/Engine.SkeletalMesh'/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'"));
 	if (MeshAsset.Succeeded())
@@ -432,6 +437,14 @@ void AMyDCharacter::PickupWeapon()
 			FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
 			EquippedWeapon->AttachToComponent(CharacterMesh, AttachRules, FName("hand_r"));
 
+			// 무기 위치 갱신용 초기화
+			if (EquippedWeapon && EquippedWeapon->WeaponMesh)
+			{
+				EquippedWeapon->LastStartLocation = EquippedWeapon->WeaponMesh->GetSocketLocation(FName("AttackStart"));
+				EquippedWeapon->LastEndLocation = EquippedWeapon->WeaponMesh->GetSocketLocation(FName("AttackEnd"));
+				EquippedWeapon->SetOwner(this);
+			}
+
 			// 무기 중력 및 물리 시뮬레이션 비활성화
 			if (EquippedWeapon->WeaponMesh)
 			{
@@ -530,6 +543,7 @@ void AMyDCharacter::PlayAttackAnimation()
 	bIsAttacking = true;
 
 	ReduceStamina(AttackStaminaCost);
+	
 
 	// 사용할 몽타주 결정 (무기 장착 여부에 따라 다르게 설정)
 	UAnimMontage* SelectedMontage = (EquippedWeapon != nullptr) ? WeaponAttackMontage : UnarmedAttackMontage;
@@ -553,6 +567,11 @@ void AMyDCharacter::PlayAttackAnimation()
 	if (MontageInstance) 
 	{
 		MontageInstance->Montage->SlotAnimTracks[0].SlotName = UpperBodySlot; 
+	}
+
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->StartTrace(); 
 	}
 
 	// 애니메이션 실행 (선택된 섹션 처음부터 재생)
@@ -752,19 +771,40 @@ void AMyDCharacter::RegenerateStamina() // 스태미나 회복 진행
 
 void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage)
 {
-	if (Health <= 0)
-		return;
 
 	Health -= Damage;
 	Health = FMath::Clamp(Health, 0.0f, MaxHealth);
 
 	UpdateHUD();
 
-	//UE_LOG(LogTemp, Log, TEXT("Player Hit by %s, Damage: %f, Remaining HP: %f"), *InstigatorActor->GetName(), Damage, Health);
-
 	if (Health <= 0)
 	{
-		// 죽음 처리 로직
-		UE_LOG(LogTemp, Warning, TEXT("Player died!"));
+
+		// 랙돌 활성화
+		DoRagDoll();
+
+		// 컨트롤러 비활성화 (입력 차단)
+		AController* PlayerController = GetController();
+		if (PlayerController)
+		{
+			PlayerController->UnPossess();
+		}
+
+		// 애니메이션 중지
+		GetMesh()->bPauseAnims = true;
+		GetMesh()->bNoSkeletonUpdate = true;
+
+		// 이동 멈추기
+		GetCharacterMovement()->DisableMovement();
+		return;
+
 	}
+
+}
+
+void AMyDCharacter::DoRagDoll() 
+{
+
+	CharacterMesh->SetSimulatePhysics(true);
+	CharacterMesh->SetCollisionProfileName(TEXT("Ragdoll"));
 }

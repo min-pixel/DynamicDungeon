@@ -74,40 +74,73 @@ void AWeapon::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* Oth
     }
 }
 
-// 플레이어가 무기를 장착하는 함수
-//void AWeapon::AttachToPlayer(AMyDCharacter* Player)
-//{
-//    if (Player)
-//    {
-//        UE_LOG(LogTemp, Log, TEXT("Weapon attached to player: %s"), *GetName());
-//
-//        // 손 소켓 위치 가져오기
-//        if (Player->GetMesh()->DoesSocketExist(FName("hand_r")))
-//        {
-//            UE_LOG(LogTemp, Log, TEXT("Socket hand_r exists!"));
-//        }
-//        else
-//        {
-//            UE_LOG(LogTemp, Error, TEXT("Socket hand_r NOT found! Check Skeleton settings."));
-//            //return; // 소켓이 없으면 부착하지 않음
-//        }
-//
-//        // 손 소켓의 위치를 가져와서 위치 조정
-//        FTransform HandSocketTransform = Player->GetMesh()->GetSocketTransform(FName("hand_r"));
-//
-//        UE_LOG(LogTemp, Log, TEXT("Socket Location: %s"), *HandSocketTransform.GetLocation().ToString());
-//
-//        SetActorTransform(HandSocketTransform, false, nullptr, ETeleportType::TeleportPhysics);
-//
-//        // 손 소켓에 부착
-//        FAttachmentTransformRules AttachRules(EAttachmentRule::KeepWorld, true);
-//        AttachToComponent(Player->GetMesh(), AttachRules, FName("hand_r"));
-//
-//        // 무기 크기 조정 (예: 2배로 키우기)
-//        SetActorScale3D(FVector(0.25f, 0.25f, 1.0f));
-//
-//        // 무기를 비활성화 (더 이상 바닥에 존재하지 않도록)
-//        SetActorEnableCollision(false);
-//        //SetActorHiddenInGame(true);
-//    }
-//}
+void AWeapon::TraceAttack()
+{
+    if (!WeaponMesh) return;
+
+    // 현재 프레임의 위치
+    FVector CurrentStart = WeaponMesh->GetSocketLocation(FName("AttackStart"));
+    FVector CurrentEnd = WeaponMesh->GetSocketLocation(FName("AttackEnd"));
+
+    AActor* OwnerActor = GetOwner(); // 캐릭터 가져오기
+
+    // 트레이스
+    TArray<FHitResult> HitResults;
+    TArray<AActor*> IgnoredActors;
+    IgnoredActors.Add(this);
+    if (OwnerActor)
+    {
+        IgnoredActors.Add(OwnerActor);
+    }
+
+
+    // Start 소켓 기준 선형 궤적 판정
+    UKismetSystemLibrary::SphereTraceMulti(
+        GetWorld(),
+        LastStartLocation,
+        CurrentStart,
+        15.0f,
+        UEngineTypes::ConvertToTraceType(ECC_Pawn),
+        false,
+        IgnoredActors,
+        EDrawDebugTrace::ForDuration,
+        HitResults,
+        true
+    );
+
+    // End 소켓 기준 선형 궤적 판정
+    UKismetSystemLibrary::SphereTraceMulti(
+        GetWorld(),
+        LastEndLocation,
+        CurrentEnd,
+        15.0f,
+        UEngineTypes::ConvertToTraceType(ECC_Pawn),
+        false,
+        IgnoredActors,
+        EDrawDebugTrace::ForDuration,
+        HitResults,
+        true
+    );
+
+    for (const FHitResult& Hit : HitResults)
+    {
+        AActor* HitActor = Hit.GetActor();
+        if (HitActor && HitActor->Implements<UHitInterface>())
+        {
+            IHitInterface::Execute_GetHit(HitActor, Hit, GetOwner(), Damage);
+        }
+    }
+
+    // 위치 갱신
+    LastStartLocation = CurrentStart;
+    LastEndLocation = CurrentEnd;
+}
+
+void AWeapon::StartTrace()
+{
+    if (WeaponMesh)
+    {
+        LastStartLocation = WeaponMesh->GetSocketLocation(FName("AttackStart"));
+        LastEndLocation = WeaponMesh->GetSocketLocation(FName("AttackEnd"));
+    }
+}

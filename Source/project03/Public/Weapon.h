@@ -45,6 +45,25 @@ public:
     void OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
         UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
-    // 무기 장착 함수
-    //void AttachToPlayer(class AMyDCharacter* Player);
+   
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    float Damage = 20.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    float TraceRadius = 15.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    FName AttackStartSocket = "AttackStart";
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+    FName AttackEndSocket = "AttackEnd";
+
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    void TraceAttack();
+
+    void StartTrace();
+
+    FVector LastStartLocation;
+    FVector LastEndLocation;
 };
