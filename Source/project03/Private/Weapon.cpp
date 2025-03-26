@@ -16,6 +16,9 @@ AWeapon::AWeapon()
     WeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMesh"));
     RootComponent = WeaponMesh;
 
+    BaseDamage = 20.0f;
+    Damage = BaseDamage; // 무기 생성 시 기본 데미지 적용
+
     static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/StarterContent/Shapes/Shape_Cylinder.Shape_Cylinder"));
     if (MeshAsset.Succeeded())
     {
@@ -35,6 +38,9 @@ AWeapon::AWeapon()
     WeaponMesh->SetSimulatePhysics(true);
     WeaponMesh->SetEnableGravity(true);
     WeaponMesh->SetMassOverrideInKg(NAME_None, Weight); // 무게 적용
+
+
+
 }
 
 // 게임 시작 시 호출
@@ -82,6 +88,9 @@ void AWeapon::TraceAttack()
     FVector CurrentStart = WeaponMesh->GetSocketLocation(FName("AttackStart"));
     FVector CurrentEnd = WeaponMesh->GetSocketLocation(FName("AttackEnd"));
 
+    AMyDCharacter* OwnerCharacter = Cast<AMyDCharacter>(Owner);
+    if (!OwnerCharacter) return;
+
     AActor* OwnerActor = GetOwner(); // 캐릭터 가져오기
 
     // 트레이스
@@ -95,7 +104,7 @@ void AWeapon::TraceAttack()
 
 
     // Start 소켓 기준 선형 궤적 판정
-    UKismetSystemLibrary::SphereTraceMulti(
+    /*UKismetSystemLibrary::SphereTraceMulti(
         GetWorld(),
         LastStartLocation,
         CurrentStart,
@@ -106,7 +115,7 @@ void AWeapon::TraceAttack()
         EDrawDebugTrace::ForDuration,
         HitResults,
         true
-    );
+    );*/
 
     // End 소켓 기준 선형 궤적 판정
     UKismetSystemLibrary::SphereTraceMulti(
@@ -127,7 +136,11 @@ void AWeapon::TraceAttack()
         AActor* HitActor = Hit.GetActor();
         if (HitActor && HitActor->Implements<UHitInterface>())
         {
-            IHitInterface::Execute_GetHit(HitActor, Hit, GetOwner(), Damage);
+            if (!OwnerCharacter->HitActors.Contains(HitActor)) // 중복 피격 방지
+            {
+                OwnerCharacter->HitActors.Add(HitActor);
+                IHitInterface::Execute_GetHit(HitActor, Hit, OwnerCharacter, Damage);
+            }
         }
     }
 
@@ -142,5 +155,21 @@ void AWeapon::StartTrace()
     {
         LastStartLocation = WeaponMesh->GetSocketLocation(FName("AttackStart"));
         LastEndLocation = WeaponMesh->GetSocketLocation(FName("AttackEnd"));
+    }
+}
+
+void AWeapon::ApplyWeaponStats(AMyDCharacter* Character)
+{
+    if (Character)
+    {
+        Character->Stamina += 0.0f;
+    }
+}
+
+void AWeapon::RemoveWeaponStats(AMyDCharacter* Character)
+{
+    if (Character)
+    {
+        Character->Stamina += 0.0f;
     }
 }

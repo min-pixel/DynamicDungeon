@@ -46,7 +46,11 @@ void UAnimNotify_TraceAttack::Notify(USkeletalMeshComponent* MeshComp, UAnimSequ
             AActor* HitActor = Hit.GetActor();
             if (HitActor && HitActor->Implements<UHitInterface>())
             {
-                IHitInterface::Execute_GetHit(HitActor, Hit, Owner, Damage);
+                if (!Character->HitActors.Contains(HitActor)) // 중복 피격 방지
+                {
+                    Character->HitActors.Add(HitActor);
+                    IHitInterface::Execute_GetHit(HitActor, Hit, Owner, Damage);
+                }
             }
         }
     }

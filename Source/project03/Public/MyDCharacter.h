@@ -159,6 +159,11 @@ public:
 	void UpdateMoveForward(float Forward);
 	void UpdateMoveRight(float Right);
 
+	TArray<AActor*> HitActors; //공격 중 피격된 액터 목록
+
+	void ResetHitActors(); //공격 종료 시 초기화
+
+
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
 	UPROPERTY(VisibleAnywhere, Category = "Components")

@@ -452,12 +452,12 @@ void AMyDCharacter::PickupWeapon()
 				EquippedWeapon->WeaponMesh->SetEnableGravity(false);    //중력 비활성화
 			}
 
-			// 무기 크기 조정
-			EquippedWeapon->SetActorScale3D(FVector(0.25f, 0.25f, 1.0f));
-
 			// 무기 충돌 비활성화 및 숨김 해제
 			EquippedWeapon->SetActorEnableCollision(false);
 			EquippedWeapon->SetActorHiddenInGame(false);
+
+			EquippedWeapon->ApplyWeaponStats(this);
+
 		}
 		else
 		{
@@ -472,6 +472,8 @@ void AMyDCharacter::DropWeapon()
 	if (EquippedWeapon)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Dropping weapon: %s"), *EquippedWeapon->GetName());
+
+		EquippedWeapon->RemoveWeaponStats(this);
 
 		// 부착 해제
 		EquippedWeapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
@@ -596,6 +598,8 @@ void AMyDCharacter::ResetAttack()
 	// 공격 상태 초기화
 	bIsAttacking = false;
 	UE_LOG(LogTemp, Log, TEXT("Attack Ended, Resetting Attack State"));
+
+	ResetHitActors();
 }
 
 
@@ -807,4 +811,9 @@ void AMyDCharacter::DoRagDoll()
 
 	CharacterMesh->SetSimulatePhysics(true);
 	CharacterMesh->SetCollisionProfileName(TEXT("Ragdoll"));
+}
+
+void AMyDCharacter::ResetHitActors()
+{
+	HitActors.Empty(); //피격 목록 초기화
 }

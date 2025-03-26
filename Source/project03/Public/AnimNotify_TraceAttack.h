@@ -26,4 +26,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
 	FName TraceSocketName = "hand_r";
 
+	
+
 };
