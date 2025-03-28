@@ -98,6 +98,19 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Weapon Attack Montage!"));
 	}
 
+
+	//  대형 무기 공격 콤보 몽타주 로드
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> GreatSwordMontage(TEXT("/Game/BP/character/Retarget/RTA_Great_Sword_Slash_Anim_mixamo_com_Montage.RTA_Great_Sword_Slash_Anim_mixamo_com_Montage"));
+	if (GreatSwordMontage.Succeeded())
+	{
+		GreatWeaponMontage = GreatSwordMontage.Object;
+		UE_LOG(LogTemp, Log, TEXT("Weapon Attack Montage Loaded Successfully!"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Weapon Attack Montage!"));
+	}
+
 	// 구르기 몽타주 로드
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> RollMontageAsset(TEXT("/Script/Engine.AnimMontage'/Game/BP/character/Retarget/RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage.RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage'"));
 	if (RollMontageAsset.Succeeded())
@@ -548,7 +561,31 @@ void AMyDCharacter::PlayAttackAnimation()
 	
 
 	// 사용할 몽타주 결정 (무기 장착 여부에 따라 다르게 설정)
-	UAnimMontage* SelectedMontage = (EquippedWeapon != nullptr) ? WeaponAttackMontage : UnarmedAttackMontage;
+	UAnimMontage* SelectedMontage = nullptr;
+
+	if (EquippedWeapon)
+	{
+		switch (EquippedWeapon->WeaponType)
+		{
+		case EWeaponType::GreatWeapon:
+			SelectedMontage = GreatWeaponMontage; // 이건 변수로 미리 만들어둬야 함
+			break;
+		case EWeaponType::Dagger:
+			SelectedMontage = WeaponAttackMontage;
+			//SelectedMontage = DaggerMontage;
+			break;
+		case EWeaponType::Staff:
+			//SelectedMontage = StaffMontage;
+			break;
+		default:
+			SelectedMontage = WeaponAttackMontage; // 기본값
+			break;
+		}
+	}
+	else
+	{
+		SelectedMontage = UnarmedAttackMontage;
+	}
 	if (!SelectedMontage || !CharacterMesh->GetAnimInstance())
 	{
 		UE_LOG(LogTemp, Error, TEXT("Attack montage or anim instance is missing!"));

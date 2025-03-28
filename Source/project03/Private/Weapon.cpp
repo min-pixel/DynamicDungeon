@@ -7,10 +7,26 @@
 #include "MyDCharacter.h"
 #include "Kismet/GameplayStatics.h"
 
+
+UMaterialInterface* ChromeMaterial = nullptr;
+UMaterialInterface* GoldMaterial = nullptr;
+
 // 기본 생성자
 AWeapon::AWeapon()
 {
     PrimaryActorTick.bCanEverTick = true;
+
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> ChromeMatFinder(TEXT("/Game/StarterContent/Materials/M_Metal_Chrome.M_Metal_Chrome"));
+    if (ChromeMatFinder.Succeeded())
+    {
+        ChromeMaterial = ChromeMatFinder.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<UMaterialInterface> GoldMatFinder(TEXT("/Game/StarterContent/Materials/M_Metal_Gold.M_Metal_Gold"));
+    if (GoldMatFinder.Succeeded())
+    {
+        GoldMaterial = GoldMatFinder.Object;
+    }
 
     // 무기 메쉬 생성
     WeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMesh"));
@@ -47,6 +63,7 @@ AWeapon::AWeapon()
 void AWeapon::BeginPlay()
 {
     Super::BeginPlay();
+    ApplyGradeEffects();
 }
 
 // 매 프레임 호출
@@ -172,4 +189,33 @@ void AWeapon::RemoveWeaponStats(AMyDCharacter* Character)
     {
         Character->Stamina += 0.0f;
     }
+}
+
+void AWeapon::ApplyGradeEffects()
+{
+    switch (WeaponGrade)
+    {
+    case EWeaponGrade::C:
+        break;
+
+    case EWeaponGrade::B:
+        BaseDamage += 10.0f;
+        StaminaCost -= 5.0f;
+        if (WeaponMesh && ChromeMaterial)
+        {
+            WeaponMesh->SetMaterial(0, ChromeMaterial);
+        }
+        break;
+
+    case EWeaponGrade::A:
+        BaseDamage += 20.0f;
+        StaminaCost -= 10.0f;
+        if (WeaponMesh && GoldMaterial)
+        {
+            WeaponMesh->SetMaterial(0, GoldMaterial);
+        }
+        break;
+    }
+
+    Damage = BaseDamage;
 }

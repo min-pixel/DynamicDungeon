@@ -111,4 +111,6 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     virtual void RemoveWeaponStats(class AMyDCharacter* Character);
 
+    void ApplyGradeEffects();
+
 };
