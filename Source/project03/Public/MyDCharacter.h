@@ -12,6 +12,7 @@
 #include "Weapon.h"
 #include "Animation/AnimSequence.h"
 #include "HitInterface.h"
+#include "InventoryComponent.h"
 #include "MyDCharacter.generated.h"
 
 //(클래스 선언 전)
@@ -164,6 +165,16 @@ public:
 	void ResetHitActors(); //공격 종료 시 초기화
 
 
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UInventoryWidget> InventoryWidgetClass;
+
+	UPROPERTY()
+	UInventoryWidget* InventoryWidgetInstance;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
+	UInventoryComponent* InventoryComponent;
+
+
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
 	UPROPERTY(VisibleAnywhere, Category = "Components")
@@ -237,6 +248,10 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
 	UAnimMontage* GreatWeaponMontage;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
+	UAnimMontage* DaggerWeaponMontage;
 
 	// 공격 종료 및 초기화 함수
 	void ResetAttack();

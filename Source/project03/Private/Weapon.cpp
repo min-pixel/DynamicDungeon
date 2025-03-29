@@ -35,7 +35,7 @@ AWeapon::AWeapon()
     BaseDamage = 20.0f;
     Damage = BaseDamage; // 무기 생성 시 기본 데미지 적용
 
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/StarterContent/Shapes/Shape_Cylinder.Shape_Cylinder"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/Weapon_Pack/Mesh/Weapons/Weapons_Kit/SM_Sword.SM_Sword"));
     if (MeshAsset.Succeeded())
     {
         WeaponMesh->SetStaticMesh(MeshAsset.Object);
@@ -218,4 +218,12 @@ void AWeapon::ApplyGradeEffects()
     }
 
     Damage = BaseDamage;
+}
+
+void AWeapon::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+
+    // 등급 변화 시 적용
+    ApplyGradeEffects();
 }

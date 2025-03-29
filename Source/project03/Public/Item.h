@@ -3,18 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Weapon.h"
 #include "GameFramework/Actor.h"
-#include "GreatWeapon.generated.h"
+#include "Item.generated.h"
 
 UCLASS()
-class PROJECT03_API AGreatWeapon : public AWeapon
+class PROJECT03_API AItem : public AActor
 {
 	GENERATED_BODY()
 	
 public:	
 	// Sets default values for this actor's properties
-	AGreatWeapon();
+	AItem();
+
+	virtual void SetDefaultIcon();
 
 protected:
 	// Called when the game starts or when spawned
@@ -24,8 +25,20 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	virtual void ApplyWeaponStats(class AMyDCharacter* Character) override;
-	virtual void RemoveWeaponStats(class AMyDCharacter* Character) override;
-	virtual void SetDefaultIcon() override;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString ItemName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UTexture2D* ItemIcon;
+
+	
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bIsStackable = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 MaxStack = 1;
+
+
 
 };

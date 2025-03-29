@@ -28,6 +28,7 @@ AGreatWeapon::AGreatWeapon()
 void AGreatWeapon::BeginPlay()
 {
 	Super::BeginPlay();
+    SetDefaultIcon();
 	
 }
 
@@ -51,5 +52,14 @@ void AGreatWeapon::RemoveWeaponStats(AMyDCharacter* Character)
     if (Character)
     {
         Character->AttackStaminaCost += StaminaCost;
+    }
+}
+
+void AGreatWeapon::SetDefaultIcon()
+{
+    static ConstructorHelpers::FObjectFinder<UTexture2D> Icon(TEXT("/Game/BP/½ºÅ©¸°¼¦_2024-08-12_122024.½ºÅ©¸°¼¦_2024-08-12_122024"));
+    if (Icon.Succeeded())
+    {
+        ItemIcon = Icon.Object;
     }
 }

@@ -14,6 +14,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "UCharacterHUDWidget.h"
 #include "Blueprint/UserWidget.h"
+#include "InventoryWidget.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 
 // 기본 생성자
@@ -111,8 +112,21 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Weapon Attack Montage!"));
 	}
 
+	//  단검 무기 공격 콤보 몽타주 로드
+	static ConstructorHelpers::FObjectFinder<UAnimMontage>DaggerMontage(TEXT("/Game/BP/character/Retarget/RTA_Stabbing_Anim_mixamo_com_Montage.RTA_Stabbing_Anim_mixamo_com_Montage"));
+	if (DaggerMontage.Succeeded())
+	{
+		DaggerWeaponMontage = DaggerMontage.Object;
+		UE_LOG(LogTemp, Log, TEXT("Weapon Attack Montage Loaded Successfully!"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Weapon Attack Montage!"));
+	}
+
+
 	// 구르기 몽타주 로드
-	static ConstructorHelpers::FObjectFinder<UAnimMontage> RollMontageAsset(TEXT("/Script/Engine.AnimMontage'/Game/BP/character/Retarget/RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage.RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage'"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> RollMontageAsset(TEXT("/Game/BP/character/Retarget/RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage.RTA_Sprinting_Forward_Roll_Anim_mixamo_com_Montage"));
 	if (RollMontageAsset.Succeeded())
 	{
 		RollMontage = RollMontageAsset.Object;
@@ -171,6 +185,19 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load CharacterHUDWidget_BP! Check the path."));
 	}
 
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+
+	static ConstructorHelpers::FClassFinder<UInventoryWidget> InventoryWidgetBPClass(TEXT("/Game/BP/UI/InventoryWidget.InventoryWidget_C"));
+	if (InventoryWidgetBPClass.Succeeded())
+	{
+		InventoryWidgetClass = InventoryWidgetBPClass.Class;
+		UE_LOG(LogTemp, Log, TEXT("Successfully loaded InventoryWidget_BP."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load InventoryWidget_BP!"));
+	}
+
 }
 
 // 게임 시작 시 호출
@@ -214,7 +241,33 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is NULL!"));
 	}
 
-	
+	// 테스트용 아이템 생성
+	FActorSpawnParameters SpawnParams;
+	AItem* FoundItem = GetWorld()->SpawnActor<AWeapon>(AWeapon::StaticClass(), GetActorLocation() + FVector(100, 0, 0), FRotator::ZeroRotator, SpawnParams);
+
+	// 위젯 생성은 항상!
+	if (InventoryWidgetClass)
+	{
+		InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+		if (InventoryWidgetInstance)
+		{
+			InventoryWidgetInstance->InventoryRef = InventoryComponent;
+			InventoryWidgetInstance->AddToViewport(10);
+			UE_LOG(LogTemp, Log, TEXT("Inventory Widget created and added to viewport"));
+		}
+	}
+
+	if (FoundItem && InventoryComponent)
+	{
+		InventoryComponent->InventoryItems.Add(FoundItem);
+		UE_LOG(LogTemp, Log, TEXT("Item added to InventoryComponent"));
+	}
+
+	// RefreshInventory는 아이템 유무와 상관없이 실행
+	if (InventoryWidgetInstance)
+	{
+		InventoryWidgetInstance->RefreshInventory();
+	}
 
 }
 
@@ -571,8 +624,7 @@ void AMyDCharacter::PlayAttackAnimation()
 			SelectedMontage = GreatWeaponMontage; // 이건 변수로 미리 만들어둬야 함
 			break;
 		case EWeaponType::Dagger:
-			SelectedMontage = WeaponAttackMontage;
-			//SelectedMontage = DaggerMontage;
+			SelectedMontage = DaggerWeaponMontage;
 			break;
 		case EWeaponType::Staff:
 			//SelectedMontage = StaffMontage;

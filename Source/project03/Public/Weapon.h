@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Item.h"
 #include "Weapon.generated.h"
 
 UENUM(BlueprintType)
@@ -25,7 +26,7 @@ enum class EWeaponGrade : uint8
 
 
 UCLASS()
-class PROJECT03_API AWeapon : public AActor
+class PROJECT03_API AWeapon : public AItem
 {
     GENERATED_BODY()
 
@@ -112,5 +113,9 @@ public:
     virtual void RemoveWeaponStats(class AMyDCharacter* Character);
 
     void ApplyGradeEffects();
+
+    //테스트용
+    UFUNCTION(BlueprintCallable, Category = "Weapon")
+    virtual void OnConstruction(const FTransform& Transform) override;
 
 };
