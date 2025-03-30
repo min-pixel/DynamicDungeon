@@ -29,4 +29,7 @@ public:
     UFUNCTION(BlueprintCallable)
     void RefreshInventory();
 
+    virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+
 };

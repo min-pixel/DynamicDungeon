@@ -17,9 +17,9 @@ public:
 	// Sets default values for this component's properties
 	UInventoryComponent();
 
-	// 인벤토리 총 칸 수 (기본: 20칸)
+	// 인벤토리 총 칸 수 (기본: 30칸)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
-	int32 Capacity = 20;
+	int32 Capacity = 32;
 
 	// 아이템 목록 (각 슬롯에 들어있는 아이템 포인터들)
 	UPROPERTY(BlueprintReadOnly, Category = "Inventory")

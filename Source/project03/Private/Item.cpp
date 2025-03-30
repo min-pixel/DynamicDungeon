@@ -27,10 +27,10 @@ void AItem::Tick(float DeltaTime)
 
 void AItem::SetDefaultIcon()
 {
-    // 기본 텍스처 로딩 (필요시 자식에서 오버라이드)
-    static ConstructorHelpers::FObjectFinder<UTexture2D> DefaultIcon(TEXT("/Engine/EngineResources/DefaultTexture.DefaultTexture"));
-    if (DefaultIcon.Succeeded())
+    
+    UTexture2D* LoadedTexture = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/DefaultTexture.DefaultTexture"));
+    if (LoadedTexture)
     {
-        ItemIcon = DefaultIcon.Object;
+        ItemIcon = LoadedTexture;
     }
 }

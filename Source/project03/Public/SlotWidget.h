@@ -21,6 +21,21 @@ public:
     UFUNCTION(BlueprintCallable)
     void SetItem(class AItem* InItem);
 
+    UPROPERTY()
+    class UInventoryWidget* InventoryOwner;
+
+    UPROPERTY()
+    int32 SlotIndex;
+
+    UFUNCTION(BlueprintCallable)
+    AItem* GetStoredItem() const { return StoredItem; }
+
+    virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
+
+    virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+
+
 protected:
     AItem* StoredItem;
 

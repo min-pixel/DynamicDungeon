@@ -11,6 +11,7 @@
 #include "Animation/AnimInstance.h"  // 애니메이션 관련 클래스 추가
 #include "Components/BoxComponent.h"  // 콜리전 박스 추가
 #include "Weapon.h"
+#include "GreatWeapon.h"
 #include "Kismet/GameplayStatics.h"
 #include "UCharacterHUDWidget.h"
 #include "Blueprint/UserWidget.h"
@@ -241,10 +242,6 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is NULL!"));
 	}
 
-	// 테스트용 아이템 생성
-	FActorSpawnParameters SpawnParams;
-	AItem* FoundItem = GetWorld()->SpawnActor<AWeapon>(AWeapon::StaticClass(), GetActorLocation() + FVector(100, 0, 0), FRotator::ZeroRotator, SpawnParams);
-
 	// 위젯 생성은 항상!
 	if (InventoryWidgetClass)
 	{
@@ -252,21 +249,23 @@ void AMyDCharacter::BeginPlay()
 		if (InventoryWidgetInstance)
 		{
 			InventoryWidgetInstance->InventoryRef = InventoryComponent;
-			InventoryWidgetInstance->AddToViewport(10);
-			UE_LOG(LogTemp, Log, TEXT("Inventory Widget created and added to viewport"));
+			InventoryWidgetInstance->RefreshInventory();
 		}
 	}
 
-	if (FoundItem && InventoryComponent)
+	if (InventoryComponent)
 	{
-		InventoryComponent->InventoryItems.Add(FoundItem);
-		UE_LOG(LogTemp, Log, TEXT("Item added to InventoryComponent"));
-	}
+		AItem* GreatWeaponItem = GetWorld()->SpawnActor<AGreatWeapon>(AGreatWeapon::StaticClass(), GetActorLocation() + FVector(200, 0, 0), FRotator::ZeroRotator);
+		if (GreatWeaponItem)
+		{
+			InventoryComponent->TryAddItem(GreatWeaponItem);
+			UE_LOG(LogTemp, Log, TEXT("GreatWeaponItem added to inventory: %s"), *GreatWeaponItem->GetName());
 
-	// RefreshInventory는 아이템 유무와 상관없이 실행
-	if (InventoryWidgetInstance)
-	{
-		InventoryWidgetInstance->RefreshInventory();
+			if (InventoryWidgetInstance)
+			{
+				InventoryWidgetInstance->RefreshInventory();
+			}
+		}
 	}
 
 }
@@ -394,6 +393,8 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("Attack", IE_Pressed, this, &AMyDCharacter::PlayAttackAnimation);
 
 	PlayerInputComponent->BindAction("Roll", IE_Pressed, this, &AMyDCharacter::PlayRollAnimation);
+
+	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyDCharacter::ToggleInventoryUI);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -905,4 +906,21 @@ void AMyDCharacter::DoRagDoll()
 void AMyDCharacter::ResetHitActors()
 {
 	HitActors.Empty(); //피격 목록 초기화
+}
+
+void AMyDCharacter::ToggleInventoryUI()
+{
+	if (!InventoryWidgetInstance) return;
+
+	if (bIsInventoryVisible)
+	{
+		InventoryWidgetInstance->RemoveFromParent();
+		bIsInventoryVisible = false;
+	}
+	else
+	{
+		InventoryWidgetInstance->AddToViewport(10);
+		InventoryWidgetInstance->RefreshInventory();
+		bIsInventoryVisible = true;
+	}
 }

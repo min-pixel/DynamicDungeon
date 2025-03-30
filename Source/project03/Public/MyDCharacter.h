@@ -174,6 +174,11 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryComponent* InventoryComponent;
 
+	UPROPERTY()
+	bool bIsInventoryVisible = false;
+
+	void ToggleInventoryUI();
+
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */

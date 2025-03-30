@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "GreatWeapon.h"
+#include "Engine/Texture2D.h"
 #include "MyDCharacter.h"
 
 // Sets default values
@@ -22,13 +23,21 @@ AGreatWeapon::AGreatWeapon()
         WeaponMesh->SetStaticMesh(MeshAsset.Object);
     }
 
+    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-weapon-1583527.free-icon-weapon-1583527"));
+    if (IconTexture.Succeeded())
+    {
+        ItemIcon = IconTexture.Object;
+    }
+
+    ItemName = TEXT("GreatWeapon");
+
 }
 
 // Called when the game starts or when spawned
 void AGreatWeapon::BeginPlay()
 {
 	Super::BeginPlay();
-    SetDefaultIcon();
+    //SetDefaultIcon();
 	
 }
 
