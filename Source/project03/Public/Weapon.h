@@ -112,7 +112,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Weapon")
     virtual void RemoveWeaponStats(class AMyDCharacter* Character);
 
-    void ApplyGradeEffects();
+    void ApplyGradeEffects(AMyDCharacter* Character);
 
     //테스트용
     UFUNCTION(BlueprintCallable, Category = "Weapon")

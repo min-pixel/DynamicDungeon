@@ -26,10 +26,12 @@ public:
     UPROPERTY(meta = (BindWidget))
     class UWrapBox* ItemContainer; // VerticalBox, WrapBox µî
 
-    UFUNCTION(BlueprintCallable)
-    void RefreshInventory();
+    /*UFUNCTION(BlueprintCallable)
+    void RefreshInventory();*/
 
-    virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+    void RefreshInventoryStruct();
+
+    //virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
 
 
 };

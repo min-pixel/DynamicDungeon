@@ -63,7 +63,8 @@ AWeapon::AWeapon()
 void AWeapon::BeginPlay()
 {
     Super::BeginPlay();
-    ApplyGradeEffects();
+    AMyDCharacter* Character = Cast<AMyDCharacter>(GetOwner());
+    ApplyGradeEffects(Character);
 }
 
 // 매 프레임 호출
@@ -191,7 +192,7 @@ void AWeapon::RemoveWeaponStats(AMyDCharacter* Character)
     }
 }
 
-void AWeapon::ApplyGradeEffects()
+void AWeapon::ApplyGradeEffects(AMyDCharacter* Character)
 {
     switch (WeaponGrade)
     {
@@ -200,7 +201,8 @@ void AWeapon::ApplyGradeEffects()
 
     case EWeaponGrade::B:
         BaseDamage += 10.0f;
-        StaminaCost -= 5.0f;
+
+        Character->AttackStaminaCost -= 5.0f;
         if (WeaponMesh && ChromeMaterial)
         {
             WeaponMesh->SetMaterial(0, ChromeMaterial);
@@ -209,7 +211,7 @@ void AWeapon::ApplyGradeEffects()
 
     case EWeaponGrade::A:
         BaseDamage += 20.0f;
-        StaminaCost -= 10.0f;
+        Character->AttackStaminaCost -= 10.0f;
         if (WeaponMesh && GoldMaterial)
         {
             WeaponMesh->SetMaterial(0, GoldMaterial);
@@ -223,7 +225,7 @@ void AWeapon::ApplyGradeEffects()
 void AWeapon::OnConstruction(const FTransform& Transform)
 {
     Super::OnConstruction(Transform);
-
+    AMyDCharacter* Character = Cast<AMyDCharacter>(GetOwner());
     // 등급 변화 시 적용
-    ApplyGradeEffects();
+    ApplyGradeEffects(Character);
 }

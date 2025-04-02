@@ -9,7 +9,8 @@ UInventoryComponent::UInventoryComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-    InventoryItems.SetNum(Capacity); // Capacity만큼 슬롯 확보
+    //InventoryItems.SetNum(Capacity); // Capacity만큼 슬롯 확보
+    InventoryItemsStruct.SetNum(Capacity);
 	// ...
 }
 
@@ -18,7 +19,7 @@ UInventoryComponent::UInventoryComponent()
 void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
-    InventoryItems.Init(nullptr, Capacity);
+    //InventoryItems.Init(nullptr, Capacity);
 	// ...
 	
 }
@@ -33,29 +34,60 @@ void UInventoryComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 }
 
 
-bool UInventoryComponent::TryAddItem(AItem* NewItem)
-{
-    if (!NewItem) return false;
+//bool UInventoryComponent::TryAddItem(AItem* NewItem)
+//{
+//    if (!NewItem) return false;
+//
+//    for (int32 i = 0; i < InventoryItems.Num(); ++i)
+//    {
+//        if (!InventoryItems[i])
+//        {
+//            InventoryItems[i] = NewItem;
+//            //NewItem->Destroy();
+//            return true;
+//        }
+//    }
+//
+//    return false; // 공간 없음
+//}
+//
+//bool UInventoryComponent::RemoveItemAt(int32 Index)
+//{
+//    if (InventoryItems.IsValidIndex(Index) && InventoryItems[Index])
+//    {
+//        InventoryItems[Index] = nullptr;
+//        return true;
+//    }
+//    return false;
+//}
 
-    for (int32 i = 0; i < InventoryItems.Num(); ++i)
+bool UInventoryComponent::TryAddItemByClass(TSubclassOf<AItem> ItemClass)
+{
+    if (!ItemClass) return false;
+
+    AItem* DefaultItem = ItemClass->GetDefaultObject<AItem>();
+    if (!DefaultItem) return false;
+
+    FItemData NewData = DefaultItem->ToItemData();
+
+    for (int32 i = 0; i < InventoryItemsStruct.Num(); ++i)
     {
-        if (!InventoryItems[i])
+        if (InventoryItemsStruct[i].ItemClass == nullptr)
         {
-            InventoryItems[i] = NewItem;
+            InventoryItemsStruct[i] = NewData;
             return true;
         }
     }
 
-    return false; // 공간 없음
+    return false;
 }
 
-bool UInventoryComponent::RemoveItemAt(int32 Index)
+bool UInventoryComponent::RemoveItemAtStruct(int32 Index)
 {
-    if (InventoryItems.IsValidIndex(Index) && InventoryItems[Index])
+    if (InventoryItemsStruct.IsValidIndex(Index))
     {
-        InventoryItems[Index] = nullptr;
+        InventoryItemsStruct[Index] = FItemData(); // 빈 구조체로 초기화
         return true;
     }
     return false;
 }
-

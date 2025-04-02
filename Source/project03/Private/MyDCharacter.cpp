@@ -249,11 +249,20 @@ void AMyDCharacter::BeginPlay()
 		if (InventoryWidgetInstance)
 		{
 			InventoryWidgetInstance->InventoryRef = InventoryComponent;
-			InventoryWidgetInstance->RefreshInventory();
+			InventoryWidgetInstance->RefreshInventoryStruct();
+
+			if (InventoryComponent)
+			{
+				InventoryComponent->TryAddItemByClass(AGreatWeapon::StaticClass());
+
+				InventoryWidgetInstance->RefreshInventoryStruct(); // 다시 갱신
+			}
+
 		}
 	}
 
-	if (InventoryComponent)
+
+	/*if (InventoryComponent)
 	{
 		AItem* GreatWeaponItem = GetWorld()->SpawnActor<AGreatWeapon>(AGreatWeapon::StaticClass(), GetActorLocation() + FVector(200, 0, 0), FRotator::ZeroRotator);
 		if (GreatWeaponItem)
@@ -266,7 +275,7 @@ void AMyDCharacter::BeginPlay()
 				InventoryWidgetInstance->RefreshInventory();
 			}
 		}
-	}
+	}*/
 
 }
 
@@ -920,7 +929,7 @@ void AMyDCharacter::ToggleInventoryUI()
 	else
 	{
 		InventoryWidgetInstance->AddToViewport(10);
-		InventoryWidgetInstance->RefreshInventory();
+		InventoryWidgetInstance->RefreshInventoryStruct();
 		bIsInventoryVisible = true;
 	}
 }

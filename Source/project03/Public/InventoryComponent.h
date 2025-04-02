@@ -22,16 +22,23 @@ public:
 	int32 Capacity = 32;
 
 	// 아이템 목록 (각 슬롯에 들어있는 아이템 포인터들)
+	/*UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	TArray<AItem*> InventoryItems;*/
+
 	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
-	TArray<AItem*> InventoryItems;
+	TArray<FItemData> InventoryItemsStruct;
 
 	// 아이템 추가 시도
-	UFUNCTION(BlueprintCallable)
-	bool TryAddItem(AItem* NewItem);
+	/*UFUNCTION(BlueprintCallable)
+	bool TryAddItem(AItem* NewItem);*/
+
+	bool TryAddItemByClass(TSubclassOf<AItem> ItemClass);
+
+	bool RemoveItemAtStruct(int32 Index);
 
 	// 특정 인덱스에서 아이템 제거
-	UFUNCTION(BlueprintCallable)
-	bool RemoveItemAt(int32 Index);
+	/*UFUNCTION(BlueprintCallable)
+	bool RemoveItemAt(int32 Index);*/
 	
 
 protected:

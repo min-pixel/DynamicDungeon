@@ -34,3 +34,15 @@ void AItem::SetDefaultIcon()
         ItemIcon = LoadedTexture;
     }
 }
+
+FItemData AItem::ToItemData() const
+{
+    FItemData Data;
+    Data.ItemClass = GetClass();
+    Data.ItemName = ItemName;
+    Data.ItemIcon = ItemIcon;
+    Data.bIsStackable = bIsStackable;
+    Data.MaxStack = MaxStack;
+    Data.Count = 1; // 기본 수량
+    return Data;
+}

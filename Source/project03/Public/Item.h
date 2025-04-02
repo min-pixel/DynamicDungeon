@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "ItemDataD.h"
 #include "Item.generated.h"
+
 
 UCLASS()
 class PROJECT03_API AItem : public AActor
@@ -31,7 +33,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	UTexture2D* ItemIcon;
 
-	
+	virtual FItemData ToItemData() const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsStackable = false;

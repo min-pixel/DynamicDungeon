@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Item.h"
 #include "SlotWidget.generated.h"
 
 /**
@@ -18,8 +19,9 @@ public:
     UPROPERTY(meta = (BindWidget))
     class UImage* ItemIcon;
 
-    UFUNCTION(BlueprintCallable)
-    void SetItem(class AItem* InItem);
+   /* UFUNCTION(BlueprintCallable)
+    void SetItem(class AItem* InItem);*/
+
 
     UPROPERTY()
     class UInventoryWidget* InventoryOwner;
@@ -30,13 +32,20 @@ public:
     UFUNCTION(BlueprintCallable)
     AItem* GetStoredItem() const { return StoredItem; }
 
-    virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    UPROPERTY()
+    FItemData StoredData;
+
+    void SetItemData(const FItemData& NewData);
+   
+
+   /* virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
     virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation) override;
 
-    virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;
+    virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;*/
 
 
 protected:
     AItem* StoredItem;
+   
 
 };
