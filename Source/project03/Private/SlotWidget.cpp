@@ -7,6 +7,7 @@
 #include "InventoryComponent.h"
 #include "Blueprint/DragDropOperation.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "EquipmentWidget.h"
 #include "Item.h"
 
 //void USlotWidget::SetItem(AItem* InItem)
@@ -29,14 +30,14 @@
 //    }
 //}
 //
-//FReply USlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
-//{
-//    if (InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
-//    {
-//        return UWidgetBlueprintLibrary::DetectDragIfPressed(InMouseEvent, this, EKeys::LeftMouseButton).NativeReply;
-//    }
-//    return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
-//}
+FReply USlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+    if (InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+    {
+        return UWidgetBlueprintLibrary::DetectDragIfPressed(InMouseEvent, this, EKeys::LeftMouseButton).NativeReply;
+    }
+    return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
 
 //void USlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
 //{
@@ -110,4 +111,92 @@ void USlotWidget::SetItemData(const FItemData& NewData)
         EmptyBrush.TintColor = FLinearColor(0.2f, 0.2f, 0.2f, 0.8f);
         ItemIcon->SetBrush(EmptyBrush);
     }
+}
+
+void USlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)
+{
+    if (StoredData.ItemClass == nullptr) return;
+
+    UDragDropOperation* DragOp = NewObject<UDragDropOperation>();
+    DragOp->Payload = this;
+
+    USlotWidget* DragVisual = CreateWidget<USlotWidget>(GetWorld(), GetClass());
+    DragVisual->SetItemData(StoredData);
+
+    DragVisual->SlotIndex = SlotIndex;
+    DragVisual->bIsEquipmentSlot = bIsEquipmentSlot;
+    DragVisual->InventoryOwner = InventoryOwner;
+    DragVisual->EquipmentOwner = EquipmentOwner;
+
+    DragVisual->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+    DragOp->DefaultDragVisual = DragVisual;
+    DragOp->Pivot = EDragPivot::MouseDown;
+
+    OutOperation = DragOp;
+}
+
+bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation)
+{
+    USlotWidget* SourceSlot = Cast<USlotWidget>(InOperation->Payload);
+    if (!SourceSlot || SourceSlot == this)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Drop SourceSlot null."));
+        return false;
+    }
+
+    const int32 FromIndex = SourceSlot->SlotIndex;
+    const int32 ToIndex = this->SlotIndex;
+
+    // 장비창 → 인벤토리
+    if (SourceSlot->bIsEquipmentSlot && !this->bIsEquipmentSlot)
+    {
+        if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->EquipmentOwner)
+        {
+            InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+            SourceSlot->EquipmentOwner->ClearSlot(FromIndex);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("DropEquipmentOwner null"));
+            return false;
+        }
+    }
+    // 인벤토리 → 장비창
+    else if (!SourceSlot->bIsEquipmentSlot && this->bIsEquipmentSlot)
+    {
+        if (EquipmentOwner && InventoryOwner && InventoryOwner->InventoryRef)
+        {
+            EquipmentOwner->SetSlot(ToIndex, SourceSlot->StoredData);
+            InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Drop EquipmentOwner  InventoryOwner null"));
+            return false;
+        }
+    }
+    // 같은 그룹 간 스왑
+    else
+    {
+        if (bIsEquipmentSlot)
+        {
+            if (EquipmentOwner)
+            {
+                EquipmentOwner->SwapSlots(FromIndex, ToIndex);
+            }
+        }
+        else
+        {
+            if (InventoryOwner && InventoryOwner->InventoryRef)
+            {
+                InventoryOwner->InventoryRef->InventoryItemsStruct.Swap(FromIndex, ToIndex);
+            }
+        }
+    }
+
+    if (InventoryOwner) InventoryOwner->RefreshInventoryStruct();
+    if (EquipmentOwner) EquipmentOwner->RefreshEquipmentSlots();
+
+    return true;
 }

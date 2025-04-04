@@ -23,6 +23,14 @@ ADagger::ADagger()
         WeaponMesh->SetStaticMesh(MeshAsset.Object);
     }
 
+    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-combat-dagger-8210712.free-icon-combat-dagger-8210712"));
+    if (IconTexture.Succeeded())
+    {
+        ItemIcon = IconTexture.Object;
+    }
+
+    ItemName = TEXT("DaggerWeapon");
+
 }
 
 // Called when the game starts or when spawned
@@ -52,5 +60,14 @@ void ADagger::RemoveWeaponStats(AMyDCharacter* Character)
     if (Character)
     {
         Character->AttackStaminaCost += StaminaCost;
+    }
+}
+
+void ADagger::SetDefaultIcon()
+{
+    static ConstructorHelpers::FObjectFinder<UTexture2D> Icon(TEXT("/Game/BP/½ºÅ©¸°¼¦_2024-08-12_122024.½ºÅ©¸°¼¦_2024-08-12_122024"));
+    if (Icon.Succeeded())
+    {
+        ItemIcon = Icon.Object;
     }
 }

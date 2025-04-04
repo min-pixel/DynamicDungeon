@@ -26,4 +26,7 @@ public:
 
 	virtual void ApplyWeaponStats(class AMyDCharacter* Character) override;
 	virtual void RemoveWeaponStats(class AMyDCharacter* Character) override;
+
+	virtual void SetDefaultIcon() override;
+
 };

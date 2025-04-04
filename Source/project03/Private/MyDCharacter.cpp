@@ -199,6 +199,23 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load InventoryWidget_BP!"));
 	}
 
+	static ConstructorHelpers::FClassFinder<UEquipmentWidget> EquipmentWidgetBPClass(TEXT("/Game/BP/UI/EquipmentWidget.EquipmentWidget_C"));
+	if (EquipmentWidgetBPClass.Succeeded())
+	{
+		EquipmentWidgetClass = EquipmentWidgetBPClass.Class;
+		UE_LOG(LogTemp, Log, TEXT("Successfully loaded EquipmentWidget_BP."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load EquipmentWidget_BP!"));
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> CombinedWidgetBP(TEXT("/Game/BP/UI/CombinedInventoryWidget.CombinedInventoryWidget_C"));
+	if (CombinedWidgetBP.Succeeded())
+	{
+		CombinedInventoryWidgetClass = CombinedWidgetBP.Class;
+	}
+
 }
 
 // 게임 시작 시 호출
@@ -259,6 +276,11 @@ void AMyDCharacter::BeginPlay()
 			}
 
 		}
+	}
+
+	if (EquipmentWidgetClass)
+	{
+		EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
 	}
 
 
@@ -919,17 +941,54 @@ void AMyDCharacter::ResetHitActors()
 
 void AMyDCharacter::ToggleInventoryUI()
 {
-	if (!InventoryWidgetInstance) return;
+	if (!InventoryWidgetInstance || !EquipmentWidgetInstance) {
+		UE_LOG(LogTemp, Log, TEXT("nononononEQ"));
+		return;
+	}
+
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
 
 	if (bIsInventoryVisible)
 	{
 		InventoryWidgetInstance->RemoveFromParent();
+		EquipmentWidgetInstance->RemoveFromParent();
 		bIsInventoryVisible = false;
+
+		// 마우스 커서 비활성화 + 게임 입력으로 전환
+		PC->bShowMouseCursor = false;
+		PC->SetInputMode(FInputModeGameOnly());
 	}
 	else
 	{
-		InventoryWidgetInstance->AddToViewport(10);
+		InventoryWidgetInstance->AddToViewport();
 		InventoryWidgetInstance->RefreshInventoryStruct();
+
+		EquipmentWidgetInstance->AddToViewport(); // 인벤토리보다 위일 수도 있음
+		EquipmentWidgetInstance->RefreshEquipmentSlots(); // 나중에 함수에서 슬롯 정보 반영하게 만들 수 있음
+
+		if (CombinedInventoryWidgetClass)
+		{
+			CombinedInventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), CombinedInventoryWidgetClass);
+			if (CombinedInventoryWidgetInstance)
+			{
+				CombinedInventoryWidgetInstance->AddToViewport(10); // ZOrder 적당히
+				//CombinedInventoryWidgetInstance->SetVisibility(ESlateVisibility::Hidden); // 처음엔 숨겨둠
+				UE_LOG(LogTemp, Log, TEXT("wrwrwrwrrEQ"));
+			}
+		}
+
 		bIsInventoryVisible = true;
+
+		// 마우스 커서 표시 + UI 입력 모드로 전환
+		PC->bShowMouseCursor = true;
+
+		FInputModeGameAndUI InputMode;
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock); // 마우스 이동 제한 없음
+		//InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());  // UI에 포커스
+		InputMode.SetWidgetToFocus(nullptr);
+
+		PC->SetInputMode(InputMode);
 	}
 }

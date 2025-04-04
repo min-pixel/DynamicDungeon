@@ -13,6 +13,7 @@
 #include "Animation/AnimSequence.h"
 #include "HitInterface.h"
 #include "InventoryComponent.h"
+#include "EquipmentWidget.h" 
 #include "MyDCharacter.generated.h"
 
 //(클래스 선언 전)
@@ -179,6 +180,20 @@ public:
 
 	void ToggleInventoryUI();
 
+	// 장비창 위젯 클래스 (블루프린트에서 연결할 변수)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<class UEquipmentWidget> EquipmentWidgetClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<UUserWidget> CombinedInventoryWidgetClass;
+
+	UUserWidget* CombinedInventoryWidgetInstance;
+
+
+	// 실제 생성된 인스턴스
+	UPROPERTY()
+	UEquipmentWidget* EquipmentWidgetInstance;
+
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
@@ -204,6 +219,8 @@ private:
 	// 달리기 관련 함수
 	void StartSprinting();
 	void StopSprinting();
+	
+
 	
 
 
