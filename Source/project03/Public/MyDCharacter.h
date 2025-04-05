@@ -194,6 +194,12 @@ public:
 	UPROPERTY()
 	UEquipmentWidget* EquipmentWidgetInstance;
 
+	UFUNCTION(BlueprintCallable)
+	void EquipWeaponFromClass(TSubclassOf<class AItem> WeaponClass);
+
+	UFUNCTION(BlueprintCallable)
+	void UnequipWeapon();
+
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */

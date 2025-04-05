@@ -15,6 +15,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "UCharacterHUDWidget.h"
 #include "Blueprint/UserWidget.h"
+#include "Item.h"
 #include "InventoryWidget.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 
@@ -281,6 +282,7 @@ void AMyDCharacter::BeginPlay()
 	if (EquipmentWidgetClass)
 	{
 		EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
+		EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
 	}
 
 
@@ -592,6 +594,68 @@ void AMyDCharacter::DropWeapon()
 
 		// 무기 초기화
 		EquippedWeapon = nullptr;
+	}
+}
+
+void AMyDCharacter::EquipWeaponFromClass(TSubclassOf<AItem> WeaponClass)
+{
+	if (!WeaponClass) {
+		return;
+	}
+	// 기존 무기 제거
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Destroy();
+		EquippedWeapon = nullptr;
+	}
+
+	// 새 무기 생성
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = GetInstigator();
+
+	// 손 소켓 위치 출력
+	FTransform HandSocketTransform = CharacterMesh->GetSocketTransform(FName("hand_r"));
+	UE_LOG(LogTemp, Log, TEXT("Socket Location: %s"), *HandSocketTransform.GetLocation().ToString());
+
+	AWeapon* SpawnedWeapon = GetWorld()->SpawnActor<AWeapon>(WeaponClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	EquippedWeapon = SpawnedWeapon;
+
+	if (CharacterMesh && CharacterMesh->DoesSocketExist("hand_r"))
+	{
+		FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
+		EquippedWeapon->AttachToComponent(CharacterMesh, AttachRules, FName("hand_r"));
+
+		// 필수 초기화들 추가
+		if (EquippedWeapon->WeaponMesh)
+		{
+			EquippedWeapon->WeaponMesh->SetSimulatePhysics(false);
+			EquippedWeapon->WeaponMesh->SetEnableGravity(false);
+			EquippedWeapon->SetActorEnableCollision(false);
+			EquippedWeapon->SetActorHiddenInGame(false);
+
+			EquippedWeapon->LastStartLocation = EquippedWeapon->WeaponMesh->GetSocketLocation(FName("AttackStart"));
+			EquippedWeapon->LastEndLocation = EquippedWeapon->WeaponMesh->GetSocketLocation(FName("AttackEnd"));
+		}
+
+		EquippedWeapon->SetOwner(this);
+		EquippedWeapon->ApplyWeaponStats(this);
+
+		UE_LOG(LogTemp, Log, TEXT("Weapon equipped from class: %s"), *EquippedWeapon->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CharacterMesh or hand_r socket missing"));
+	}
+}
+
+void AMyDCharacter::UnequipWeapon()
+{
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Destroy();
+		EquippedWeapon = nullptr;
+		UE_LOG(LogTemp, Log, TEXT("Weapon unequipped."));
 	}
 }
 
@@ -963,21 +1027,25 @@ void AMyDCharacter::ToggleInventoryUI()
 	else
 	{
 		InventoryWidgetInstance->AddToViewport();
+		InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 200), false);
 		InventoryWidgetInstance->RefreshInventoryStruct();
 
 		EquipmentWidgetInstance->AddToViewport(); // 인벤토리보다 위일 수도 있음
+		EquipmentWidgetInstance->SetPositionInViewport(FVector2D(100, 200), false);
 		EquipmentWidgetInstance->RefreshEquipmentSlots(); // 나중에 함수에서 슬롯 정보 반영하게 만들 수 있음
 
-		if (CombinedInventoryWidgetClass)
-		{
-			CombinedInventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), CombinedInventoryWidgetClass);
-			if (CombinedInventoryWidgetInstance)
-			{
-				CombinedInventoryWidgetInstance->AddToViewport(10); // ZOrder 적당히
-				//CombinedInventoryWidgetInstance->SetVisibility(ESlateVisibility::Hidden); // 처음엔 숨겨둠
-				UE_LOG(LogTemp, Log, TEXT("wrwrwrwrrEQ"));
-			}
-		}
+		//if (CombinedInventoryWidgetClass)
+		//{
+		//	CombinedInventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), CombinedInventoryWidgetClass);
+		//	if (CombinedInventoryWidgetInstance)
+		//	{
+		//		CombinedInventoryWidgetInstance->AddToViewport(10); // ZOrder 적당히
+		//		//CombinedInventoryWidgetInstance->SetVisibility(ESlateVisibility::Hidden); // 처음엔 숨겨둠
+		//		InventoryWidgetInstance->RefreshInventoryStruct();
+		//		EquipmentWidgetInstance->RefreshEquipmentSlots();
+		//		UE_LOG(LogTemp, Log, TEXT("wrwrwrwrrEQ"));
+		//	}
+		//}
 
 		bIsInventoryVisible = true;
 
@@ -987,8 +1055,7 @@ void AMyDCharacter::ToggleInventoryUI()
 		FInputModeGameAndUI InputMode;
 		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock); // 마우스 이동 제한 없음
 		//InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());  // UI에 포커스
-		InputMode.SetWidgetToFocus(nullptr);
-
+		InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
 		PC->SetInputMode(InputMode);
 	}
 }

@@ -155,12 +155,9 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         {
             InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
             SourceSlot->EquipmentOwner->ClearSlot(FromIndex);
+          
         }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("DropEquipmentOwner null"));
-            return false;
-        }
+        
     }
     // 인벤토리 → 장비창
     else if (!SourceSlot->bIsEquipmentSlot && this->bIsEquipmentSlot)
@@ -169,12 +166,9 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         {
             EquipmentOwner->SetSlot(ToIndex, SourceSlot->StoredData);
             InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+           
         }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Drop EquipmentOwner  InventoryOwner null"));
-            return false;
-        }
+       
     }
     // 같은 그룹 간 스왑
     else

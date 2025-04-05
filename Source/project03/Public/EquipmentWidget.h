@@ -8,6 +8,11 @@
 #include "Components/WrapBox.h"
 #include "EquipmentWidget.generated.h"
 
+#define EQUIP_SLOT_WEAPON 0
+#define EQUIP_SLOT_HELMET 1
+#define EQUIP_SLOT_CHEST  2
+#define EQUIP_SLOT_LEG    3
+
 /**
  * 
  */
@@ -44,6 +49,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TArray<FItemData> EquipmentSlots;
+
+    UPROPERTY(BlueprintReadWrite)
+    class UInventoryWidget* InventoryOwner;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<class USlotWidget> SlotWidgetClass;

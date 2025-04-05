@@ -6,7 +6,13 @@
 #include "GameFramework/Actor.h"
 #include "ItemDataD.generated.h"
 
-
+UENUM(BlueprintType)
+enum class EItemType : uint8
+{
+    Weapon,
+    Armor,
+    Consumable
+};
 
 USTRUCT(BlueprintType)
 struct FItemData
@@ -30,6 +36,9 @@ struct FItemData
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 Count = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    EItemType ItemType;
 
     FItemData()
         : ItemName(TEXT("")), ItemIcon(nullptr), ItemClass(nullptr),
