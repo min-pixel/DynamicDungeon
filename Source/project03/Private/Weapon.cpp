@@ -55,7 +55,13 @@ AWeapon::AWeapon()
     WeaponMesh->SetEnableGravity(true);
     WeaponMesh->SetMassOverrideInKg(NAME_None, Weight); // 무게 적용
 
+    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-sword-9078345.free-icon-sword-9078345"));
+    if (IconTexture.Succeeded())
+    {
+        ItemIcon = IconTexture.Object;
+    }
 
+    ItemName = TEXT("Weapon");
 
 }
 

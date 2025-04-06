@@ -148,8 +148,33 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
     const int32 FromIndex = SourceSlot->SlotIndex;
     const int32 ToIndex = this->SlotIndex;
 
+    //1. 보물상자 → 플레이어 인벤토리
+    if (SourceSlot->bIsChestInventory && !this->bIsChestInventory)
+    {
+        if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
+        {
+            InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+            SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+
+            UE_LOG(LogTemp, Log, TEXT("Moved item from Chest to Player Inventory"));
+        }
+    }
+
+    //2. 플레이어 인벤토리 → 보물상자
+    else if (!SourceSlot->bIsChestInventory && this->bIsChestInventory)
+    {
+        if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
+        {
+            InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+            SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+
+            UE_LOG(LogTemp, Log, TEXT("Moved item from Player Inventory to Chest"));
+        }
+    }
+
+
     // 장비창 → 인벤토리
-    if (SourceSlot->bIsEquipmentSlot && !this->bIsEquipmentSlot)
+    else if (SourceSlot->bIsEquipmentSlot && !this->bIsEquipmentSlot)
     {
         if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->EquipmentOwner)
         {
@@ -191,6 +216,11 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
 
     if (InventoryOwner) InventoryOwner->RefreshInventoryStruct();
     if (EquipmentOwner) EquipmentOwner->RefreshEquipmentSlots();
+
+    if (SourceSlot->InventoryOwner)
+    {
+        SourceSlot->InventoryOwner->RefreshInventoryStruct();
+    }
 
     return true;
 }

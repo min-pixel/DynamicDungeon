@@ -200,6 +200,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void UnequipWeapon();
 
+	UPROPERTY()
+	AActor* OverlappedActor;
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */
@@ -248,9 +250,7 @@ private:
 	void StartInteraction();
 	void StopInteraction();
 
-	// 현재 오버랩된 액터
-	UPROPERTY()
-	AActor* OverlappedActor;
+	
 
 	UPROPERTY()
 	AWeapon* OverlappingWeapon;

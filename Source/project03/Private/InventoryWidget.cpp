@@ -93,6 +93,7 @@ void UInventoryWidget::RefreshInventoryStruct()
             NewSlot->SetItemData(ItemData);
             NewSlot->InventoryOwner = this;
             NewSlot->SlotIndex = Index;
+            NewSlot->bIsChestInventory = bIsChestInventory;
             ItemContainer->AddChild(NewSlot);
 
             UE_LOG(LogTemp, Warning, TEXT("Refreshing Inventory (Struct): %d slots"), SlotCount);

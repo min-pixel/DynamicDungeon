@@ -17,6 +17,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
 #include "InventoryWidget.h"
+#include "TreasureChest.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 
 // 기본 생성자
@@ -475,7 +476,21 @@ void AMyDCharacter::StartInteraction()
 		GameInstance->WeaponEAt = true;
 
 		UE_LOG(LogTemp, Log, TEXT("StartInteraction() : itemEAt = true, OpenDoor = true"));
+
+		//보물상자 열기 로직 추가
+		if (OverlappedActor && OverlappedActor->ActorHasTag("Chest"))
+		{
+			ATreasureChest* Chest = Cast<ATreasureChest>(OverlappedActor);
+			if (Chest)
+			{
+				Chest->OpenChestUI(this); // 플레이어를 전달하여 양쪽 UI 열기
+				UE_LOG(LogTemp, Log, TEXT("Opened chest UI"));
+			}
+		}
 	}
+
+
+
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("StartInteraction(): GameInstance not found!"));
@@ -1027,11 +1042,11 @@ void AMyDCharacter::ToggleInventoryUI()
 	else
 	{
 		InventoryWidgetInstance->AddToViewport();
-		InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 200), false);
+		InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 0), false);
 		InventoryWidgetInstance->RefreshInventoryStruct();
 
 		EquipmentWidgetInstance->AddToViewport(); // 인벤토리보다 위일 수도 있음
-		EquipmentWidgetInstance->SetPositionInViewport(FVector2D(100, 200), false);
+		EquipmentWidgetInstance->SetPositionInViewport(FVector2D(100, 0), false);
 		EquipmentWidgetInstance->RefreshEquipmentSlots(); // 나중에 함수에서 슬롯 정보 반영하게 만들 수 있음
 
 		//if (CombinedInventoryWidgetClass)

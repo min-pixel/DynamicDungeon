@@ -54,6 +54,9 @@ public:
 
     virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent, UDragDropOperation* InOperation) override;*/
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ExposeOnSpawn))
+    bool bIsChestInventory = false;
+
 
 protected:
     AItem* StoredItem;
