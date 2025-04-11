@@ -31,4 +31,19 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "FSMComponent")
 	class UEnemyFSMComponent* fsm;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UAnimMontage* AttackMontage;
+
+	void PlayAttackMontage();
+
+	void TraceAttack();
+
+	void StartTrace();
+
+	int32 AttackComboIndex = 0;
+
+	FVector LastStartLocation;
+	FVector LastEndLocation;
+	TArray<AActor*> HitActors;
+
 };

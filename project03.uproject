@@ -12,7 +12,8 @@
 				"Engine",
 				"EditorSubsystem",
 				"UMG",
-				"CoreUObject"
+				"CoreUObject",
+				"AIModule"
 			]
 		}
 	],

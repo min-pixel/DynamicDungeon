@@ -4,6 +4,7 @@
 #include "AnimNotify_TraceAttack.h"
 #include "MyDCharacter.h"
 #include "Weapon.h"
+#include "EnemyCharacter.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "HitInterface.h"
 
@@ -12,11 +13,18 @@ void UAnimNotify_TraceAttack::Notify(USkeletalMeshComponent* MeshComp, UAnimSequ
     AActor* Owner = MeshComp->GetOwner();
     if (!Owner) return;
 
+    
 
     AMyDCharacter* Character = Cast<AMyDCharacter>(Owner);
     if (Character && Character->GetEquippedWeapon()) // 캐릭터가 무기 들고 있으면
     {
         Character->GetEquippedWeapon()->TraceAttack(); // 무기의 TraceAttack() 호출
+    }
+    else if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(Owner))
+    {
+        Enemy->StartTrace();
+        Enemy->TraceAttack(); // 적 캐릭터 전용 TraceAttack
+        //return;
     }
     else
     {

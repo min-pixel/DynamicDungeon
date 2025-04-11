@@ -7,6 +7,9 @@
 #include "EngineUtils.h"
 #include "DrawDebugHelpers.h" // (디버그 선 그리기 용도)
 #include "Engine/World.h"
+#include "EnemyAIController.h"
+#include "NavigationSystem.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Actor.h"
 
 // Sets default values for this component's properties
@@ -15,6 +18,7 @@ UEnemyFSMComponent::UEnemyFSMComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
+
 
 	// ...
 }
@@ -59,6 +63,23 @@ void UEnemyFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
         // 사망 상태면 아무 것도 안 함
         break;
     }
+
+    // EnemyFSMComponent.cpp 또는 EnemyCharacter.cpp에서 Tick 내에
+    FVector Start = me->GetActorLocation() + FVector(0, 0, 50); // 눈 위치 보정
+    FVector Forward = me->GetActorForwardVector();
+
+    // 시야 각 시각화
+    float HalfSightAngle = SightAngle * 0.5f;
+    float SightLength = SightRadius;
+
+    // 양쪽 시야 끝 방향 계산
+    FVector LeftDir = Forward.RotateAngleAxis(-HalfSightAngle, FVector::UpVector);
+    FVector RightDir = Forward.RotateAngleAxis(HalfSightAngle, FVector::UpVector);
+
+    DrawDebugLine(GetWorld(), Start, Start + LeftDir * SightLength, FColor::Green, false, 0.1f);
+    DrawDebugLine(GetWorld(), Start, Start + RightDir * SightLength, FColor::Green, false, 0.1f);
+    DrawDebugLine(GetWorld(), Start, Start + Forward * SightLength, FColor::Yellow, false, 0.1f);
+
 	// ...
 }
 
@@ -66,6 +87,8 @@ void UEnemyFSMComponent::HandleIdleState()
 {
     FVector ToPlayer;
     float Distance;
+
+    SightAngle = 145.0f;
 
     if (CanSeePlayer(ToPlayer, Distance))
     {
@@ -86,24 +109,41 @@ void UEnemyFSMComponent::HandleChasingState()
     FVector ToPlayer;
     float Distance;
 
+    SightAngle = 360.0f;
+
     if (!CanSeePlayer(ToPlayer, Distance))
     {
-        SetState(EEnemyState::Idle);  // 시야에서 놓침
-        currentTime = 0;
+        TimeSinceLastSeen += GetWorld()->GetDeltaSeconds();
+        if (TimeSinceLastSeen > ChaseMemoryTime)
+        {
+            SetState(EEnemyState::Idle);
+            return;
+        }
+
+        // 시야에 안 보일 땐 마지막 위치로 이동
+        if (AEnemyAIController* AI = Cast<AEnemyAIController>(me->GetController()))
+        {
+            AI->MoveToLocation(LastKnownPlayerLocation, 5.0f);
+        }
+
         return;
     }
 
+    // 보임 → 위치 갱신
+    LastKnownPlayerLocation = target->GetActorLocation();
+    TimeSinceLastSeen = 0;
+
+    // 공격 범위면 공격
     if (Distance < AttackRange)
     {
         SetState(EEnemyState::Attacking);
-        currentTime = 0;
         return;
     }
 
-    if (me)
+    // 이동
+    if (AEnemyAIController* AI = Cast<AEnemyAIController>(me->GetController()))
     {
-        UE_LOG(LogTemp, Warning, TEXT("findfindfind"));
-        me->AddMovementInput(ToPlayer.GetSafeNormal());  // 시야 체크에서 이미 얻은 방향 벡터 재활용
+        AI->MoveToActor(target, 5.0f);
     }
 }
 
@@ -151,7 +191,10 @@ bool UEnemyFSMComponent::CanSeePlayer(FVector& OutToPlayer, float& OutDistance)
             {
                 // 뭔가 사이에 있으면 무시 (시야가 가려졌음)
                 UE_LOG(LogTemp, Warning, TEXT("NO EYE: %s"), *GetNameSafe(Hit.GetActor()));
-                continue;
+                if (Distance > 300.0f) 
+                {
+                    continue;
+                }
             }
 
             // 이 플레이어가 더 가까우면 갱신
@@ -167,6 +210,7 @@ bool UEnemyFSMComponent::CanSeePlayer(FVector& OutToPlayer, float& OutDistance)
     if (ClosestPlayer)
     {
         target = ClosestPlayer;
+        //LastKnownPlayerLocation = ClosestPlayer->GetActorLocation();
         OutToPlayer = ClosestDirection;
         OutDistance = ClosestDistance;
         return true;
@@ -181,6 +225,8 @@ void UEnemyFSMComponent::HandleAttackingState()
 {
     if (!me || !target) return;
 
+    SightAngle = 360.0f;
+
     float Distance = FVector::Dist(me->GetActorLocation(), target->GetActorLocation());
     
     if (Distance > AttackRange)
@@ -191,9 +237,11 @@ void UEnemyFSMComponent::HandleAttackingState()
 
     if (currentTime >= AttackCooldown)
     {
-        // 공격 애니메이션 (우선 로그만)
-        UE_LOG(LogTemp, Log, TEXT("Enemy attacks player!"));
-
+        if (me)
+        {
+            me->PlayAttackMontage();  // 적 캐릭터 클래스에서 직접 재생
+            UE_LOG(LogTemp, Log, TEXT("Enemy attacks player!"));
+        }
 
         currentTime = 0;
     }
@@ -203,7 +251,15 @@ void UEnemyFSMComponent::SetState(EEnemyState NewState)
 {
     if (CurrentState == EEnemyState::Dead) return; // 죽은 상태면 변경 불가
     CurrentState = NewState;
+
+
     currentTime = 0; // 상태 바뀔 때 타이머 초기화
+
+    if (NewState == EEnemyState::Attacking)
+    {
+        currentTime = AttackCooldown; // 쿨타임 넘겨서 바로 발동
+    }
+   
 }
 
 //void UEnemyFSMComponent::HandleRoamingState()
