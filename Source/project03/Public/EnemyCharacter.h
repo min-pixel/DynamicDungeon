@@ -3,12 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "HitInterface.h"
 #include "GameFramework/Character.h"
+#include "InventoryComponent.h"
+#include "InventoryWidget.h"
+#include "Components/BoxComponent.h"
 #include "EnemyCharacter.generated.h"
 
 
 UCLASS()
-class PROJECT03_API AEnemyCharacter : public ACharacter
+class PROJECT03_API AEnemyCharacter : public ACharacter, public IHitInterface
 {
 	GENERATED_BODY()
 
@@ -45,5 +49,53 @@ public:
 	FVector LastStartLocation;
 	FVector LastEndLocation;
 	TArray<AActor*> HitActors;
+
+	// 체력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	float MaxHealth = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	float CurrentHealth;
+
+	// 피격 처리
+	virtual void GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage);
+
+	// 피격 후 경직 처리
+	void HandleStun();
+
+	FTimerHandle StunTimerHandle;
+	bool bIsStunned = false;
+
+	void PlayHitShake();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UInventoryComponent* EnemyInventory;
+
+	UPROPERTY(VisibleAnywhere)
+	UBoxComponent* InteractionBox;
+
+	UFUNCTION()
+	void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+		bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	void OpenLootUI(class AMyDCharacter* InteractingPlayer);
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Loot", meta = (AllowPrivateAccess = "true"))
+	UInventoryComponent* LootInventory;
+
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UInventoryWidget> InventoryWidgetClass;
+
+	UPROPERTY()
+	UInventoryWidget* LootInventoryWidgetInstance;
+
+	void GenerateRandomLoot();
+
+	TArray<TSubclassOf<AItem>> PossibleItems;
 
 };

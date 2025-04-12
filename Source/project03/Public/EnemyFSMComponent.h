@@ -78,7 +78,7 @@ public:
 
 private:
 	void HandleIdleState();
-	//void HandleRoamingState();
+	void HandleRoamingState();
 	void HandleChasingState();
 	void HandleAttackingState();
 	//void HandleDeadState();

@@ -1,14 +1,16 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+#include "EnemyFSMComponent.h"
 #include "MyDCharacter.h"
 #include "EnemyCharacter.h"
-#include "EnemyFSMComponent.h"
 #include <Kismet/GameplayStatics.h>
 #include "EngineUtils.h"
 #include "DrawDebugHelpers.h" // (디버그 선 그리기 용도)
 #include "Engine/World.h"
 #include "EnemyAIController.h"
+#include "EnemyCharacter.h"
 #include "NavigationSystem.h"
+#include "Navigation/PathFollowingComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -43,6 +45,8 @@ void UEnemyFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+    if (me && me->bIsStunned) return;
+
     currentTime += DeltaTime;
 
     switch (CurrentState)
@@ -51,7 +55,7 @@ void UEnemyFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
         HandleIdleState();
         break;
     case EEnemyState::Roaming:
-        //HandleRoamingState();
+        HandleRoamingState();
         break;
     case EEnemyState::Chasing:
         HandleChasingState();
@@ -99,7 +103,7 @@ void UEnemyFSMComponent::HandleIdleState()
 
     if (currentTime > idleDelayTime)
     {
-        SetState(EEnemyState::Idle);
+        SetState(EEnemyState::Roaming);
         currentTime = 0;
     }
 }
@@ -262,7 +266,52 @@ void UEnemyFSMComponent::SetState(EEnemyState NewState)
    
 }
 
-//void UEnemyFSMComponent::HandleRoamingState()
-//{
-//    // 나중에 랜덤 워크 구현 예정
-//}
+void UEnemyFSMComponent::HandleRoamingState()
+{
+    if (!me) return;
+
+    SightAngle = 145.0f;
+
+    FVector ToPlayer;
+    float Distance;
+    if (CanSeePlayer(ToPlayer, Distance))
+    {
+        SetState(EEnemyState::Chasing);
+        return;
+    }
+
+    AEnemyAIController* AI = Cast<AEnemyAIController>(me->GetController());
+    if (!AI) return;
+
+    EPathFollowingStatus::Type MoveStatus = AI->GetMoveStatus();
+    if (MoveStatus == EPathFollowingStatus::Moving)
+    {
+        // 이동 중이면 새로운 목적지 생성하지 않음
+        return;
+    }
+
+    // 도달했거나 멈췄다면 새로운 목적지 생성
+    UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+    if (NavSys)
+    {
+        FVector Origin = me->GetActorLocation();
+        FNavLocation RandomLocation;
+
+        // 목적지까지 거리 제한: 최소 3000 ~ 최대 4000
+        for (int i = 0; i < 10; ++i) // 최대 10번 시도
+        {
+            float Radius = FMath::FRandRange(3000.f, 4000.f);
+            if (NavSys->GetRandomReachablePointInRadius(Origin, Radius, RandomLocation))
+            {
+                float ActualDist = FVector::Dist(Origin, RandomLocation.Location);
+                if (ActualDist >= 3000.f && ActualDist <= 4000.f)
+                {
+                    AI->MoveToLocation(RandomLocation.Location, 5.0f);
+                    break;
+                }
+            }
+        }
+    }
+
+    currentTime = 0;
+}

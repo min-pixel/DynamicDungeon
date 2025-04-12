@@ -18,6 +18,7 @@
 #include "Item.h"
 #include "InventoryWidget.h"
 #include "TreasureChest.h"
+#include "EnemyCharacter.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 
 // 기본 생성자
@@ -485,6 +486,14 @@ void AMyDCharacter::StartInteraction()
 			{
 				Chest->OpenChestUI(this); // 플레이어를 전달하여 양쪽 UI 열기
 				UE_LOG(LogTemp, Log, TEXT("Opened chest UI"));
+			}
+			// 적 캐릭터 루팅 상호작용
+			AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(OverlappedActor);
+			if (Enemy)
+			{
+				Enemy->OpenLootUI(this);
+				UE_LOG(LogTemp, Log, TEXT("Opened enemy loot UI"));
+				return;
 			}
 		}
 	}
