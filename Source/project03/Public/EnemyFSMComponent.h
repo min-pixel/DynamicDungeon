@@ -54,10 +54,10 @@ public:
 	float moveDelayTime = 1;
 
 	UPROPERTY(EditAnywhere, Category = "Sight")
-	float SightRadius = 800.0f; // 감지 거리
+	float SightRadius = 2000.0f; // 감지 거리
 
 	UPROPERTY(EditAnywhere, Category = "Sight")
-	float SightAngle = 145.0f;
+	float SightAngle = 180.0f;
 
 	bool CanSeePlayer(FVector& OutToPlayer, float& OutDistance);
 
@@ -68,7 +68,7 @@ public:
 	float AttackCooldown = 1.5f;
 
 	UPROPERTY(EditAnywhere, Category = "FSM|Sight")
-	float ChaseMemoryTime = 50.0f;
+	float ChaseMemoryTime = 15.0f;
 
 	float TimeSinceLastSeen = 0.0f;
 	bool bCurrentlySeeingPlayer = false;

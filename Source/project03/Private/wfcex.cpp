@@ -23,6 +23,8 @@ void Awfcex::BeginPlay()
 	Super::BeginPlay();
 	ExecuteWFCInSubsystem(90, 1172835073); //테스트용 시드 1967664897, 1094396673, 1172835073, 1966419713
     SpawnPlayerOnCorridor();
+
+    SpawnEnemiesOnCorridor(15);
 }
 
 
@@ -172,5 +174,65 @@ void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
     else
     {
         UE_LOG(LogTemp, Error, TEXT("World is not available."));
+    }
+}
+
+
+void Awfcex::SpawnEnemiesOnCorridor(int32 EnemyCount)
+{
+    UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
+
+    if (!WFCSubsystem || !WFCSubsystem->WFCModel)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get WFCSubsystem or WFCModel"));
+        return;
+    }
+
+    const TArray<FWaveFunctionCollapseTileCustom>& Tiles = WFCSubsystem->LastCollapsedTiles;
+    FIntVector Resolution = WFCSubsystem->Resolution;
+    float TileSize = WFCSubsystem->WFCModel->TileSize;
+
+    TArray<FVector> ValidCorridorPositions;
+
+    for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+    {
+        if (Tiles[TileIndex].RemainingOptions.Num() > 0)
+        {
+            const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+            if (Option.bIsCorridorTile)
+            {
+                FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
+                ValidCorridorPositions.Add(TilePosition);
+            }
+        }
+    }
+
+    if (ValidCorridorPositions.Num() == 0)
+    {
+        UE_LOG(LogTemp, Error, TEXT("No corridor tiles available for enemy spawn."));
+        return;
+    }
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    for (int32 i = 0; i < EnemyCount; ++i)
+    {
+        int32 RandomIndex = FMath::RandRange(0, ValidCorridorPositions.Num() - 1);
+        FVector SpawnLocation = ValidCorridorPositions[RandomIndex] + FVector(0.f, 0.f, 50.f); // Z축 올려서 바닥 충돌 방지
+
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+        AEnemyCharacter* SpawnedEnemy = World->SpawnActor<AEnemyCharacter>(EnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+
+        if (SpawnedEnemy)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Spawned enemy at location: %s"), *SpawnLocation.ToString());
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy at location: %s"), *SpawnLocation.ToString());
+        }
     }
 }

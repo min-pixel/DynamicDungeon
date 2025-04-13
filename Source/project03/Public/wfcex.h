@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "WaveFunctionCollapseSubsystem02.h"
 #include "MyDCharacter.h"
+#include "EnemyCharacter.h"
 #include "wfcex.generated.h"
 
 UCLASS()
@@ -41,5 +42,11 @@ public:
 	// 플레이어 클래스
 	UPROPERTY(EditAnywhere, Category = "Player")
 	TSubclassOf<AMyDCharacter> PlayerClass;
+
+	UPROPERTY(EditAnywhere, Category = "Spawning")
+	TSubclassOf<AEnemyCharacter> EnemyClass;
+
+	UFUNCTION(BlueprintCallable, Category = "Spawning")
+	void SpawnEnemiesOnCorridor(int32 EnemyCount);
 
 };

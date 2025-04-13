@@ -92,7 +92,7 @@ void UEnemyFSMComponent::HandleIdleState()
     FVector ToPlayer;
     float Distance;
 
-    SightAngle = 145.0f;
+    SightAngle = 180.0f;
 
     if (CanSeePlayer(ToPlayer, Distance))
     {
@@ -286,7 +286,7 @@ void UEnemyFSMComponent::HandleRoamingState()
 {
     if (!me) return;
 
-    SightAngle = 145.0f;
+    SightAngle = 180.0f;
 
     FVector ToPlayer;
     float Distance;
