@@ -147,7 +147,7 @@ void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
         ChestInventoryWidgetInstance->SlotWidgetClass = InteractingPlayer->InventoryWidgetInstance->SlotWidgetClass;
         ChestInventoryWidgetInstance->RefreshInventoryStruct();
 
-        ChestInventoryWidgetInstance->AddToViewport();
+        ChestInventoryWidgetInstance->AddToViewport(2);
         ChestInventoryWidgetInstance->SetPositionInViewport(FVector2D(800, 0), false);
 
         UE_LOG(LogTemp, Log, TEXT("ChestInventoryWidget added to viewport"));
@@ -155,7 +155,7 @@ void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
         // 플레이어 인벤토리도 같이 띄우고 드래그 앤 드롭 되게 만들기
         if (InteractingPlayer && InteractingPlayer->InventoryWidgetInstance)
         {
-            InteractingPlayer->InventoryWidgetInstance->AddToViewport();
+            InteractingPlayer->InventoryWidgetInstance->AddToViewport(2);
             InteractingPlayer->InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 0), false);
 
             // 마우스 설정

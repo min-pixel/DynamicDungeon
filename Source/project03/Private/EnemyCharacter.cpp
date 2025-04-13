@@ -9,6 +9,7 @@
 #include "HitInterface.h"
 #include "MyDCharacter.h"
 #include "InventoryWidget.h"
+#include "ItemDataD.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -78,6 +79,9 @@ void AEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
     CurrentHealth = MaxHealth;
+
+
+    GenerateRandomLoot();
 }
 
 // Called every frame
@@ -193,8 +197,6 @@ void AEnemyCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor*
         SetActorEnableCollision(true);
         InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
         Tags.Add(FName("Chest"));
-        
-        GenerateRandomLoot();
         
     }
 }
@@ -318,13 +320,13 @@ void AEnemyCharacter::OpenLootUI(AMyDCharacter* InteractingPlayer)
         LootInventoryWidgetInstance->bIsChestInventory = true;
         LootInventoryWidgetInstance->SlotWidgetClass = InteractingPlayer->InventoryWidgetInstance->SlotWidgetClass;
         LootInventoryWidgetInstance->RefreshInventoryStruct();
-        LootInventoryWidgetInstance->AddToViewport();
+        LootInventoryWidgetInstance->AddToViewport(2);
         LootInventoryWidgetInstance->SetPositionInViewport(FVector2D(800, 0), false);
 
         // 플레이어 인벤토리 같이 열기
         if (InteractingPlayer && InteractingPlayer->InventoryWidgetInstance)
         {
-            InteractingPlayer->InventoryWidgetInstance->AddToViewport();
+            InteractingPlayer->InventoryWidgetInstance->AddToViewport(2);
             InteractingPlayer->InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 0), false);
 
             APlayerController* PC = Cast<APlayerController>(InteractingPlayer->GetController());
@@ -345,30 +347,44 @@ void AEnemyCharacter::GenerateRandomLoot()
     {
         for (TObjectIterator<UClass> It; It; ++It)
         {
-            if (It->IsChildOf(AItem::StaticClass()) && !It->HasAnyClassFlags(CLASS_Abstract) && *It != AItem::StaticClass())
+            if (It->IsChildOf(AItem::StaticClass()) &&
+                !It->HasAnyClassFlags(CLASS_Abstract) &&
+                *It != AItem::StaticClass())
             {
                 PossibleItems.Add(*It);
             }
         }
     }
 
-    int32 ItemCount = FMath::RandRange(3, 10); // 적당히 조절
+    int32 ItemCount = FMath::RandRange(3, 10); // 생성할 아이템 개수
 
     for (int32 i = 0; i < ItemCount; ++i)
     {
         int32 RandomIndex = FMath::RandRange(0, PossibleItems.Num() - 1);
         TSubclassOf<AItem> SelectedClass = PossibleItems[RandomIndex];
 
+        if (!SelectedClass) continue;
+
+        AItem* DefaultItem = SelectedClass->GetDefaultObject<AItem>();
+        if (!DefaultItem) continue;
+
         FItemData NewItemData;
         NewItemData.ItemClass = SelectedClass;
+        NewItemData.ItemIcon = DefaultItem->ItemIcon;
+        NewItemData.ItemName = DefaultItem->ItemName;
+        NewItemData.ItemType = DefaultItem->ItemType;
+        NewItemData.bIsStackable = DefaultItem->bIsStackable;
+        NewItemData.MaxStack = DefaultItem->MaxStack;
+        NewItemData.Count = 1;
 
-        if (SelectedClass)
+        // 직접 구조체를 배열에 넣음
+        for (int32 j = 0; j < LootInventory->InventoryItemsStruct.Num(); ++j)
         {
-            AItem* DefaultItem = SelectedClass->GetDefaultObject<AItem>();
-            NewItemData.ItemIcon = DefaultItem->ItemIcon;
-            NewItemData.ItemName = DefaultItem->ItemName;
+            if (LootInventory->InventoryItemsStruct[j].ItemClass == nullptr)
+            {
+                LootInventory->InventoryItemsStruct[j] = NewItemData;
+                break;
+            }
         }
-
-        LootInventory->TryAddItemByClass(SelectedClass);
     }
 }

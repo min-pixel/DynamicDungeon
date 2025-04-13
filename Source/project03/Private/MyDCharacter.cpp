@@ -250,7 +250,7 @@ void AMyDCharacter::BeginPlay()
 		if (HUDWidget)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Widget successfully created, adding to viewport..."));
-			HUDWidget->AddToViewport(10);
+			HUDWidget->AddToViewport(1);
 		}
 		else
 		{
@@ -1050,11 +1050,11 @@ void AMyDCharacter::ToggleInventoryUI()
 	}
 	else
 	{
-		InventoryWidgetInstance->AddToViewport();
+		InventoryWidgetInstance->AddToViewport(10);
 		InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 0), false);
 		InventoryWidgetInstance->RefreshInventoryStruct();
 
-		EquipmentWidgetInstance->AddToViewport(); // 인벤토리보다 위일 수도 있음
+		EquipmentWidgetInstance->AddToViewport(10); // 인벤토리보다 위일 수도 있음
 		EquipmentWidgetInstance->SetPositionInViewport(FVector2D(100, 0), false);
 		EquipmentWidgetInstance->RefreshEquipmentSlots(); // 나중에 함수에서 슬롯 정보 반영하게 만들 수 있음
 
@@ -1082,4 +1082,9 @@ void AMyDCharacter::ToggleInventoryUI()
 		InputMode.SetWidgetToFocus(InventoryWidgetInstance->TakeWidget());
 		PC->SetInputMode(InputMode);
 	}
+}
+
+bool AMyDCharacter::IsDead() const
+{
+	return Health <= 0.0f;
 }

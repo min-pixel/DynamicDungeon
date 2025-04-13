@@ -35,6 +35,7 @@ FReply USlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const F
     if (InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
     {
         return UWidgetBlueprintLibrary::DetectDragIfPressed(InMouseEvent, this, EKeys::LeftMouseButton).NativeReply;
+
     }
     return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
@@ -141,7 +142,6 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
     USlotWidget* SourceSlot = Cast<USlotWidget>(InOperation->Payload);
     if (!SourceSlot || SourceSlot == this)
     {
-        UE_LOG(LogTemp, Error, TEXT("Drop SourceSlot null."));
         return false;
     }
 

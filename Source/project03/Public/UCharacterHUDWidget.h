@@ -36,4 +36,13 @@ public:
 
     UPROPERTY(meta = (BindWidget))
     class UProgressBar* StaminaProgressBar;
+
+    UPROPERTY(meta = (BindWidget))
+    class UImage* Image_HitOverlay;
+
+    FTimerHandle HitFadeTimerHandle;
+    void StartHitOverlayFadeOut();
+    void FadeOutHitOverlay();
+
+    float PreviousHealth = -1.0f;
 };

@@ -90,6 +90,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float StaminaRegenRate = 10.0f;
 
+	UFUNCTION(BlueprintCallable, Category = "State")
+	bool IsDead() const;
+
 	void SprintStaminaDrain();
 
 	void ReduceStamina(float StaminaCost);

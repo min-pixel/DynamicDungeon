@@ -41,6 +41,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 MaxStack = 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EItemType ItemType;
 
+	//virtual FItemData ToItemData() const;
 
 };

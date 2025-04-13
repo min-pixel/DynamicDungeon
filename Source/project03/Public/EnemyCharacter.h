@@ -85,7 +85,7 @@ public:
 
 	void OpenLootUI(class AMyDCharacter* InteractingPlayer);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Loot", meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Loot")
 	UInventoryComponent* LootInventory;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
@@ -95,6 +95,7 @@ public:
 	UInventoryWidget* LootInventoryWidgetInstance;
 
 	void GenerateRandomLoot();
+
 
 	TArray<TSubclassOf<AItem>> PossibleItems;
 

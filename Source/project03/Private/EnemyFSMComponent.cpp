@@ -115,6 +115,13 @@ void UEnemyFSMComponent::HandleChasingState()
 
     SightAngle = 360.0f;
 
+    if (!IsValid(target) || target->IsDead())
+    {
+        SetState(EEnemyState::Roaming);
+        target = nullptr;
+        return;
+    }
+
     if (!CanSeePlayer(ToPlayer, Distance))
     {
         TimeSinceLastSeen += GetWorld()->GetDeltaSeconds();
@@ -163,6 +170,8 @@ bool UEnemyFSMComponent::CanSeePlayer(FVector& OutToPlayer, float& OutDistance)
     {
         AMyDCharacter* Player = *It;
         if (!Player || Player->IsPendingKillPending()) continue;
+
+        if (Player->IsDead()) continue;
 
         FVector ToPlayer = Player->GetActorLocation() - me->GetActorLocation();
         float Distance = ToPlayer.Size();
@@ -228,6 +237,13 @@ bool UEnemyFSMComponent::CanSeePlayer(FVector& OutToPlayer, float& OutDistance)
 void UEnemyFSMComponent::HandleAttackingState()
 {
     if (!me || !target) return;
+
+    if (!IsValid(target) || target->IsDead())
+    {
+        SetState(EEnemyState::Roaming);
+        target = nullptr;
+        return;
+    }
 
     SightAngle = 360.0f;
 
