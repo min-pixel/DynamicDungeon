@@ -98,6 +98,9 @@ public:
 
 	bool IsIsolatedTile(int32 TileIndex, const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 
+	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
+	float GetTileSize() const;
+
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
 	* @param TryCount Amount of times to attempt a successful solve

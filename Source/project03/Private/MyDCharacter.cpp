@@ -271,12 +271,12 @@ void AMyDCharacter::BeginPlay()
 			InventoryWidgetInstance->InventoryRef = InventoryComponent;
 			InventoryWidgetInstance->RefreshInventoryStruct();
 
-			if (InventoryComponent)
-			{
-				InventoryComponent->TryAddItemByClass(AGreatWeapon::StaticClass());
+			//if (InventoryComponent)
+			//{
+			//	InventoryComponent->TryAddItemByClass(AGreatWeapon::StaticClass());
 
-				InventoryWidgetInstance->RefreshInventoryStruct(); // 다시 갱신
-			}
+			//	InventoryWidgetInstance->RefreshInventoryStruct(); // 다시 갱신
+			//}
 
 		}
 	}
@@ -302,6 +302,22 @@ void AMyDCharacter::BeginPlay()
 			}
 		}
 	}*/
+
+	UBlueprint* LightBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, TEXT("/Game/BP/light.light")));
+	if (LightBP && LightBP->GeneratedClass)
+	{
+		AActor* LightActor = GetWorld()->SpawnActor<AActor>(LightBP->GeneratedClass);
+
+		
+
+		if (LightActor && CharacterMesh && CharacterMesh->DoesSocketExist("hand_l"))
+		{
+			LightActor->AttachToComponent(CharacterMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("hand_l"));
+			FRotator DesiredRotation = FRotator(0.0f, 0.0f, 180.0f);
+			LightActor->SetActorRelativeRotation(DesiredRotation);
+			UE_LOG(LogTemp, Log, TEXT("Light attached to left hand."));
+		}
+	}
 
 }
 

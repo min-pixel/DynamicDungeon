@@ -207,6 +207,12 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		LastCollapsedTiles = Tiles;
 
 		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
+
+		if (SpawnedActor)
+		{
+			SpawnedActor->Tags.Add(FName("WFCGenerated"));
+		}
+
 		UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
 
 		// 테두리 블루프린트 소환 함수 호출
@@ -2605,4 +2611,9 @@ bool UWaveFunctionCollapseSubsystem02::IsIsolatedTile(int32 TileIndex, const TAr
 
 	// 모든 인접 타일이 복도가 아니라면 고립된 타일!
 	return true;
+}
+
+float UWaveFunctionCollapseSubsystem02::GetTileSize() const
+{
+	return (WFCModel != nullptr) ? WFCModel->TileSize : 100.f; // WFCModel이 null일 경우 대비
 }
