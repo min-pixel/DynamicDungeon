@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "WaveFunctionCollapseModel02.h" 
 #include "WFCRegenerator.generated.h"
 
 
@@ -52,5 +53,9 @@ public:
 	void GenerateWFCAtLocation();
 
 	void ClearPreviousWFCActors();
+
+	FIntVector FixedTileCoord;
+	FWaveFunctionCollapseOptionCustom FixedTileOption;
+	bool bHasFixedTile = false;
 
 };

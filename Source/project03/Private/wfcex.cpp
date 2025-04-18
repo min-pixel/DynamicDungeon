@@ -24,7 +24,9 @@ void Awfcex::BeginPlay()
 	ExecuteWFCInSubsystem(90, 1172835073); //테스트용 시드 1967664897, 1094396673, 1172835073, 1966419713
     SpawnPlayerOnCorridor();
 
-    SpawnEnemiesOnCorridor(15);
+    //SpawnEnemiesOnCorridor(15);
+
+    SpawnWFCRegeneratorOnRoom();
 }
 
 
@@ -235,4 +237,47 @@ void Awfcex::SpawnEnemiesOnCorridor(int32 EnemyCount)
             UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy at location: %s"), *SpawnLocation.ToString());
         }
     }
+}
+
+void Awfcex::SpawnWFCRegeneratorOnRoom()
+{
+    UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
+    if (!WFCSubsystem || !WFCSubsystem->WFCModel) return;
+
+    const TArray<FWaveFunctionCollapseTileCustom>& Tiles = WFCSubsystem->LastCollapsedTiles;
+    FIntVector Resolution = WFCSubsystem->Resolution;
+    float TileSize = WFCSubsystem->WFCModel->TileSize;
+
+    TArray<FVector> RoomTilePositions;
+    TArray<FIntVector> RoomTileCoords;
+    TArray<FWaveFunctionCollapseOptionCustom> RoomTileOptions;
+
+    for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+    {
+        if (Tiles[TileIndex].RemainingOptions.Num() > 0 &&
+            Tiles[TileIndex].RemainingOptions[0].bIsRoomTile)
+        {
+            FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
+            RoomTilePositions.Add(TilePosition);
+
+            //여기에서 타일 좌표와 옵션 저장
+            FIntVector Coord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+            RoomTileCoords.Add(Coord);
+            RoomTileOptions.Add(Tiles[TileIndex].RemainingOptions[0]);
+        }
+    }
+
+    if (RoomTilePositions.Num() == 0) return;
+
+    int32 RandomIndex = FMath::RandRange(0, RoomTilePositions.Num() - 1);
+    FVector SpawnLocation = RoomTilePositions[RandomIndex] + FVector(0, 0, 50); // 위로 살짝 띄우기
+
+    // StarterOption 고정 등록
+    WFCSubsystem->UserFixedOptions.Add(RoomTileCoords[RandomIndex], RoomTileOptions[RandomIndex]);
+    UE_LOG(LogTemp, Warning, TEXT("StarterOption fixed for Regenerator at (%d, %d, %d)"),
+        RoomTileCoords[RandomIndex].X, RoomTileCoords[RandomIndex].Y, RoomTileCoords[RandomIndex].Z);
+
+    // WFC Regenerator 오브젝트 스폰
+    FActorSpawnParameters Params;
+    GetWorld()->SpawnActor<AWFCRegenerator>(WFCRegeneratorClass, SpawnLocation, FRotator::ZeroRotator, Params);
 }

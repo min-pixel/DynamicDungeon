@@ -7,6 +7,7 @@
 #include "WaveFunctionCollapseSubsystem02.h"
 #include "MyDCharacter.h"
 #include "EnemyCharacter.h"
+#include "WFCRegenerator.h"
 #include "wfcex.generated.h"
 
 UCLASS()
@@ -48,5 +49,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
 	void SpawnEnemiesOnCorridor(int32 EnemyCount);
+
+	UPROPERTY(EditAnywhere, Category = "WFC Regenerator")
+	TSubclassOf<AWFCRegenerator> WFCRegeneratorClass;
+
+	
+	UFUNCTION(BlueprintCallable, Category = "WFC")
+	void SpawnWFCRegeneratorOnRoom();
 
 };

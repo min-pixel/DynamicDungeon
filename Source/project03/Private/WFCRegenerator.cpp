@@ -6,6 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
 #include "WaveFunctionCollapseSubsystem02.h"
+#include "WaveFunctionCollapseBPLibrary02.h"
 
 // Sets default values
 AWFCRegenerator::AWFCRegenerator()
@@ -123,38 +124,88 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("GenerateWFCAtLocation started"));
 
-	// 이전에 생성된 WFC 액터 제거
+	// 기존 WFC 액터 제거
 	ClearPreviousWFCActors();
 	UE_LOG(LogTemp, Warning, TEXT("Previous WFC actors cleared"));
 
 	// 서브시스템 가져오기
 	UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetGameInstance()->GetSubsystem<UWaveFunctionCollapseSubsystem02>();
-	if (WFCSubsystem)
+	if (!WFCSubsystem || !WFCSubsystem->WFCModel)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("WFCSubsystem acquired successfully"));
-
-		// 액터 위치에서 타일 좌표 계산
-		FVector LocalOffset = GetActorLocation() - WFCSubsystem->OriginLocation;
-		int32 TileSize = WFCSubsystem->GetTileSize();
-		FIntVector TileCoord = FIntVector(
-			FMath::RoundToInt(LocalOffset.X / TileSize),
-			FMath::RoundToInt(LocalOffset.Y / TileSize),
-			FMath::RoundToInt(LocalOffset.Z / TileSize)
-		);
-
-		UE_LOG(LogTemp, Warning, TEXT("Tile coordinate calculated: (%d, %d, %d)"), TileCoord.X, TileCoord.Y, TileCoord.Z);
-
-		// 해당 위치에 시작 타일 고정 설정
-		FWaveFunctionCollapseOptionCustom FixedOption(TEXT("/Game/BP/romm.romm")); 
-		WFCSubsystem->StarterOptions.Add(TileCoord, FixedOption);
-		UE_LOG(LogTemp, Warning, TEXT("StarterOption set: %s"), *FixedOption.BaseObject.ToString());
-
-		// 실행 WFC
-		WFCSubsystem->ExecuteWFC(TryCount, RandomSeed);
-		UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
+		UE_LOG(LogTemp, Error, TEXT("Failed to acquire WFCSubsystem or WFCModel"));
+		return;
 	}
-	else
+
+	// 타일 좌표 계산
+	FVector LocalOffset = GetActorLocation() - WFCSubsystem->OriginLocation;
+	int32 TileSize = WFCSubsystem->GetTileSize();
+	FIntVector TileCoord = FIntVector(
+		FMath::FloorToInt(LocalOffset.X / TileSize),
+		FMath::FloorToInt(LocalOffset.Y / TileSize),
+		FMath::FloorToInt(LocalOffset.Z / TileSize)
+	);
+
+	UE_LOG(LogTemp, Warning, TEXT("Tile coordinate calculated: (%d, %d, %d)"), TileCoord.X, TileCoord.Y, TileCoord.Z);
+
+	// 방 타일 옵션 찾기
+	FWaveFunctionCollapseOptionCustom FixedOption;
+	bool bFound = false;
+
+	/*for (const auto& Elem : WFCSubsystem->WFCModel->Constraints)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to acquire WFCSubsystem"));
+		const FWaveFunctionCollapseOptionCustom& Option = Elem.Key;
+		FString Path = Option.BaseObject.ToString();
+
+		UE_LOG(LogTemp, Warning, TEXT("Checking Option: %s"), *Path);
+
+		if (Path == TEXT("/Game/BP/romm.romm"))
+		{
+			FixedOption = Option;
+			bFound = true;
+			UE_LOG(LogTemp, Warning, TEXT("Matched room tile option from Constraints: %s (IsRoomTile: %s)"),
+				*Path, Option.bIsRoomTile ? TEXT("true") : TEXT("false"));
+			break;
+		}
+	}*/
+
+	
+
+	for (const auto& Elem : WFCSubsystem->WFCModel->Constraints)
+	{
+		const FWaveFunctionCollapseOptionCustom& Option = Elem.Key;
+		if (Option.BaseObject.ToString() == TEXT("/Game/BP/romm.romm"))
+		{
+			FixedOption = Option; //반드시 Constraints에서 찾기
+			bFound = true;
+			break;
+		}
 	}
+
+
+
+	if (!bFound)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Could not find valid room tile option for /Game/BP/romm.romm"));
+		return;
+	}
+
+
+	UE_LOG(LogTemp, Warning, TEXT("Adding UserFixedOptions before ExecuteWFC at (%d, %d, %d)"), TileCoord.X, TileCoord.Y, TileCoord.Z);
+	// 고정 타일 설정
+	WFCSubsystem->UserFixedOptions.Add(TileCoord, FixedOption);
+	UE_LOG(LogTemp, Warning, TEXT("UserFixedOptions set: %s (RoomTile: %s)"),
+		*FixedOption.BaseObject.ToString(), FixedOption.bIsRoomTile ? TEXT("true") : TEXT("false"));
+
+	UE_LOG(LogTemp, Warning, TEXT("UserFixedOptions.Num() after add: %d"), WFCSubsystem->UserFixedOptions.Num());
+
+	WFCSubsystem->RegeneratorFixedTileCoord = TileCoord;
+	WFCSubsystem->RegeneratorFixedTileOption = FixedOption;
+	WFCSubsystem->bHasRegeneratorFixedTile = true;
+
+	// WFC 실행
+	WFCSubsystem->ExecuteWFC(TryCount, RandomSeed);
+	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
+
+	// 후처리 실행
+	WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord);
 }

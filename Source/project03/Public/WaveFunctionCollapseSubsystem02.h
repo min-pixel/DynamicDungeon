@@ -114,6 +114,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
 	void SpawnBorderBlueprints();
 
+	TMap<FIntVector, FWaveFunctionCollapseOptionCustom> UserFixedOptions;
+
+	FIntVector RegeneratorFixedTileCoord;
+	FWaveFunctionCollapseOptionCustom RegeneratorFixedTileOption;
+	bool bHasRegeneratorFixedTile = false;
+
 
 	/**
 	* Initialize WFC process which sets up Tiles and RemainingTiles arrays
@@ -188,6 +194,8 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
 	void DeriveGridFromTransforms(const TArray<FTransform>& Transforms);
+
+	void PostProcessFixedRoomTileAt(const FIntVector& Coord);
 
 private:
 
