@@ -260,7 +260,6 @@ void Awfcex::SpawnWFCRegeneratorOnRoom()
             FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
             RoomTilePositions.Add(TilePosition);
 
-            //여기에서 타일 좌표와 옵션 저장
             FIntVector Coord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
             RoomTileCoords.Add(Coord);
             RoomTileOptions.Add(Tiles[TileIndex].RemainingOptions[0]);
@@ -269,13 +268,43 @@ void Awfcex::SpawnWFCRegeneratorOnRoom()
 
     if (RoomTilePositions.Num() == 0) return;
 
-    int32 RandomIndex = FMath::RandRange(0, RoomTilePositions.Num() - 1);
-    FVector SpawnLocation = RoomTilePositions[RandomIndex] + FVector(0, 0, 50); // 위로 살짝 띄우기
+    //중심 좌표 계산
+    FIntVector CenterCoord = FIntVector(Resolution.X / 2, Resolution.Y / 2, Resolution.Z / 2);
+
+    // 중심으로부터 가까운 방만 필터링 (맨해튼 거리 사용)
+    auto GetManhattanDistance = [](const FIntVector& A, const FIntVector& B)
+        {
+            return FMath::Abs(A.X - B.X) + FMath::Abs(A.Y - B.Y);
+        };
+
+    TArray<int32> CentralRoomIndices;
+    for (int32 i = 0; i < RoomTileCoords.Num(); ++i)
+    {
+        int32 Distance = GetManhattanDistance(RoomTileCoords[i], CenterCoord);
+        if (Distance <= 10) // 중심에서 10칸 이내만 허용 (필요하면 조정)
+        {
+            CentralRoomIndices.Add(i);
+        }
+    }
+
+    //조건에 맞는 게 없다면 전체에서 랜덤
+    int32 SelectedIndex = -1;
+    if (CentralRoomIndices.Num() > 0)
+    {
+        SelectedIndex = CentralRoomIndices[FMath::RandRange(0, CentralRoomIndices.Num() - 1)];
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No central room found. Using fallback random room."));
+        SelectedIndex = FMath::RandRange(0, RoomTileCoords.Num() - 1);
+    }
+
+    FVector SpawnLocation = RoomTilePositions[SelectedIndex] + FVector(0, 0, 50);
 
     // StarterOption 고정 등록
-    WFCSubsystem->UserFixedOptions.Add(RoomTileCoords[RandomIndex], RoomTileOptions[RandomIndex]);
+    WFCSubsystem->UserFixedOptions.Add(RoomTileCoords[SelectedIndex], RoomTileOptions[SelectedIndex]);
     UE_LOG(LogTemp, Warning, TEXT("StarterOption fixed for Regenerator at (%d, %d, %d)"),
-        RoomTileCoords[RandomIndex].X, RoomTileCoords[RandomIndex].Y, RoomTileCoords[RandomIndex].Z);
+        RoomTileCoords[SelectedIndex].X, RoomTileCoords[SelectedIndex].Y, RoomTileCoords[SelectedIndex].Z);
 
     // WFC Regenerator 오브젝트 스폰
     FActorSpawnParameters Params;

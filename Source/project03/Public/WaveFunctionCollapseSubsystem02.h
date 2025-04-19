@@ -106,8 +106,15 @@ public:
 	* @param TryCount Amount of times to attempt a successful solve
 	* @param RandomSeed Seed for deterministic results.  When this value is 0 the seed will be generated. Seed value will be logged during the solve.
 	*/
+	/*UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
+	AActor* CollapseCustom(int32 TryCount = 1, int32 RandomSeed = 0);*/
+
+	//20250419
+	AActor* CollapseCustom(int32 TryCount, int32 RandomSeed, TOptional<FIntVector> StartTile);
+
 	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
-	AActor* CollapseCustom(int32 TryCount = 1, int32 RandomSeed = 0);
+	AActor* CollapseCustom002(int32 TryCount, int32 RandomSeed);
+
 
 
 	// 새로운 함수 선언 추가

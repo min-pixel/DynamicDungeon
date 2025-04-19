@@ -16,7 +16,8 @@
 
 DEFINE_LOG_CATEGORY(LogWFC);
 
-AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */)
+
+AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */, TOptional<FIntVector> StartTile)
 {
 	//Resolution 값 설정
 	Resolution.X = 60;
@@ -44,6 +45,35 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	InitializeWFC(Tiles, RemainingTiles);
 
 	UE_LOG(LogTemp, Warning, TEXT("UserFixedOptions.Num(): %d"), UserFixedOptions.Num());
+
+	//20250419
+	//if (StartTile.IsSet())
+	//{
+	//	int32 StartIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(StartTile.GetValue(), Resolution);
+
+	//	if (Tiles.IsValidIndex(StartIndex))
+	//	{
+	//		// 주변 인덱스를 구해서 ObservationQueue에 추가
+	//		TArray<int32> AdjacentIndices = GetAdjacentIndices(StartIndex, Resolution);
+	//		for (int32 AdjIndex : AdjacentIndices)
+	//		{
+	//			if (Tiles.IsValidIndex(AdjIndex))
+	//			{
+	//				FWaveFunctionCollapseQueueElementCustom QElem(AdjIndex, EWaveFunctionCollapseAdjacencyCustom::Front);
+	//				ObservationQueue.Add(AdjIndex, QElem);
+	//			}
+	//		}
+
+	//		UE_LOG(LogWFC, Warning, TEXT("Collapse started from custom StartTile's neighbors: %s"), *StartTile.GetValue().ToString());
+	//	}
+	//}
+
+	if (StartTile.IsSet())
+	{
+		int32 StartIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(StartTile.GetValue(), Resolution);
+		ObservationQueue.Add(StartIndex, FWaveFunctionCollapseQueueElementCustom(StartIndex, EWaveFunctionCollapseAdjacencyCustom::Front)); // 방향은 아무거나 상관없음
+		UE_LOG(LogWFC, Warning, TEXT("Collapse started from custom StartTile's neighbors: %s"), *StartTile.GetValue().ToString());
+	}
 
 	// StarterOptions 적용  20250417
 	//for (const auto& Entry : UserFixedOptions)
@@ -113,6 +143,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		RemoveIsolatedCorridorTiles(Tiles);
 		RemoveDisconnectedCorridors(Tiles);
 		
+
 		
 		// 루프 내부에서 SelectedOption 및 TileIndex를 참조
 		for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
@@ -120,7 +151,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 			if (Tiles[TileIndex].RemainingOptions.Num() == 1)
 			{
 				FWaveFunctionCollapseOptionCustom& SelectedOption = Tiles[TileIndex].RemainingOptions[0];
-				
+
+
 				// 방 타일 처리
 				if (SelectedOption.bIsRoomTile)
 				{
@@ -279,6 +311,9 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					// 방 타일 앞에 goalt01을 배치하는 함수 실행
 					PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
 
+
+
+					
 					
 				}
 			}
@@ -299,6 +334,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 		// 테두리 블루프린트 소환 함수 호출
 		SpawnBorderBlueprints();
+
+		RoomTilePositions.Empty();
 
 		return SpawnedActor;
 	}
@@ -1321,9 +1358,19 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 	OriginLocation = FVector(0.0f, 0.0f, 0.0f);
 	Orientation = FRotator(0.0f, 0.0f, 0.0f);
 	bUseEmptyBorder = false;
+	//20250419
+	TOptional<FIntVector> StartTile;
+	if (UserFixedOptions.Num() > 0)
+	{
+		for (const auto& Elem : UserFixedOptions)
+		{
+			StartTile = Elem.Key;
+			break; // 첫 번째 키 하나만 사용
+		}
+	}
 
 	// WFC Collapse 실행
-	AActor* ResultActor = CollapseCustom(TryCount, RandomSeed);
+	AActor* ResultActor = CollapseCustom(TryCount, RandomSeed, StartTile);
 	if (ResultActor)
 	{
 		UE_LOG(LogWFC, Display, TEXT("Successfully collapsed WFC and spawned actor: %s"), *ResultActor->GetName());
@@ -2753,3 +2800,10 @@ void UWaveFunctionCollapseSubsystem02::PostProcessFixedRoomTileAt(const FIntVect
 
 	UE_LOG(LogTemp, Warning, TEXT("PostProcessFixedRoomTileAt called for (%d, %d, %d)ttttt"), Coord.X, Coord.Y, Coord.Z);
 }
+
+// 오버로드 버전 20250419
+AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom002(int32 TryCount, int32 RandomSeed)
+{
+	return CollapseCustom(TryCount, RandomSeed, TOptional<FIntVector>());
+}
+
