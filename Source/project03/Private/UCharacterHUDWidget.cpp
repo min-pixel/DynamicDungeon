@@ -31,6 +31,17 @@ void UUCharacterHUDWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
 
     PreviousHealth = CurrentHealth;
 
+    if (WFCWarningWidgetClass)
+    {
+        WFCWarningWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCWarningWidgetClass);
+    }
+
+    if (WFCDoneWidgetClass)
+    {
+        WFCDoneWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCDoneWidgetClass);
+    }
+
+
 }
 
 void UUCharacterHUDWidget::UpdateMana(float CurrentMana, float MaxMana)

@@ -206,6 +206,32 @@ public:
 	UPROPERTY()
 	AActor* OverlappedActor;
 
+	FTimerHandle TimerHandle_DelayedWFC;
+	AActor* PendingRegenActor = nullptr;
+	bool bIsWFCCountdownActive = false;
+
+	void TriggerDelayedWFC();
+
+	void PlayWFCRegenCameraShake();
+
+	void ShowWFCFadeAndRegenSequence();
+
+	void FadeAndRegenWFC();
+
+	void ExecuteWFCNow();
+
+	UPROPERTY(EditDefaultsOnly, Category = "WFC UI")
+	TSubclassOf<UUserWidget> WFCWarningWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "WFC UI")
+	TSubclassOf<UUserWidget> WFCDoneWidgetClass;
+
+	UUserWidget* WFCWarningWidgetInstance;
+	UUserWidget* WFCDoneWidgetInstance;
+
+	FTimerHandle TimerHandle_DelayedWFCFade;
+	FTimerHandle TimerHandle_DelayedWFCFinal;
+
 private:
 	/** Ä³¸¯ÅÍÀÇ ½ºÄÌ·¹Å» ¸Þ½¬ */
 	UPROPERTY(VisibleAnywhere, Category = "Components")

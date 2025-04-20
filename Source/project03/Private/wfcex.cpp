@@ -299,7 +299,7 @@ void Awfcex::SpawnWFCRegeneratorOnRoom()
         SelectedIndex = FMath::RandRange(0, RoomTileCoords.Num() - 1);
     }
 
-    FVector SpawnLocation = RoomTilePositions[SelectedIndex] + FVector(0, 0, 50);
+    FVector SpawnLocation = RoomTilePositions[SelectedIndex] + FVector(0, 0, 0);
 
     // StarterOption 고정 등록
     WFCSubsystem->UserFixedOptions.Add(RoomTileCoords[SelectedIndex], RoomTileOptions[SelectedIndex]);

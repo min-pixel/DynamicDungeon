@@ -45,4 +45,16 @@ public:
     void FadeOutHitOverlay();
 
     float PreviousHealth = -1.0f;
+
+    UPROPERTY()
+    class UUserWidget* WFCWarningWidgetInstance;
+
+    UPROPERTY()
+    class UUserWidget* WFCDoneWidgetInstance;
+
+    UPROPERTY(EditDefaultsOnly, Category = "WFC UI")
+    TSubclassOf<UUserWidget> WFCWarningWidgetClass;
+
+    UPROPERTY(EditDefaultsOnly, Category = "WFC UI")
+    TSubclassOf<UUserWidget> WFCDoneWidgetClass;
 };

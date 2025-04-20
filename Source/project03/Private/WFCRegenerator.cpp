@@ -7,6 +7,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "WaveFunctionCollapseSubsystem02.h"
 #include "WaveFunctionCollapseBPLibrary02.h"
+#include "MyDCharacter.h"
+#include "Async/Async.h"
 
 // Sets default values
 AWFCRegenerator::AWFCRegenerator()
@@ -24,16 +26,18 @@ AWFCRegenerator::AWFCRegenerator()
 	MeshComp->SetupAttachment(RootComponent);
 
 	// 메쉬 설정
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Game/StarterContent/Shapes/Shape_Cone.Shape_Cone"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Game/BP/SM_Table.SM_Table"));
 	if (ConeMesh.Succeeded())
 	{
 		MeshComp->SetStaticMesh(ConeMesh.Object);
 		MeshComp->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
-		MeshComp->SetWorldScale3D(FVector(1.0f));
+		MeshComp->SetWorldScale3D(FVector(0.5f));
 	}
 
 	TriggerVolume->OnComponentBeginOverlap.AddDynamic(this, &AWFCRegenerator::OnOverlapBegin);
 	TriggerVolume->OnComponentEndOverlap.AddDynamic(this, &AWFCRegenerator::OnOverlapEnd);
+
+	Tags.Add(FName("WFCRegen"));
 
 }
 
@@ -41,6 +45,7 @@ AWFCRegenerator::AWFCRegenerator()
 void AWFCRegenerator::BeginPlay()
 {
 	Super::BeginPlay();
+	
 	
 }
 
@@ -54,24 +59,25 @@ void AWFCRegenerator::Tick(float DeltaTime)
 void AWFCRegenerator::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (OtherActor && OtherActor->ActorHasTag("Player"))
-	{
-		MeshComp->SetRenderCustomDepth(true); // 외곽선 ON
+	
 
-		if (bGenerateOnOverlap)
+		// OverlappedActor 설정 추가
+		AMyDCharacter* Player = Cast<AMyDCharacter>(OtherActor);
+		if (Player)
 		{
-			GenerateWFCAtLocation();
+			MeshComp->SetRenderCustomDepth(true);
+			Player->OverlappedActor = this;
+			UE_LOG(LogTemp, Warning, TEXT("AWFCRegenerator: Registered self as OverlappedActor"));
 		}
-	}
+
 }
 
 void AWFCRegenerator::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	if (OtherActor && OtherActor->ActorHasTag("Player"))
-	{
+	
 		MeshComp->SetRenderCustomDepth(false); // 외곽선 OFF
-	}
+	
 }
 
 //void AWFCRegenerator::GenerateWFCAtLocation()

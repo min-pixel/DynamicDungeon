@@ -19,6 +19,8 @@
 #include "InventoryWidget.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
+#include "Camera/CameraShakeBase.h"
+#include "WFCRegenerator.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 
 // 기본 생성자
@@ -171,8 +173,12 @@ AMyDCharacter::AMyDCharacter()
 	InteractionBox->SetupAttachment(RootComponent);
 	InteractionBox->SetBoxExtent(FVector(50.0f, 50.0f, 100.0f)); // 콜리전 크기 설정
 	InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	InteractionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+	
 	InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	InteractionBox->SetCollisionObjectType(ECC_WorldDynamic);  // or ECC_GameTraceChannel1 등 사용자 채널 설정 가능
+
+	// 이렇게 모든 채널에 대해 오버랩 하게
+	InteractionBox->SetCollisionResponseToAllChannels(ECR_Overlap);
 	InteractionBox->OnComponentBeginOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapBegin);
 	InteractionBox->OnComponentEndOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapEnd);
 
@@ -217,6 +223,24 @@ AMyDCharacter::AMyDCharacter()
 	if (CombinedWidgetBP.Succeeded())
 	{
 		CombinedInventoryWidgetClass = CombinedWidgetBP.Class;
+	}
+
+	//Tags.Add(FName("Player"));
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> WFCWarnBP(TEXT("/Game/BP/UI/WFCWarningWidget.WFCWarningWidget_C"));
+	if (WFCWarnBP.Succeeded())
+	{
+		WFCWarningWidgetClass = WFCWarnBP.Class;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load WFCWarningWidget blueprint!"));
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> WFCDoneBP(TEXT("/Game/BP/UI/WFCDoneWidget.WFCDoneWidget_C"));
+	if (WFCDoneBP.Succeeded())
+	{
+		WFCDoneWidgetClass = WFCDoneBP.Class;
 	}
 
 }
@@ -317,6 +341,17 @@ void AMyDCharacter::BeginPlay()
 			LightActor->SetActorRelativeRotation(DesiredRotation);
 			UE_LOG(LogTemp, Log, TEXT("Light attached to left hand."));
 		}
+	}
+
+	if (WFCWarningWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WFCWarningWidgetInstance Created Successfully"));
+		WFCWarningWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCWarningWidgetClass);
+	}
+	if (WFCDoneWidgetClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WFCWarningWidgetInstance Created Successfully"));
+		WFCDoneWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCDoneWidgetClass);
 	}
 
 }
@@ -461,20 +496,23 @@ void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AAc
 void AMyDCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	if (OtherActor == OverlappedActor)
+
+	UE_LOG(LogTemp, Warning, TEXT("OnOverlapEnd: Resetting OverlappedActor"));
+	// 조건 제거: 그냥 오버랩 끝났으면 OverlappedActor를 초기화
+	OverlappedActor = nullptr;
+
+	// GameInstance 변수 초기화
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	if (GameInstance)
 	{
-		OverlappedActor = nullptr;
+		GameInstance->itemEAt = false;
+		GameInstance->OpenDoor = false;
+		GameInstance->WeaponEAt = false;
+		UE_LOG(LogTemp, Log, TEXT("Overlap Ended - Reset GameInstance variables"));
+	}
 
-		// 오버랩 종료 시 NewGameInstance 변수 초기화
-		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-		if (GameInstance)
-		{
-			GameInstance->itemEAt = false;
-			GameInstance->OpenDoor = false;
-			GameInstance->WeaponEAt = false;
-			UE_LOG(LogTemp, Log, TEXT("Overlap Ended - Reset GameInstance variables"));
-		}
-
+	if (OtherActor)
+	{
 		UE_LOG(LogTemp, Log, TEXT("Overlap Ended with: %s"), *OtherActor->GetName());
 	}
 }
@@ -491,6 +529,8 @@ void AMyDCharacter::StartInteraction()
 		GameInstance->itemEAt = true;
 		GameInstance->OpenDoor = true;
 		GameInstance->WeaponEAt = true;
+
+		
 
 		UE_LOG(LogTemp, Log, TEXT("StartInteraction() : itemEAt = true, OpenDoor = true"));
 
@@ -511,11 +551,27 @@ void AMyDCharacter::StartInteraction()
 				UE_LOG(LogTemp, Log, TEXT("Opened enemy loot UI"));
 				return;
 			}
+			
+
+
 		}
+
+		if (OverlappedActor && OverlappedActor->ActorHasTag("WFCRegen") && !bIsWFCCountdownActive)
+		{
+			PendingRegenActor = OverlappedActor;
+			bIsWFCCountdownActive = true;
+
+			//경고 UI 표시 (UMG로 표시하는 방식에 따라 구현 필요)
+			UE_LOG(LogTemp, Warning, TEXT("55555se"));
+
+			PlayWFCRegenCameraShake();
+
+			TriggerDelayedWFC();
+
+			return;
+		}
+
 	}
-
-
-
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("StartInteraction(): GameInstance not found!"));
@@ -1103,4 +1159,115 @@ void AMyDCharacter::ToggleInventoryUI()
 bool AMyDCharacter::IsDead() const
 {
 	return Health <= 0.0f;
+}
+
+//void AMyDCharacter::TriggerDelayedWFC()
+//{
+//	//카메라 쉐이크 효과 또는 화면 페이드 추가 예정
+//	UE_LOG(LogTemp, Warning, TEXT("rereereere"));
+//
+//	if (PendingRegenActor)
+//	{
+//		AWFCRegenerator* Regen = Cast<AWFCRegenerator>(PendingRegenActor);
+//		if (!Regen && PendingRegenActor->GetOwner())
+//		{
+//			Regen = Cast<AWFCRegenerator>(PendingRegenActor->GetOwner());
+//		}
+//
+//		if (Regen)
+//		{
+//			PlayWFCRegenCameraShake();
+//			Regen->GenerateWFCAtLocation();
+//			UE_LOG(LogTemp, Log, TEXT("ggggggggg"));
+//		}
+//		else
+//		{
+//			UE_LOG(LogTemp, Error, TEXT("hhhhhhh"));
+//		}
+//	}
+//
+//	// 리셋
+//	bIsWFCCountdownActive = false;
+//	PendingRegenActor = nullptr;
+//
+//	// UI 숨기기 등 추가 가능
+//}
+
+void AMyDCharacter::PlayWFCRegenCameraShake()
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (PC && PC->PlayerCameraManager)
+	{
+		TSubclassOf<UCameraShakeBase> ShakeClass = LoadClass<UCameraShakeBase>(nullptr, TEXT("/Game/BP/BP_WFCShake.BP_WFCShake_C")); // 블루프린트 경로
+
+		if (ShakeClass)
+		{
+			PC->PlayerCameraManager->StartCameraShake(ShakeClass);
+			UE_LOG(LogTemp, Log, TEXT("Camera Shake Played"));
+		}
+	}
+}
+
+void AMyDCharacter::TriggerDelayedWFC()
+{
+	ShowWFCFadeAndRegenSequence(); // 연출 함수 호출
+}
+
+void AMyDCharacter::ShowWFCFadeAndRegenSequence()
+{
+	if (WFCWarningWidgetInstance)
+	{
+		if (!WFCWarningWidgetInstance->IsInViewport())
+		{
+			WFCWarningWidgetInstance->AddToViewport(20);
+		}
+		WFCWarningWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("WFCWarningWidgetInstance is NULL!"));
+	}
+
+	// 5초 후에 암전 및 재생성 진행
+	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFade, this, &AMyDCharacter::FadeAndRegenWFC, 5.0f, false);
+}
+
+void AMyDCharacter::FadeAndRegenWFC()
+{
+	if (WFCWarningWidgetInstance)
+	{
+		WFCWarningWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (WFCDoneWidgetInstance)
+	{
+		if (!WFCDoneWidgetInstance->IsInViewport())
+		{
+			WFCDoneWidgetInstance->AddToViewport(21);
+		}
+		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+
+	// 맵 재생성 실행 (0.5초 뒤)
+	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 0.5f, false);
+}
+
+void AMyDCharacter::ExecuteWFCNow()
+{
+	if (PendingRegenActor)
+	{
+		if (AWFCRegenerator* Regen = Cast<AWFCRegenerator>(PendingRegenActor))
+		{
+			Regen->GenerateWFCAtLocation();
+		}
+	}
+
+	if (WFCDoneWidgetInstance)
+	{
+		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	bIsWFCCountdownActive = false;
+	PendingRegenActor = nullptr;
+
 }
