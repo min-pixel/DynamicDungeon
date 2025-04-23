@@ -213,5 +213,5 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
 
 	// 후처리 실행
-	WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord);
+	//WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord, Tiles);
 }

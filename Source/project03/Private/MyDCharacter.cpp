@@ -237,7 +237,7 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load WFCWarningWidget blueprint!"));
 	}
 
-	static ConstructorHelpers::FClassFinder<UUserWidget> WFCDoneBP(TEXT("/Game/BP/UI/WFCDoneWidget.WFCDoneWidget_C"));
+	static ConstructorHelpers::FClassFinder<UUserWidget> WFCDoneBP(TEXT("/Game/BP/UI/WFCDoneWidget.WFCDoneWidget_C")); //Game/BP/UI/WFCDoneWidget.WFCDoneWidget
 	if (WFCDoneBP.Succeeded())
 	{
 		WFCDoneWidgetClass = WFCDoneBP.Class;
@@ -347,11 +347,15 @@ void AMyDCharacter::BeginPlay()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("WFCWarningWidgetInstance Created Successfully"));
 		WFCWarningWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCWarningWidgetClass);
+		WFCWarningWidgetInstance->AddToViewport();
+		WFCWarningWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 	}
 	if (WFCDoneWidgetClass)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("WFCWarningWidgetInstance Created Successfully"));
 		WFCDoneWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCDoneWidgetClass);
+		WFCDoneWidgetInstance->AddToViewport();
+		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 	}
 
 }
@@ -1247,8 +1251,11 @@ void AMyDCharacter::FadeAndRegenWFC()
 		}
 		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("WFCDoneWidgetInstance is NULL in FadeAndRegenWFC"));
+	}
 
-	// 甘 犁积己 角青 (0.5檬 第)
 	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 0.5f, false);
 }
 

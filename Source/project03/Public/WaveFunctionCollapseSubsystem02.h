@@ -110,10 +110,10 @@ public:
 	AActor* CollapseCustom(int32 TryCount = 1, int32 RandomSeed = 0);*/
 
 	//20250419
-	AActor* CollapseCustom(int32 TryCount, int32 RandomSeed, TOptional<FIntVector> StartTile);
+	AActor* CollapseCustom(int32 TryCount, int32 RandomSeed);
 
-	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
-	AActor* CollapseCustom002(int32 TryCount, int32 RandomSeed);
+	//UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
+	//AActor* CollapseCustom002(int32 TryCount, int32 RandomSeed);
 
 
 
@@ -202,7 +202,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
 	void DeriveGridFromTransforms(const TArray<FTransform>& Transforms);
 
-	void PostProcessFixedRoomTileAt(const FIntVector& Coord);
+	TOptional<FIntVector>  PostProcessFixedRoomTileAt(const FIntVector& Coord, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	void AdjustRoomTileFacingDirection(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles, const FIntVector& CorridorDirection);
 
 private:
 

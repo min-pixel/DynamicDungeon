@@ -17,7 +17,7 @@
 DEFINE_LOG_CATEGORY(LogWFC);
 
 
-AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */, TOptional<FIntVector> StartTile)
+AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */)
 {
 	//Resolution 값 설정
 	Resolution.X = 60;
@@ -68,12 +68,12 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	//	}
 	//}
 
-	if (StartTile.IsSet())
-	{
-		int32 StartIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(StartTile.GetValue(), Resolution);
-		ObservationQueue.Add(StartIndex, FWaveFunctionCollapseQueueElementCustom(StartIndex, EWaveFunctionCollapseAdjacencyCustom::Front)); // 방향은 아무거나 상관없음
-		UE_LOG(LogWFC, Warning, TEXT("Collapse started from custom StartTile's neighbors: %s"), *StartTile.GetValue().ToString());
-	}
+	//if (StartTile.IsSet())
+	//{
+	//	int32 StartIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(StartTile.GetValue(), Resolution);
+	//	ObservationQueue.Add(StartIndex, FWaveFunctionCollapseQueueElementCustom(StartIndex, EWaveFunctionCollapseAdjacencyCustom::Front)); // 방향은 아무거나 상관없음
+	//	UE_LOG(LogWFC, Warning, TEXT("Collapse started from custom StartTile's neighbors: %s"), *StartTile.GetValue().ToString());
+	//}
 
 	// StarterOptions 적용  20250417
 	//for (const auto& Entry : UserFixedOptions)
@@ -301,12 +301,18 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					
 					// 방 타일 크기 업데이트
 					SelectedOption.BaseScale3D = FVector(3.0f); // 스케일 반영
+
+
 				
 					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
 
 					ConnectIsolatedRooms(Tiles);
 
+
+
 					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
+
+				
 
 					// 방 타일 앞에 goalt01을 배치하는 함수 실행
 					PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
@@ -323,6 +329,18 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		// 성공한 타일 데이터를 저장
 		LastCollapsedTiles = Tiles;
 
+		if (bHasRegeneratorFixedTile)
+		{
+			PostProcessFixedRoomTileAt(RegeneratorFixedTileCoord, Tiles);
+			TOptional<FIntVector> CorridorDirection = PostProcessFixedRoomTileAt(RegeneratorFixedTileCoord, Tiles);
+			int32 FixedTileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(RegeneratorFixedTileCoord, Resolution);
+
+			if (Tiles.IsValidIndex(FixedTileIndex) && CorridorDirection.IsSet())
+			{
+				AdjustRoomTileFacingDirection(FixedTileIndex, Tiles, CorridorDirection.GetValue());
+			}
+		}
+
 		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
 
 		if (SpawnedActor)
@@ -337,6 +355,9 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 		RoomTilePositions.Empty();
 
+		
+
+		
 		return SpawnedActor;
 	}
 	else
@@ -1359,18 +1380,18 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 	Orientation = FRotator(0.0f, 0.0f, 0.0f);
 	bUseEmptyBorder = false;
 	//20250419
-	TOptional<FIntVector> StartTile;
-	if (UserFixedOptions.Num() > 0)
-	{
-		for (const auto& Elem : UserFixedOptions)
-		{
-			StartTile = Elem.Key;
-			break; // 첫 번째 키 하나만 사용
-		}
-	}
+	//TOptional<FIntVector> StartTile;
+	//if (UserFixedOptions.Num() > 0)
+	//{
+	//	for (const auto& Elem : UserFixedOptions)
+	//	{
+	//		StartTile = Elem.Key;
+	//		break; // 첫 번째 키 하나만 사용
+	//	}
+	//}
 
 	// WFC Collapse 실행
-	AActor* ResultActor = CollapseCustom(TryCount, RandomSeed, StartTile);
+	AActor* ResultActor = CollapseCustom(TryCount, RandomSeed);
 	if (ResultActor)
 	{
 		UE_LOG(LogWFC, Display, TEXT("Successfully collapsed WFC and spawned actor: %s"), *ResultActor->GetName());
@@ -2168,7 +2189,24 @@ TArray<int32> UWaveFunctionCollapseSubsystem02::FindPathAStar(
 void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
 	TArray<int32> IsolatedRoomIndices;
-	
+
+	TArray<int32> TempModifiedRoomTiles;
+
+	for (int32 TileIndex : IsolatedRoomIndices)
+	{
+		if (Tiles.IsValidIndex(TileIndex) && Tiles[TileIndex].RemainingOptions.Num() > 0)
+		{
+			FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+
+			// 고정된 방이면 corridor처럼 속이기
+			FIntVector Coord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+			if (Option.bIsRoomTile && UserFixedOptions.Contains(Coord))
+			{
+				Option.bIsCorridorTile = true;
+				TempModifiedRoomTiles.Add(TileIndex);
+			}
+		}
+	}
 
 	for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
 	{
@@ -2319,8 +2357,17 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 			}
 		}
 	}
-}
 
+	for (int32 TileIndex : TempModifiedRoomTiles)
+	{
+		if (Tiles.IsValidIndex(TileIndex) && Tiles[TileIndex].RemainingOptions.Num() > 0)
+		{
+			FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+			Option.bIsCorridorTile = false;
+		}
+	}
+
+}
 void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 	const TArray<int32>& Path, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
@@ -2340,6 +2387,7 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 			RoomTiles.Add(i);
 		}
 	}
+	
 
 	// 방 내부 확장 (대각선 포함)
 	TSet<int32> ExtendedRoomTiles = RoomTiles;
@@ -2769,41 +2817,205 @@ float UWaveFunctionCollapseSubsystem02::GetTileSize() const
 	return (WFCModel != nullptr) ? WFCModel->TileSize : 100.f; // WFCModel이 null일 경우 대비
 }
 
-void UWaveFunctionCollapseSubsystem02::PostProcessFixedRoomTileAt(const FIntVector& Coord)
+//void UWaveFunctionCollapseSubsystem02::PostProcessFixedRoomTileAt(const FIntVector& Coord)
+//{
+//	if (!UserFixedOptions.Contains(Coord))
+//	{
+//		UE_LOG(LogTemp, Warning, TEXT("PostProcess skipped: Tile at (%d, %d, %d) is not a user-fixed tile"), Coord.X, Coord.Y, Coord.Z);
+//		return;
+//	}
+//
+//
+//
+//	int32 Index = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
+//
+//	if (!LastCollapsedTiles.IsValidIndex(Index))
+//	{
+//		UE_LOG(LogTemp, Warning, TEXT("PostProcess skipped: Invalid Index (%d)yyyyy"), Index);
+//		return;
+//	}
+//
+//	const auto& Tile = LastCollapsedTiles[Index];
+//
+//	if (Tile.RemainingOptions.Num() != 1)
+//	{
+//		UE_LOG(LogTemp, Warning, TEXT("PostProcess skipped: Tile at (%d, %d, %d) has %d optionsqwer"), Coord.X, Coord.Y, Coord.Z, Tile.RemainingOptions.Num());
+//		return;
+//	}
+//
+//	if (!Tile.RemainingOptions[0].bIsRoomTile)
+//	{
+//		UE_LOG(LogTemp, Warning, TEXT("PostProcess skipped: Tile at (%d, %d, %d) is not a room tileasd"), Coord.X, Coord.Y, Coord.Z);
+//		return;
+//	}
+//
+//	// 조건 통과한 경우
+//	AdjustRoomTileBasedOnCorridors(Index, LastCollapsedTiles);
+//	ConnectIsolatedRooms(LastCollapsedTiles);
+//	//PlaceGoalTileInFrontOfRoom(Index, LastCollapsedTiles);
+//
+//	UE_LOG(LogTemp, Warning, TEXT("PostProcessFixedRoomTileAt called for (%d, %d, %d)ttttt"), Coord.X, Coord.Y, Coord.Z);
+//}
+
+
+
+TOptional<FIntVector> UWaveFunctionCollapseSubsystem02::PostProcessFixedRoomTileAt(const FIntVector& Coord, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
-	int32 Index = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
+	if (!UserFixedOptions.Contains(Coord)) return {};
 
-	if (!LastCollapsedTiles.IsValidIndex(Index))
+	const TArray<FIntVector> Directions = {
+		FIntVector(2, 0, 0),
+		FIntVector(-2, 0, 0),
+		FIntVector(0, 2, 0),
+		FIntVector(0, -2, 0)
+	};
+
+	FWaveFunctionCollapseOptionCustom GoalCorridorOption(TEXT("/Game/BP/goalt01.goalt01"));
+
+	for (const FIntVector& Offset2 : Directions)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("PostProcess skipped: Invalid Index (%d)yyyyy"), Index);
+		FIntVector Offset3 = Offset2 + Offset2 / 2;
+
+		FIntVector Coord1Step = Offset2 / 2;       // 1칸 거리
+		FIntVector Coord2Away = Coord + Offset2;   // 2칸 거리
+		FIntVector Coord3Away = Coord + Offset2 + Coord1Step; // = 3칸 거리
+
+
+		bool bCoord2Valid = Coord2Away.X >= 0 && Coord2Away.X < Resolution.X &&
+			Coord2Away.Y >= 0 && Coord2Away.Y < Resolution.Y &&
+			Coord2Away.Z >= 0 && Coord2Away.Z < Resolution.Z;
+
+		bool bCoord3Valid = Coord3Away.X >= 0 && Coord3Away.X < Resolution.X &&
+			Coord3Away.Y >= 0 && Coord3Away.Y < Resolution.Y &&
+			Coord3Away.Z >= 0 && Coord3Away.Z < Resolution.Z;
+
+		if (!bCoord2Valid || !bCoord3Valid)
+		{
+			continue;
+		}
+
+		int32 Index2 = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord2Away, Resolution);
+		int32 Index3 = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord3Away, Resolution);
+
+		if (!LastCollapsedTiles.IsValidIndex(Index2) || !LastCollapsedTiles.IsValidIndex(Index3)) continue;
+
+		const auto& Tile2 = LastCollapsedTiles[Index2];
+		const auto& Tile3 = LastCollapsedTiles[Index3];
+
+		bool bIs2CompletelyEmpty = Tile2.RemainingOptions.IsEmpty();
+		bool bIs2OptionEmpty = (!bIs2CompletelyEmpty && Tile2.RemainingOptions.Num() == 1 &&
+			Tile2.RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+
+		UE_LOG(LogWFC, Warning, TEXT("Tile3 @ %s -> Num: %d, Option: %s, bIsCorridorTile: %d"),
+			*Coord3Away.ToString(),
+			Tile3.RemainingOptions.Num(),
+			Tile3.RemainingOptions.Num() > 0 ? *Tile3.RemainingOptions[0].BaseObject.ToString() : TEXT("None"),
+			Tile3.RemainingOptions.Num() > 0 ? Tile3.RemainingOptions[0].bIsCorridorTile : -1);
+
+	
+
+		bool bIs3Corridor = (Tile3.RemainingOptions.Num() == 1 && Tile3.RemainingOptions[0].bIsCorridorTile);
+
+
+
+
+		// 조건: 3번째는 복도이고, 2번째는 비어 있거나 Option_Empty일 때
+		if ((bIs2CompletelyEmpty || bIs2OptionEmpty) && bIs3Corridor)
+		{
+			// 3번째는 대체
+			/*LastCollapsedTiles[Index3].RemainingOptions = { GoalCorridorOption };
+			UE_LOG(LogWFC, Warning, TEXT("Replaced Tile3 at %s with goalt01"), *Coord3Away.ToString());*/
+			int32 ReplaceIndex3 = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord3Away, Resolution);
+			if (Tiles.IsValidIndex(ReplaceIndex3))
+			{
+				Tiles[ReplaceIndex3].RemainingOptions.Empty();
+				Tiles[ReplaceIndex3].RemainingOptions.Add(FWaveFunctionCollapseOptionCustom(TEXT("/Game/BP/goalt01.goalt01")));
+				Tiles[ReplaceIndex3].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+					Tiles[ReplaceIndex3].RemainingOptions, WFCModel);
+
+				UE_LOG(LogWFC, Display, TEXT("Forcibly replaced tile at %s with goalt01 (Tiles array)"), *Coord3Away.ToString());
+			}
+
+
+			// 2번째가 Option_Empty면 대체
+			if (bIs2OptionEmpty)
+			{
+				/*LastCollapsedTiles[Index2].RemainingOptions = { GoalCorridorOption };
+				UE_LOG(LogWFC, Display, TEXT("Replaced Option_Empty with goalt01 at %s"), *Coord2Away.ToString());*/
+				int32 ReplaceIndex2 = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord2Away, Resolution);
+				if (Tiles.IsValidIndex(ReplaceIndex2))
+				{
+					Tiles[ReplaceIndex2].RemainingOptions.Empty();
+					Tiles[ReplaceIndex2].RemainingOptions.Add(FWaveFunctionCollapseOptionCustom(TEXT("/Game/BP/goalt01.goalt01")));
+					Tiles[ReplaceIndex2].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+						Tiles[ReplaceIndex2].RemainingOptions, WFCModel);
+					UE_LOG(LogWFC, Display, TEXT("Forcibly replaced tile at %s with goalt01"), *Coord2Away.ToString());
+				}
+			}
+			// 2번째가 완전 빈 공간이면 스폰
+			else if (bIs2CompletelyEmpty)
+			{
+				UWorld* World = GetWorld();
+				if (World)
+				{
+					UObject* LoadedAsset = GoalCorridorOption.BaseObject.TryLoad();
+					if (LoadedAsset)
+					{
+						UBlueprint* GoalBP = Cast<UBlueprint>(LoadedAsset);
+						if (GoalBP)
+						{
+							FVector Pos = FVector(Coord2Away) * WFCModel->TileSize;
+							World->SpawnActor<AActor>(GoalBP->GeneratedClass, Pos, FRotator::ZeroRotator);
+							UE_LOG(LogWFC, Display, TEXT("Spawned goalt01 at empty tile %s"), *Coord2Away.ToString());
+						}
+					}
+				}
+			}
+
+
+
+			return Offset2;
+		}
+	}
+	return {};
+}
+
+void UWaveFunctionCollapseSubsystem02::AdjustRoomTileFacingDirection(int32 TileIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles, const FIntVector& CorridorDirection)
+{
+	if (!Tiles.IsValidIndex(TileIndex) || Tiles[TileIndex].RemainingOptions.Num() != 1)
+	{
 		return;
 	}
 
-	const auto& Tile = LastCollapsedTiles[Index];
-
-	if (Tile.RemainingOptions.Num() != 1)
+	FWaveFunctionCollapseOptionCustom& RoomTileOption = Tiles[TileIndex].RemainingOptions[0];
+	if (!RoomTileOption.bIsRoomTile)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("PostProcess skipped: Tile at (%d, %d, %d) has %d optionsqwer"), Coord.X, Coord.Y, Coord.Z, Tile.RemainingOptions.Num());
 		return;
 	}
 
-	if (!Tile.RemainingOptions[0].bIsRoomTile)
+	// 방향 벡터 -> 문자열 변환
+	FString TargetDirection;
+	if (CorridorDirection == FIntVector(2, 0, 0)) TargetDirection = TEXT("North");
+	else if (CorridorDirection == FIntVector(-2, 0, 0)) TargetDirection = TEXT("South");
+	else if (CorridorDirection == FIntVector(0, 2, 0)) TargetDirection = TEXT("East");
+	else if (CorridorDirection == FIntVector(0, -2, 0)) TargetDirection = TEXT("West");
+	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("PostProcess skipped: Tile at (%d, %d, %d) is not a room tileasd"), Coord.X, Coord.Y, Coord.Z);
+		UE_LOG(LogWFC, Warning, TEXT("Invalid corridor direction vector: %s"), *CorridorDirection.ToString());
 		return;
 	}
 
-	// 조건 통과한 경우
-	AdjustRoomTileBasedOnCorridors(Index, LastCollapsedTiles);
-	ConnectIsolatedRooms(LastCollapsedTiles);
-	PlaceGoalTileInFrontOfRoom(Index, LastCollapsedTiles);
+	RotateRoomTile(RoomTileOption, TargetDirection);
 
-	UE_LOG(LogTemp, Warning, TEXT("PostProcessFixedRoomTileAt called for (%d, %d, %d)ttttt"), Coord.X, Coord.Y, Coord.Z);
+	FIntVector TilePos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+	UE_LOG(LogWFC, Display, TEXT("Forced room tile at %s to face %s"), *TilePos.ToString(), *TargetDirection);
 }
 
 // 오버로드 버전 20250419
-AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom002(int32 TryCount, int32 RandomSeed)
-{
-	return CollapseCustom(TryCount, RandomSeed, TOptional<FIntVector>());
-}
+//AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom002(int32 TryCount, int32 RandomSeed)
+//{
+//	return CollapseCustom(TryCount, RandomSeed, TOptional<FIntVector>());
+//}
+
+
 
