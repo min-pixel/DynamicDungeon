@@ -2972,7 +2972,35 @@ TOptional<FIntVector> UWaveFunctionCollapseSubsystem02::PostProcessFixedRoomTile
 				}
 			}
 
+			// (1) 회전 전 문 방향 기준으로 문 앞 좌표 구함
+			const FWaveFunctionCollapseOptionCustom* FixedRoomOption = UserFixedOptions.Find(Coord);
+			if (FixedRoomOption)
+			{
+				FIntVector DoorFrontCoord;
 
+				if (FixedRoomOption->bHasDoorNorth) DoorFrontCoord = Coord + FIntVector(2, 0, 0);
+				else if (FixedRoomOption->bHasDoorSouth) DoorFrontCoord = Coord + FIntVector(-2, 0, 0);
+				else if (FixedRoomOption->bHasDoorEast)  DoorFrontCoord = Coord + FIntVector(0, 2, 0);
+				else if (FixedRoomOption->bHasDoorWest)  DoorFrontCoord = Coord + FIntVector(0, -2, 0);
+
+				int32 DoorFrontIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(DoorFrontCoord, Resolution);
+				if (Tiles.IsValidIndex(DoorFrontIndex))
+				{
+					// (2) 현재 goalt01이면 Option_Empty로 교체
+					if (Tiles[DoorFrontIndex].RemainingOptions.Num() == 1 &&
+						Tiles[DoorFrontIndex].RemainingOptions[0].BaseObject.ToString() == TEXT("/Game/BP/goalt01.goalt01"))
+					{
+						Tiles[DoorFrontIndex].RemainingOptions.Empty();
+						Tiles[DoorFrontIndex].RemainingOptions.Add(
+							FWaveFunctionCollapseOptionCustom(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"))
+						);
+						Tiles[DoorFrontIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+							Tiles[DoorFrontIndex].RemainingOptions, WFCModel);
+
+						UE_LOG(LogWFC, Display, TEXT("Converted goalt01 to Option_Empty in front of fixed room at %s"), *DoorFrontCoord.ToString());
+					}
+				}
+			}
 
 			return Offset2;
 		}
