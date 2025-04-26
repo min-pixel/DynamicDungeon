@@ -40,17 +40,23 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
     TSubclassOf<UEquipmentWidget> EquipmentWidgetClass;
 
-    UPROPERTY()
+    UPROPERTY(meta = (BindWidget))
     UInventoryWidget* InventoryWidgetInstance;
 
-    UPROPERTY()
+    UPROPERTY(meta = (BindWidget))
     UInventoryWidget* StorageWidgetInstance;
 
-    UPROPERTY()
+    UPROPERTY(meta = (BindWidget))
     UEquipmentWidget* EquipmentWidgetInstance;
 
     UPROPERTY()
     UInventoryComponent* StorageInventoryComponent;
+
+    UPROPERTY()
+    UInventoryComponent* InventoryComponentRef;
+
+    UPROPERTY()
+    UInventoryComponent* StorageComponentRef;
 
     UFUNCTION()
     void OnStartGameClicked();

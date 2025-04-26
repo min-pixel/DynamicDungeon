@@ -17,4 +17,8 @@ class PROJECT03_API ADynamicDungeonModeBase : public AGameModeBase
 public:
 	ADynamicDungeonModeBase();
 
+
+protected:
+	virtual void BeginPlay() override;
+
 };

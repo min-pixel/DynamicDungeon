@@ -220,6 +220,12 @@ public:
 
 	void ExecuteWFCNow();
 
+	// 인벤토리 컴포넌트 가져오기
+	FORCEINLINE UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
+
+	// 장비창 위젯 가져오기 (여기는 장비 "컴포넌트"가 없으니, 장비창 위젯을 넘겨주는 걸로 한다)
+	FORCEINLINE UEquipmentWidget* GetEquipmentWidget() const { return EquipmentWidgetInstance; }
+
 	UPROPERTY(EditDefaultsOnly, Category = "WFC UI")
 	TSubclassOf<UUserWidget> WFCWarningWidgetClass;
 
@@ -231,6 +237,8 @@ public:
 
 	FTimerHandle TimerHandle_DelayedWFCFade;
 	FTimerHandle TimerHandle_DelayedWFCFinal;
+
+
 
 private:
 	/** 캐릭터의 스켈레탈 메쉬 */

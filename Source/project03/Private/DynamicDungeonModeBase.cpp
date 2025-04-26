@@ -3,6 +3,7 @@
 
 #include "DynamicDungeonModeBase.h"
 #include "MyDCharacter.h"
+#include "Kismet/GameplayStatics.h"
 
 
 ADynamicDungeonModeBase::ADynamicDungeonModeBase() {
@@ -15,3 +16,15 @@ ADynamicDungeonModeBase::ADynamicDungeonModeBase() {
 	PlayerControllerClass = APlayerController::StaticClass();
 }
 
+void ADynamicDungeonModeBase::BeginPlay()
+{
+	Super::BeginPlay(); // 반드시 호출
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+	if (PC)
+	{
+		PC->bShowMouseCursor = false; // 마우스 커서 숨기기
+		FInputModeGameOnly InputMode; // 게임 전용 입력 모드
+		PC->SetInputMode(InputMode);
+	}
+}
