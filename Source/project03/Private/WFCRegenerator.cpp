@@ -8,6 +8,8 @@
 #include "WaveFunctionCollapseSubsystem02.h"
 #include "WaveFunctionCollapseBPLibrary02.h"
 #include "MyDCharacter.h"
+#include "wfcex.h"
+#include "EnemyCharacter.h"
 #include "Async/Async.h"
 
 // Sets default values
@@ -106,24 +108,42 @@ void AWFCRegenerator::ClearPreviousWFCActors()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithTag(World, FName("WFCGenerated"), FoundActors);
+	auto DestroyActorsWithTag = [&](FName Tag)
+		{
+			TArray<AActor*> FoundActors;
+			UGameplayStatics::GetAllActorsWithTag(World, Tag, FoundActors);
 
-	UE_LOG(LogTemp, Log, TEXT("Found %d WFCGenerated actors to delete."), FoundActors.Num());
+			for (AActor* Actor : FoundActors)
+			{
+				if (IsValid(Actor))
+				{
+					Actor->Destroy();
+				}
+			}
+			UE_LOG(LogTemp, Log, TEXT("Destroyed %d actors with tag '%s'"), FoundActors.Num(), *Tag.ToString());
+		};
 
-	for (AActor* Actor : FoundActors)
+	// 1. 타일 삭제
+	DestroyActorsWithTag("WFCGenerated");
+
+	// 2. 보물상자 삭제
+	DestroyActorsWithTag("Chest");
+
+	// 3. 탈출 오브젝트 삭제
+	DestroyActorsWithTag("Escape");
+
+	// 4. 적 삭제 (태그가 없으니 Class 기반)
+	TArray<AActor*> FoundEnemies;
+	UGameplayStatics::GetAllActorsOfClass(World, AEnemyCharacter::StaticClass(), FoundEnemies);
+
+	for (AActor* Actor : FoundEnemies)
 	{
 		if (IsValid(Actor))
 		{
-			FString Name = Actor->GetName();
 			Actor->Destroy();
-			UE_LOG(LogTemp, Log, TEXT("Destroyed actor: %s"), *Name);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Invalid actor encountered, skipping."));
 		}
 	}
+	UE_LOG(LogTemp, Log, TEXT("Destroyed %d Enemy actors."), FoundEnemies.Num());
 }
 
 void AWFCRegenerator::GenerateWFCAtLocation()
@@ -211,6 +231,13 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	// WFC 실행
 	WFCSubsystem->ExecuteWFC(TryCount, RandomSeed);
 	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
+
+	if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
+	{
+		WFCManager->SpawnEnemiesOnCorridor(15);
+		WFCManager->SpawnEscapeObjectsOnRoom();
+		WFCManager->SpawnTreasureChestsOnTiles();
+	}
 
 	// 후처리 실행
 	//WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord, Tiles);

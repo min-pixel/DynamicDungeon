@@ -9,20 +9,31 @@
 
 void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
 {
-    if (EquipmentSlots.IsValidIndex(Index))
+    if (!EquipmentSlots.IsValidIndex(Index))
     {
-        EquipmentSlots[Index] = ItemData;
+        return;
     }
 
-    if (Index == EQUIP_SLOT_WEAPON && ItemData.ItemType == EItemType::Weapon)
+    EquipmentSlots[Index] = ItemData;
+
+   // 캐릭터가 있을 때만 무기 장착 시도
+    APawn* OwnerPawn = GetOwningPlayerPawn();
+    if (OwnerPawn)
     {
-        if (AMyDCharacter* Char = Cast<AMyDCharacter>(GetOwningPlayerPawn()))
+        if (Index == EQUIP_SLOT_WEAPON && ItemData.ItemType == EItemType::Weapon)
         {
-            UE_LOG(LogTemp, Error, TEXT("GGGGGGGG"));
-            Char->EquipWeaponFromClass(ItemData.ItemClass);
+            if (AMyDCharacter* Char = Cast<AMyDCharacter>(OwnerPawn))
+            {
+                Char->EquipWeaponFromClass(ItemData.ItemClass);
+                UE_LOG(LogTemp, Log, TEXT("Weapon Equipped in Game"));
+            }
         }
     }
-
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No owning player pawn (probably Lobby)"));
+    }
+    RefreshEquipmentSlots();
 }
 
 void UEquipmentWidget::ClearSlot(int32 Index)
@@ -77,4 +88,15 @@ void UEquipmentWidget::RefreshEquipmentSlots()
             EquipmentSlotContainer->AddChild(NewSlot);
         }
     }
+}
+
+TArray<FItemData> UEquipmentWidget::GetAllEquipmentData() const
+{
+    return EquipmentSlots;
+}
+
+void UEquipmentWidget::RestoreEquipmentFromData(const TArray<FItemData>& SavedData)
+{
+    EquipmentSlots = SavedData;
+    RefreshEquipmentSlots();
 }

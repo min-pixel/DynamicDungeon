@@ -232,8 +232,37 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "WFC UI")
 	TSubclassOf<UUserWidget> WFCDoneWidgetClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Escape")
+	TSubclassOf<UUserWidget> EscapeWarningWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Escape")
+	TSubclassOf<UUserWidget> EscapeDoneWidgetClass;
+
+
+	// Escape 진행 상태
+	bool bIsEscapeCountdownActive = false;
+	AActor* PendingEscapeActor = nullptr;
+
+	FTimerHandle TimerHandle_DelayedEscapeFade;
+	FTimerHandle TimerHandle_DelayedEscapeFinal;
+
+	FTimerHandle TimerHandle_EscapeProgressUpdate;
+
+	float CurrentEscapeTime = 0.0f;
+	float MaxEscapeTime = 5.0f;
+
+	void UpdateEscapeProgressBar();
+
+	// Escape 함수
+	void TriggerEscapeSequence();
+	void FadeAndEscape();
+	void ExecuteEscape();
+
 	UUserWidget* WFCWarningWidgetInstance;
 	UUserWidget* WFCDoneWidgetInstance;
+
+	UUserWidget* EscapeWarningWidgetInstance;
+	UUserWidget* EscapeDoneWidgetInstance;
 
 	FTimerHandle TimerHandle_DelayedWFCFade;
 	FTimerHandle TimerHandle_DelayedWFCFinal;

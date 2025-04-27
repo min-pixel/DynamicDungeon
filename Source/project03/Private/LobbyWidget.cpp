@@ -39,10 +39,32 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
         // 더미 생성
         InventoryComponentRef = NewObject<UInventoryComponent>(this);
         InventoryComponentRef->RegisterComponent();
-        InventoryComponentRef->Capacity = 50;
+        InventoryComponentRef->Capacity = 32;
         InventoryComponentRef->InventoryItemsStruct.SetNum(InventoryComponentRef->Capacity);
 
         UE_LOG(LogTemp, Warning, TEXT("Created Dummy InventoryComponent"));
+    }
+
+    // GameInstance에서 저장된 인벤토리를 복원한다
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance && InventoryComponentRef)
+    {
+        const int32 SavedCount = GameInstance->SavedInventoryItems.Num();
+        InventoryComponentRef->InventoryItemsStruct.SetNum(InventoryComponentRef->Capacity);
+
+        for (int32 i = 0; i < SavedCount; ++i)
+        {
+            if (i < InventoryComponentRef->InventoryItemsStruct.Num())
+            {
+                InventoryComponentRef->InventoryItemsStruct[i] = GameInstance->SavedInventoryItems[i];
+            }
+        }
+        UE_LOG(LogTemp, Log, TEXT("Restored Inventory from GameInstance (%d items)"), SavedCount);
+    }
+
+    if (GameInstance && EquipmentWidgetInstance)
+    {
+        EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
     }
 
     // (2) 창고 인벤토리 컴포넌트 생성 (항상 새로 만든다)
@@ -50,8 +72,27 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
     if (StorageComponentRef)
     {
         StorageComponentRef->RegisterComponent();
-        StorageComponentRef->Capacity = 100; // 창고는 더 크게
+        StorageComponentRef->Capacity = 50; // 창고는 더 크게
         StorageComponentRef->InventoryItemsStruct.SetNum(StorageComponentRef->Capacity);
+
+        if (GameInstance && GameInstance->SavedStorageItems.Num() > 0)
+        {
+            // 저장된 데이터가 있을 때만 복원
+            StorageComponentRef->InventoryItemsStruct = GameInstance->SavedStorageItems;
+            UE_LOG(LogTemp, Warning, TEXT("Restored Storage Inventory from SavedStorageItems"));
+        }
+        else
+        {
+            // 저장된 게 없으면 (처음 시작이면)
+            UE_LOG(LogTemp, Warning, TEXT("No SavedStorageItems found, starting empty Storage"));
+        }
+
+        if (StorageWidgetInstance)
+        {
+            StorageWidgetInstance->InventoryRef = StorageComponentRef;
+            StorageWidgetInstance->bIsChestInventory = true;
+            StorageWidgetInstance->RefreshInventoryStruct();
+        }
 
         UE_LOG(LogTemp, Warning, TEXT("Created Storage InventoryComponent"));
     }
@@ -158,6 +199,19 @@ void ULobbyWidget::OnStartGameClicked()
 
     // 게임 준비 처리
     // 예: 플레이어 상태 변경, 서버에 알림 등
+
+    if (EquipmentWidgetInstance)
+    {
+        UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+        if (GameInstance)
+        {
+            GameInstance->SavedInventoryItems = InventoryComponentRef->InventoryItemsStruct;
+            GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->EquipmentSlots;
+            GameInstance->SavedStorageItems = StorageComponentRef->InventoryItemsStruct;
+            UE_LOG(LogTemp, Warning, TEXT("Saved Equipment Slots to GameInstance"));
+        }
+    }
+
     UWorld* World = GetWorld();
     if (World)
     {

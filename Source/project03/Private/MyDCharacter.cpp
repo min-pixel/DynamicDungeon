@@ -21,6 +21,7 @@
 #include "EnemyCharacter.h"
 #include "Camera/CameraShakeBase.h"
 #include "WFCRegenerator.h"
+#include "Components/ProgressBar.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
 
 // 기본 생성자
@@ -243,6 +244,18 @@ AMyDCharacter::AMyDCharacter()
 		WFCDoneWidgetClass = WFCDoneBP.Class;
 	}
 
+	static ConstructorHelpers::FClassFinder<UUserWidget> EscapeWarningBP(TEXT("/Game/BP/UI/EscapeWarningWidget.EscapeWarningWidget_C"));
+	if (EscapeWarningBP.Succeeded())
+	{
+		EscapeWarningWidgetClass = EscapeWarningBP.Class;
+	}
+
+	static ConstructorHelpers::FClassFinder<UUserWidget> EscapeDoneBP(TEXT("/Game/BP/UI/EscapeDoneWidget.EscapeDoneWidget_C"));
+	if (EscapeDoneBP.Succeeded())
+	{
+		EscapeDoneWidgetClass = EscapeDoneBP.Class;
+	}
+
 }
 
 // 게임 시작 시 호출
@@ -308,7 +321,13 @@ void AMyDCharacter::BeginPlay()
 	if (EquipmentWidgetClass)
 	{
 		EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
-		EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
+
+		if (EquipmentWidgetClass)
+		{
+			EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
+
+			EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
+		}
 	}
 
 
@@ -356,6 +375,53 @@ void AMyDCharacter::BeginPlay()
 		WFCDoneWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCDoneWidgetClass);
 		WFCDoneWidgetInstance->AddToViewport();
 		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (EscapeWarningWidgetClass)
+	{
+		EscapeWarningWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), EscapeWarningWidgetClass);
+		EscapeWarningWidgetInstance->AddToViewport();
+		EscapeWarningWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (EscapeDoneWidgetClass)
+	{
+		EscapeDoneWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), EscapeDoneWidgetClass);
+		EscapeDoneWidgetInstance->AddToViewport();
+		EscapeDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	if (GameInstance && InventoryComponent)
+	{
+		// 1. 플레이어 인벤토리 사이즈 다시 확보
+		InventoryComponent->InventoryItemsStruct.SetNum(InventoryComponent->Capacity);
+
+		// 2. SavedInventoryItems를 InventoryItemsStruct에 복사
+		for (int32 i = 0; i < GameInstance->SavedInventoryItems.Num(); ++i)
+		{
+			if (i < InventoryComponent->InventoryItemsStruct.Num())
+			{
+				InventoryComponent->InventoryItemsStruct[i] = GameInstance->SavedInventoryItems[i];
+			}
+		}
+	}
+	if (GameInstance && EquipmentWidgetInstance)
+	{
+		EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
+
+		for (const FItemData& EquipData : GameInstance->SavedEquipmentItems)
+		{
+			if (EquipData.ItemClass)
+			{
+				// 무기 타입만 우선 장착
+				if (EquipData.ItemType == EItemType::Weapon)
+				{
+					EquipWeaponFromClass(EquipData.ItemClass);
+					break; // 일단 첫 번째 무기만 장착
+				}
+			}
+		}
 	}
 
 }
@@ -571,6 +637,16 @@ void AMyDCharacter::StartInteraction()
 			PlayWFCRegenCameraShake();
 
 			TriggerDelayedWFC();
+
+			return;
+		}
+
+		if (OverlappedActor && OverlappedActor->ActorHasTag("Escape") && !bIsEscapeCountdownActive) 
+		{
+			PendingEscapeActor = OverlappedActor;
+			bIsEscapeCountdownActive = true;
+
+			TriggerEscapeSequence();
 
 			return;
 		}
@@ -1277,4 +1353,87 @@ void AMyDCharacter::ExecuteWFCNow()
 	bIsWFCCountdownActive = false;
 	PendingRegenActor = nullptr;
 
+}
+
+
+void AMyDCharacter::TriggerEscapeSequence()
+{
+	if (EscapeWarningWidgetInstance)
+	{
+		if (!EscapeWarningWidgetInstance->IsInViewport())
+		{
+			EscapeWarningWidgetInstance->AddToViewport(20);
+		}
+		EscapeWarningWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("EscapeWarningWidgetInstance is NULL!"));
+	}
+
+	CurrentEscapeTime = 0.0f;
+
+	GetWorldTimerManager().SetTimer(TimerHandle_DelayedEscapeFade, this, &AMyDCharacter::FadeAndEscape, 5.0f, false);
+	GetWorldTimerManager().SetTimer(TimerHandle_EscapeProgressUpdate, this, &AMyDCharacter::UpdateEscapeProgressBar, 0.05f, true);
+}
+
+void AMyDCharacter::FadeAndEscape()
+{
+	if (EscapeWarningWidgetInstance)
+	{
+		EscapeWarningWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+	}
+
+	if (EscapeDoneWidgetInstance)
+	{
+		if (!EscapeDoneWidgetInstance->IsInViewport())
+		{
+			EscapeDoneWidgetInstance->AddToViewport(21);
+		}
+		EscapeDoneWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("EscapeDoneWidgetInstance is NULL in FadeAndEscape"));
+	}
+
+	GetWorldTimerManager().SetTimer(TimerHandle_DelayedEscapeFinal, this, &AMyDCharacter::ExecuteEscape, 0.5f, false);
+}
+
+void AMyDCharacter::ExecuteEscape()
+{
+
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	if (GameInstance && InventoryComponent)
+	{
+		GameInstance->SavedInventoryItems = InventoryComponent->InventoryItemsStruct;
+		GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->GetAllEquipmentData();
+	}
+
+	UGameplayStatics::OpenLevel(this, FName("LobbyMap")); // 로비로 이동
+
+	bIsEscapeCountdownActive = false;
+	PendingEscapeActor = nullptr;
+}
+
+void AMyDCharacter::UpdateEscapeProgressBar()
+{
+	CurrentEscapeTime += 0.05f; // 타이머 주기만큼 추가
+
+	float ProgressPercent = FMath::Clamp(CurrentEscapeTime / MaxEscapeTime, 0.0f, 1.0f);
+
+	if (EscapeWarningWidgetInstance)
+	{
+		UProgressBar* EscapeProgressBar = Cast<UProgressBar>(EscapeWarningWidgetInstance->GetWidgetFromName(TEXT("EscapeProgressBar")));
+		if (EscapeProgressBar)
+		{
+			EscapeProgressBar->SetPercent(ProgressPercent);
+		}
+	}
+
+	if (ProgressPercent >= 1.0f)
+	{
+		// 100% 채워지면 Progress 업데이트 타이머는 멈추기
+		GetWorldTimerManager().ClearTimer(TimerHandle_EscapeProgressUpdate);
+	}
 }

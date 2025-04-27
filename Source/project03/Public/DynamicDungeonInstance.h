@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
+#include "ItemDataD.h"
 #include "DynamicDungeonInstance.generated.h"
 
 /**
@@ -40,4 +41,13 @@ public:
     UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Interaction")
     bool WeaponEAt; // 무기 상호작용 여부
 	
+    UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "SaveData")
+    TArray<FItemData> SavedInventoryItems;
+
+    UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "SaveData")
+    TArray<FItemData> SavedEquipmentItems;  
+
+    UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "SaveData")
+    TArray<FItemData> SavedStorageItems;
+
 };

@@ -56,4 +56,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<class USlotWidget> SlotWidgetClass;
 
+    UFUNCTION(BlueprintCallable)
+    TArray<FItemData> GetAllEquipmentData() const;
+
+    UFUNCTION(BlueprintCallable)
+    void RestoreEquipmentFromData(const TArray<FItemData>& SavedData);
+
 };

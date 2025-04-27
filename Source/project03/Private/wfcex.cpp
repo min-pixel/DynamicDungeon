@@ -15,6 +15,9 @@ Awfcex::Awfcex()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
+    EscapeObjectClass = AEscapeObject::StaticClass();
+    TreasureChestClass = ATreasureChest::StaticClass();
+
 }
 
 
@@ -24,9 +27,12 @@ void Awfcex::BeginPlay()
 	ExecuteWFCInSubsystem(90, 1172835073); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505
     SpawnPlayerOnCorridor();
 
-    //SpawnEnemiesOnCorridor(15);
+    SpawnEnemiesOnCorridor(15);
 
     SpawnWFCRegeneratorOnRoom();
+
+    SpawnEscapeObjectsOnRoom();
+    SpawnTreasureChestsOnTiles();
 }
 
 
@@ -309,4 +315,101 @@ void Awfcex::SpawnWFCRegeneratorOnRoom()
     // WFC Regenerator 오브젝트 스폰
     FActorSpawnParameters Params;
     GetWorld()->SpawnActor<AWFCRegenerator>(WFCRegeneratorClass, SpawnLocation, FRotator::ZeroRotator, Params);
+}
+
+void Awfcex::SpawnEscapeObjectsOnRoom()
+{
+    UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
+    if (!WFCSubsystem || !WFCSubsystem->WFCModel) return;
+
+    const TArray<FWaveFunctionCollapseTileCustom>& Tiles = WFCSubsystem->LastCollapsedTiles;
+    FIntVector Resolution = WFCSubsystem->Resolution;
+    float TileSize = WFCSubsystem->WFCModel->TileSize;
+
+    TArray<FVector> RoomTilePositions;
+
+    for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+    {
+        if (Tiles[TileIndex].RemainingOptions.Num() > 0 &&
+            Tiles[TileIndex].RemainingOptions[0].bIsRoomTile)
+        {
+            FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
+            RoomTilePositions.Add(TilePosition);
+        }
+    }
+
+    if (RoomTilePositions.Num() == 0) return;
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    for (int32 i = 0; i < 2; ++i)
+    {
+        int32 RandomIndex = FMath::RandRange(0, RoomTilePositions.Num() - 1);
+        FVector SpawnLocation = RoomTilePositions[RandomIndex] + FVector(0, 0, 50); // 약간 위로
+
+        FActorSpawnParameters Params;
+        World->SpawnActor<AEscapeObject>(EscapeObjectClass, SpawnLocation, FRotator::ZeroRotator, Params);
+
+        UE_LOG(LogTemp, Log, TEXT("Escape Object spawned at %s"), *SpawnLocation.ToString());
+    }
+}
+
+
+void Awfcex::SpawnTreasureChestsOnTiles()
+{
+    UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
+    if (!WFCSubsystem || !WFCSubsystem->WFCModel) return;
+
+    const TArray<FWaveFunctionCollapseTileCustom>& Tiles = WFCSubsystem->LastCollapsedTiles;
+    FIntVector Resolution = WFCSubsystem->Resolution;
+    float TileSize = WFCSubsystem->WFCModel->TileSize;
+
+    TArray<FVector> ValidTilePositions;
+
+    for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+    {
+        if (Tiles[TileIndex].RemainingOptions.Num() > 0)
+        {
+            const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+
+            // 복도 또는 방 타일 모두 허용
+            if (Option.bIsCorridorTile || Option.bIsRoomTile)
+            {
+                FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
+                ValidTilePositions.Add(TilePosition);
+            }
+        }
+    }
+
+    if (ValidTilePositions.Num() == 0) return;
+
+    UWorld* World = GetWorld();
+    if (!World) return;
+
+    const float MaxOffsetRadius = 200.f;
+    const float ClampMargin = 50.f; // 여유 공간
+    const FVector2D TileHalfSize = FVector2D(TileSize * 0.5f, TileSize * 0.5f);
+
+    for (int32 i = 0; i < 30; ++i)
+    {
+        int32 RandomIndex = FMath::RandRange(0, ValidTilePositions.Num() - 1);
+        FVector BaseLocation = ValidTilePositions[RandomIndex];
+
+        FVector2D RandomOffset = FMath::RandPointInCircle(MaxOffsetRadius);
+
+        // Clamp: 타일 경계 넘지 않게 조정
+        RandomOffset.X = FMath::Clamp(RandomOffset.X, -TileHalfSize.X + ClampMargin, TileHalfSize.X - ClampMargin);
+        RandomOffset.Y = FMath::Clamp(RandomOffset.Y, -TileHalfSize.Y + ClampMargin, TileHalfSize.Y - ClampMargin);
+
+        FVector SpawnLocation = BaseLocation + FVector(RandomOffset.X, RandomOffset.Y, 5.0f);
+
+        float RandomYaw = FMath::FRandRange(0.f, 360.f);
+        FRotator SpawnRotation = FRotator(0.f, RandomYaw, 0.f);
+
+        FActorSpawnParameters Params;
+        World->SpawnActor<ATreasureChest>(TreasureChestClass, SpawnLocation, SpawnRotation, Params);
+
+        UE_LOG(LogTemp, Log, TEXT("Treasure Chest spawned at %s with rotation %.2f"), *SpawnLocation.ToString(), RandomYaw);
+    }
 }

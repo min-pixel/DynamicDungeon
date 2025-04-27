@@ -8,6 +8,8 @@
 #include "MyDCharacter.h"
 #include "EnemyCharacter.h"
 #include "WFCRegenerator.h"
+#include "TreasureChest.h"
+#include "EscapeObject.h"
 #include "wfcex.generated.h"
 
 UCLASS()
@@ -56,5 +58,16 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "WFC")
 	void SpawnWFCRegeneratorOnRoom();
+
+	UPROPERTY(EditAnywhere, Category = "Spawn")
+	TSubclassOf<class AEscapeObject> EscapeObjectClass;
+
+	UPROPERTY(EditAnywhere, Category = "Spawn")
+	TSubclassOf<class ATreasureChest> TreasureChestClass;
+
+	void SpawnEscapeObjectsOnRoom();
+	void SpawnTreasureChestsOnTiles();
+
+
 
 };

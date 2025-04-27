@@ -148,6 +148,8 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
     const int32 FromIndex = SourceSlot->SlotIndex;
     const int32 ToIndex = this->SlotIndex;
 
+
+
     //1. 보물상자 → 플레이어 인벤토리
     if (SourceSlot->bIsChestInventory && !this->bIsChestInventory)
     {
@@ -187,13 +189,15 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
     // 인벤토리 → 장비창
     else if (!SourceSlot->bIsEquipmentSlot && this->bIsEquipmentSlot)
     {
-        if (EquipmentOwner && InventoryOwner && InventoryOwner->InventoryRef)
+        if (EquipmentOwner)
         {
             EquipmentOwner->SetSlot(ToIndex, SourceSlot->StoredData);
-            InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
-           
+
+            if (SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
+            {
+                SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+            }
         }
-       
     }
     // 같은 그룹 간 스왑
     else
