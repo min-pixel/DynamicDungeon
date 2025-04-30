@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
 #include "ItemDataD.h"
+#include "PlayerCharacterData.h"
 #include "DynamicDungeonInstance.generated.h"
 
 /**
@@ -49,5 +50,9 @@ public:
 
     UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "SaveData")
     TArray<FItemData> SavedStorageItems;
+
+    FPlayerCharacterData CurrentCharacterData;
+
+    void InitializeCharacterData(EPlayerClass SelectedClass);
 
 };

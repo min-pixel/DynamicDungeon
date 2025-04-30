@@ -17,6 +17,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
 #include "InventoryWidget.h"
+#include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
 #include "Camera/CameraShakeBase.h"
@@ -392,37 +393,11 @@ void AMyDCharacter::BeginPlay()
 	}
 
 	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-	if (GameInstance && InventoryComponent)
+	if (GameInstance)
 	{
-		// 1. 플레이어 인벤토리 사이즈 다시 확보
-		InventoryComponent->InventoryItemsStruct.SetNum(InventoryComponent->Capacity);
-
-		// 2. SavedInventoryItems를 InventoryItemsStruct에 복사
-		for (int32 i = 0; i < GameInstance->SavedInventoryItems.Num(); ++i)
-		{
-			if (i < InventoryComponent->InventoryItemsStruct.Num())
-			{
-				InventoryComponent->InventoryItemsStruct[i] = GameInstance->SavedInventoryItems[i];
-			}
-		}
+		ApplyCharacterData(GameInstance->CurrentCharacterData);
 	}
-	if (GameInstance && EquipmentWidgetInstance)
-	{
-		EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
 
-		for (const FItemData& EquipData : GameInstance->SavedEquipmentItems)
-		{
-			if (EquipData.ItemClass)
-			{
-				// 무기 타입만 우선 장착
-				if (EquipData.ItemType == EItemType::Weapon)
-				{
-					EquipWeaponFromClass(EquipData.ItemClass);
-					break; // 일단 첫 번째 무기만 장착
-				}
-			}
-		}
-	}
 
 }
 
@@ -1435,5 +1410,47 @@ void AMyDCharacter::UpdateEscapeProgressBar()
 	{
 		// 100% 채워지면 Progress 업데이트 타이머는 멈추기
 		GetWorldTimerManager().ClearTimer(TimerHandle_EscapeProgressUpdate);
+	}
+}
+
+
+void AMyDCharacter::ApplyCharacterData(const FPlayerCharacterData& Data)
+{
+	PlayerClass = Data.PlayerClass;
+	MaxHealth = Data.MaxHealth;
+	MaxStamina = Data.MaxStamina;
+	MaxKnowledge = Data.MaxKnowledge;
+
+	Health = MaxHealth;
+	Stamina = MaxStamina;
+	Knowledge = MaxKnowledge;
+
+	// 장비 장착
+	for (const FItemData& EquipItem : Data.EquippedItems)
+	{
+		if (EquipItem.ItemClass && EquipItem.ItemType == EItemType::Weapon)
+		{
+			EquipWeaponFromClass(EquipItem.ItemClass);
+			break;
+		}
+	}
+
+	// 인벤토리 복원
+	if (InventoryComponent)
+	{
+		InventoryComponent->InventoryItemsStruct.SetNum(InventoryComponent->Capacity);
+		for (int32 i = 0; i < Data.InventoryItems.Num(); ++i)
+		{
+			if (i < InventoryComponent->InventoryItemsStruct.Num())
+			{
+				InventoryComponent->InventoryItemsStruct[i] = Data.InventoryItems[i];
+			}
+		}
+	}
+
+	// 장비창 UI에도 반영
+	if (EquipmentWidgetInstance)
+	{
+		EquipmentWidgetInstance->RestoreEquipmentFromData(Data.EquippedItems);
 	}
 }

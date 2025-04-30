@@ -258,6 +258,11 @@ public:
 	void FadeAndEscape();
 	void ExecuteEscape();
 
+	void ApplyCharacterData(const FPlayerCharacterData& Data);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	EPlayerClass PlayerClass;
+
 	UUserWidget* WFCWarningWidgetInstance;
 	UUserWidget* WFCDoneWidgetInstance;
 

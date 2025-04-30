@@ -7,6 +7,8 @@
 #include "InventoryWidget.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h"
+#include "Components/TextBlock.h"
+#include "PlayerCharacterData.h" 
 #include "Components/Button.h"
 #include "LobbyWidget.generated.h"
 
@@ -57,6 +59,26 @@ protected:
 
     UPROPERTY()
     UInventoryComponent* StorageComponentRef;
+
+    TArray<EPlayerClass> AvailableClasses = { EPlayerClass::Warrior, EPlayerClass::Rogue, EPlayerClass::Mage };
+    int32 CurrentClassIndex = 0;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* LeftArrowButton;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* RightArrowButton;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* ClassText;
+
+    UFUNCTION()
+    void OnLeftArrowClicked();
+
+    UFUNCTION()
+    void OnRightArrowClicked();
+
+    void UpdateClassDisplay();
 
     UFUNCTION()
     void OnStartGameClicked();

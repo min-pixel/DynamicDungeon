@@ -23,6 +23,17 @@ void ULobbyWidget::NativeConstruct()
     {
         GoToShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnGoToShopClicked);
     }
+
+    if (LeftArrowButton)
+    {
+        LeftArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLeftArrowClicked);
+    }
+
+    if (RightArrowButton)
+    {
+        RightArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRightArrowClicked);
+    }
+    
 }
 
 void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
@@ -208,6 +219,7 @@ void ULobbyWidget::OnStartGameClicked()
             GameInstance->SavedInventoryItems = InventoryComponentRef->InventoryItemsStruct;
             GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->EquipmentSlots;
             GameInstance->SavedStorageItems = StorageComponentRef->InventoryItemsStruct;
+            GameInstance->InitializeCharacterData(AvailableClasses[CurrentClassIndex]);
             UE_LOG(LogTemp, Warning, TEXT("Saved Equipment Slots to GameInstance"));
         }
     }
@@ -233,4 +245,29 @@ void ULobbyWidget::OnGoToShopClicked()
     UE_LOG(LogTemp, Warning, TEXT("Go to Shop button clicked"));
 
     // 상점 UI 열기 등의 처리
+}
+
+void ULobbyWidget::OnLeftArrowClicked()
+{
+    CurrentClassIndex = (CurrentClassIndex - 1 + AvailableClasses.Num()) % AvailableClasses.Num();
+    UpdateClassDisplay();
+}
+
+void ULobbyWidget::OnRightArrowClicked()
+{
+    CurrentClassIndex = (CurrentClassIndex + 1) % AvailableClasses.Num();
+    UpdateClassDisplay();
+}
+
+void ULobbyWidget::UpdateClassDisplay()
+{
+    FString ClassName;
+    switch (AvailableClasses[CurrentClassIndex])
+    {
+    case EPlayerClass::Warrior: ClassName = TEXT("W"); break;
+    case EPlayerClass::Rogue:   ClassName = TEXT("R"); break;
+    case EPlayerClass::Mage:    ClassName = TEXT("M"); break;
+    }
+
+    ClassText->SetText(FText::FromString(ClassName));
 }

@@ -24,7 +24,7 @@ Awfcex::Awfcex()
 void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
-	ExecuteWFCInSubsystem(90, 1172835073); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505
+	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505
     SpawnPlayerOnCorridor();
 
     SpawnEnemiesOnCorridor(15);
@@ -274,10 +274,8 @@ void Awfcex::SpawnWFCRegeneratorOnRoom()
 
     if (RoomTilePositions.Num() == 0) return;
 
-    //중심 좌표 계산
     FIntVector CenterCoord = FIntVector(Resolution.X / 2, Resolution.Y / 2, Resolution.Z / 2);
 
-    // 중심으로부터 가까운 방만 필터링 (맨해튼 거리 사용)
     auto GetManhattanDistance = [](const FIntVector& A, const FIntVector& B)
         {
             return FMath::Abs(A.X - B.X) + FMath::Abs(A.Y - B.Y);
@@ -287,34 +285,46 @@ void Awfcex::SpawnWFCRegeneratorOnRoom()
     for (int32 i = 0; i < RoomTileCoords.Num(); ++i)
     {
         int32 Distance = GetManhattanDistance(RoomTileCoords[i], CenterCoord);
-        if (Distance <= 10) // 중심에서 10칸 이내만 허용 (필요하면 조정)
+        if (Distance <= 15)
         {
             CentralRoomIndices.Add(i);
         }
     }
 
-    //조건에 맞는 게 없다면 전체에서 랜덤
-    int32 SelectedIndex = -1;
-    if (CentralRoomIndices.Num() > 0)
+    if (CentralRoomIndices.Num() < 3)
     {
-        SelectedIndex = CentralRoomIndices[FMath::RandRange(0, CentralRoomIndices.Num() - 1)];
+        for (int32 i = 0; i < RoomTileCoords.Num(); ++i)
+        {
+            if (!CentralRoomIndices.Contains(i))
+            {
+                CentralRoomIndices.Add(i);
+                if (CentralRoomIndices.Num() >= 3) break;
+            }
+        }
     }
-    else
+
+    TSet<int32> SelectedIndices;
+    while (SelectedIndices.Num() < 3 && CentralRoomIndices.Num() > 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("No central room found. Using fallback random room."));
-        SelectedIndex = FMath::RandRange(0, RoomTileCoords.Num() - 1);
+        int32 RandIndex = CentralRoomIndices[FMath::RandRange(0, CentralRoomIndices.Num() - 1)];
+        CentralRoomIndices.Remove(RandIndex);
+        SelectedIndices.Add(RandIndex);
     }
 
-    FVector SpawnLocation = RoomTilePositions[SelectedIndex] + FVector(0, 0, 0);
+    for (int32 SelectedIndex : SelectedIndices)
+    {
+        FVector SpawnLocation = RoomTilePositions[SelectedIndex] + FVector(0, 0, 0);
+        FIntVector Coord = RoomTileCoords[SelectedIndex];
+        FWaveFunctionCollapseOptionCustom Option = RoomTileOptions[SelectedIndex];
 
-    // StarterOption 고정 등록
-    WFCSubsystem->UserFixedOptions.Add(RoomTileCoords[SelectedIndex], RoomTileOptions[SelectedIndex]);
-    UE_LOG(LogTemp, Warning, TEXT("StarterOption fixed for Regenerator at (%d, %d, %d)"),
-        RoomTileCoords[SelectedIndex].X, RoomTileCoords[SelectedIndex].Y, RoomTileCoords[SelectedIndex].Z);
+        // 고정 타일 등록
+        WFCSubsystem->UserFixedOptions.Add(Coord, Option);
+        UE_LOG(LogTemp, Warning, TEXT("Fixed Regenerator Tile at (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
 
-    // WFC Regenerator 오브젝트 스폰
-    FActorSpawnParameters Params;
-    GetWorld()->SpawnActor<AWFCRegenerator>(WFCRegeneratorClass, SpawnLocation, FRotator::ZeroRotator, Params);
+        // 오브젝트 스폰
+        FActorSpawnParameters Params;
+        GetWorld()->SpawnActor<AWFCRegenerator>(WFCRegeneratorClass, SpawnLocation, FRotator::ZeroRotator, Params);
+    }
 }
 
 void Awfcex::SpawnEscapeObjectsOnRoom()
@@ -327,26 +337,49 @@ void Awfcex::SpawnEscapeObjectsOnRoom()
     float TileSize = WFCSubsystem->WFCModel->TileSize;
 
     TArray<FVector> RoomTilePositions;
+    TArray<FIntVector> RoomTileCoords;
 
     for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
     {
         if (Tiles[TileIndex].RemainingOptions.Num() > 0 &&
             Tiles[TileIndex].RemainingOptions[0].bIsRoomTile)
         {
-            FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
-            RoomTilePositions.Add(TilePosition);
+            FIntVector Coord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+            RoomTileCoords.Add(Coord);
+            RoomTilePositions.Add(FVector(Coord) * TileSize);
         }
     }
 
-    if (RoomTilePositions.Num() == 0) return;
+    if (RoomTileCoords.Num() == 0) return;
+
+    // 중복 방지: 재생성 오브젝트가 위치한 좌표는 제외
+    TArray<int32> ValidIndices;
+    for (int32 i = 0; i < RoomTileCoords.Num(); ++i)
+    {
+        if (!WFCSubsystem->UserFixedOptions.Contains(RoomTileCoords[i]))
+        {
+            ValidIndices.Add(i);
+        }
+    }
+
+    if (ValidIndices.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No valid room tiles available for EscapeObject spawn (all overlap with regenerators)."));
+        return;
+    }
 
     UWorld* World = GetWorld();
     if (!World) return;
 
     for (int32 i = 0; i < 2; ++i)
     {
-        int32 RandomIndex = FMath::RandRange(0, RoomTilePositions.Num() - 1);
-        FVector SpawnLocation = RoomTilePositions[RandomIndex] + FVector(0, 0, 50); // 약간 위로
+        if (ValidIndices.Num() == 0) break;
+
+        int32 RandIdx = FMath::RandRange(0, ValidIndices.Num() - 1);
+        int32 SelectedIndex = ValidIndices[RandIdx];
+        ValidIndices.RemoveAt(RandIdx); // 중복 방지
+
+        FVector SpawnLocation = RoomTilePositions[SelectedIndex] + FVector(0, 0, 50); // 약간 위로
 
         FActorSpawnParameters Params;
         World->SpawnActor<AEscapeObject>(EscapeObjectClass, SpawnLocation, FRotator::ZeroRotator, Params);
@@ -354,6 +387,7 @@ void Awfcex::SpawnEscapeObjectsOnRoom()
         UE_LOG(LogTemp, Log, TEXT("Escape Object spawned at %s"), *SpawnLocation.ToString());
     }
 }
+
 
 
 void Awfcex::SpawnTreasureChestsOnTiles()
