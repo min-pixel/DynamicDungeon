@@ -12,6 +12,7 @@
 #include "Weapon.h"
 #include "Animation/AnimSequence.h"
 #include "HitInterface.h"
+#include "USpellBase.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h" 
 #include "MyDCharacter.generated.h"
@@ -262,6 +263,13 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	EPlayerClass PlayerClass;
+
+	UPROPERTY()
+	TArray<UUSpellBase*> SpellSet;
+
+	void TryCastSpell(int32 Index);
+
+	void CastSpell1();
 
 	UUserWidget* WFCWarningWidgetInstance;
 	UUserWidget* WFCDoneWidgetInstance;

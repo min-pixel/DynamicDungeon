@@ -20,6 +20,7 @@
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
+#include "FireballSpell.h"
 #include "Camera/CameraShakeBase.h"
 #include "WFCRegenerator.h"
 #include "Components/ProgressBar.h"
@@ -398,6 +399,11 @@ void AMyDCharacter::BeginPlay()
 		ApplyCharacterData(GameInstance->CurrentCharacterData);
 	}
 
+	if (PlayerClass == EPlayerClass::Mage)
+	{
+		UFireballSpell* Fireball = NewObject<UFireballSpell>(this);
+		SpellSet.Add(Fireball);
+	}
 
 }
 
@@ -526,6 +532,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("Roll", IE_Pressed, this, &AMyDCharacter::PlayRollAnimation);
 
 	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyDCharacter::ToggleInventoryUI);
+
+	//스펠 사용 추가 (Q키)
+	PlayerInputComponent->BindAction("CastSpell1", IE_Pressed, this, &AMyDCharacter::CastSpell1);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -1453,4 +1462,19 @@ void AMyDCharacter::ApplyCharacterData(const FPlayerCharacterData& Data)
 	{
 		EquipmentWidgetInstance->RestoreEquipmentFromData(Data.EquippedItems);
 	}
+}
+
+void AMyDCharacter::TryCastSpell(int32 Index)
+{
+	if (PlayerClass != EPlayerClass::Mage) return;
+
+	if (SpellSet.IsValidIndex(Index) && SpellSet[Index]->CanActivate(this))
+	{
+		SpellSet[Index]->ActivateSpell(this);
+	}
+}
+
+void AMyDCharacter::CastSpell1()
+{
+	TryCastSpell(0);
 }
