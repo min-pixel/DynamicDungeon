@@ -76,31 +76,31 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	//}
 
 	// StarterOptions 적용  20250417
-	//for (const auto& Entry : UserFixedOptions)
-	//{
-	//	const FIntVector& Coord = Entry.Key;
-	//	const FWaveFunctionCollapseOptionCustom& FixedOption = Entry.Value;
+	for (const auto& Entry : UserFixedOptions)
+	{
+		const FIntVector& Coord = Entry.Key;
+		const FWaveFunctionCollapseOptionCustom& FixedOption = Entry.Value;
 
-	//	int32 Index = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
+		int32 Index = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
 
-	//	if (Tiles.IsValidIndex(Index))
-	//	{
-	//		Tiles[Index].RemainingOptions.Empty();
-	//		Tiles[Index].RemainingOptions.Add(FixedOption);
+		if (Tiles.IsValidIndex(Index))
+		{
+			Tiles[Index].RemainingOptions.Empty();
+			Tiles[Index].RemainingOptions.Add(FixedOption);
 
-	//		// ShannonEntropy 재계산
-	//		Tiles[Index].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
-	//			Tiles[Index].RemainingOptions,
-	//			WFCModel
-	//		);
+			// ShannonEntropy 재계산
+			Tiles[Index].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+				Tiles[Index].RemainingOptions,
+				WFCModel
+			);
 
-	//		UE_LOG(LogTemp, Warning, TEXT("StarterOption applied at (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
-	//	}
-	//	else
-	//	{
-	//		UE_LOG(LogTemp, Warning, TEXT("Invalid StarterOption index for (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
-	//	}
-	//}
+			UE_LOG(LogTemp, Warning, TEXT("StarterOption applied at (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Invalid StarterOption index for (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
+		}
+	}
 
 
 	bool bSuccessfulSolve = false;
@@ -2271,6 +2271,32 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 				break;
 			}
 		}
+
+		//20250503, 고립된 방 판별
+		//for (int32 OffsetIndex : OffsetIndices)
+		//{
+		//	if (!Tiles.IsValidIndex(OffsetIndex)) continue;
+
+		//	const TArray<FWaveFunctionCollapseOptionCustom>& Options = Tiles[OffsetIndex].RemainingOptions;
+
+		//	if (Options.IsEmpty())
+		//	{
+		//		continue; // 진짜 빈 타일
+		//	}
+
+		//	const FString& MeshPath = Options[0].BaseObject.ToString();
+
+		//	// Option_Empty와 goalt01이면 빈 공간처럼 간주
+		//	if (MeshPath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
+		//		MeshPath == TEXT("/Game/BP/goalt01.goalt01"))
+		//	{
+		//		continue;
+		//	}
+
+		//	// 이 타일은 실제로 채워져 있는 유효한 공간
+		//	bSurroundedByEmptySpace = false;
+		//	break;
+		//}
 
 		if (bSurroundedByEmptySpace)
 		{

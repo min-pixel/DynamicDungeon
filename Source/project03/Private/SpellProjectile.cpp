@@ -1,24 +1,24 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "SpellProjectile.h"
 #include "Components/SphereComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "MyDCharacter.h"
 #include "Kismet/GameplayStatics.h"
+#include "HitInterface.h" // HitInterface 관련 include 필요
 
-// Sets default values
 ASpellProjectile::ASpellProjectile()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = true;
 
-    CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere"));
-    CollisionComponent->InitSphereRadius(10.0f);
-    CollisionComponent->SetCollisionProfileName(TEXT("Projectile"));
-    CollisionComponent->OnComponentHit.AddDynamic(this, &ASpellProjectile::OnHit);
-    RootComponent = CollisionComponent;
+    USphereComponent* Sphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
+    Sphere->InitSphereRadius(50.0f);
+    Sphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    Sphere->SetCollisionObjectType(ECC_WorldDynamic);
+    Sphere->SetCollisionResponseToAllChannels(ECR_Ignore);
+    Sphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); // 캐릭터에 반응
+    Sphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+    Sphere->OnComponentBeginOverlap.AddDynamic(this, &ASpellProjectile::OnOverlapBegin);
+    RootComponent = Sphere;
 
     VisualEffect = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("Effect"));
     VisualEffect->SetupAttachment(RootComponent);
@@ -26,8 +26,10 @@ ASpellProjectile::ASpellProjectile()
     MovementComponent = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("Movement"));
     MovementComponent->InitialSpeed = 1200.f;
     MovementComponent->MaxSpeed = 1200.f;
+    MovementComponent->ProjectileGravityScale = 0.0f;
     MovementComponent->bRotationFollowsVelocity = true;
-
+    MovementComponent->bAutoActivate = true;
+    MovementComponent->SetUpdatedComponent(RootComponent);
 }
 
 void ASpellProjectile::Init(AMyDCharacter* InCaster, float InDamage)
@@ -36,36 +38,43 @@ void ASpellProjectile::Init(AMyDCharacter* InCaster, float InDamage)
     Damage = InDamage;
 }
 
-void ASpellProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
-    UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+void ASpellProjectile::OnOverlapBegin(
+    UPrimitiveComponent* OverlappedComp,
+    AActor* OtherActor,
+    UPrimitiveComponent* OtherComp,
+    int32 OtherBodyIndex,
+    bool bFromSweep,
+    const FHitResult& SweepResult)
 {
-    if (OtherActor && OtherActor != this && OtherActor != Caster)
+    if (!OtherActor || OtherActor == this || OtherActor == Caster) return;
+
+    UE_LOG(LogTemp, Warning, TEXT("Fireball overlapped with: %s"), *OtherActor->GetName());
+
+    if (OtherActor->Implements<UHitInterface>())
     {
-        UGameplayStatics::ApplyDamage(OtherActor, Damage, Caster->GetController(), this, nullptr);
+        IHitInterface::Execute_GetHit(OtherActor, SweepResult, Caster, Damage);
     }
 
     Destroy();
 }
 
-// Called when the game starts or when spawned
 void ASpellProjectile::BeginPlay()
 {
-	Super::BeginPlay();
-	
+    Super::BeginPlay();
 }
 
-// Called every frame
 void ASpellProjectile::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
-
+    Super::Tick(DeltaTime);
 }
 
 void ASpellProjectile::LaunchInDirection(const FVector& LaunchVelocity)
 {
+    UE_LOG(LogTemp, Warning, TEXT("LaunchInDirection called with velocity: %s"), *LaunchVelocity.ToString());
+
     if (MovementComponent)
     {
         MovementComponent->Velocity = LaunchVelocity;
+        MovementComponent->Activate(true);
     }
 }
-

@@ -18,13 +18,20 @@ public:
 
     UFUNCTION(BlueprintCallable)
     void LaunchInDirection(const FVector& LaunchVelocity);
+
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-    UFUNCTION()
+    /*UFUNCTION()
     void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
-        FVector NormalImpulse, const FHitResult& Hit);
+        FVector NormalImpulse, const FHitResult& Hit);*/
+
+    UFUNCTION()
+    void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
+        UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+        bool bFromSweep, const FHitResult& SweepResult);
 
     UPROPERTY(VisibleAnywhere)
     class USphereComponent* CollisionComponent;

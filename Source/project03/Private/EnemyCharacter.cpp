@@ -10,6 +10,7 @@
 #include "MyDCharacter.h"
 #include "InventoryWidget.h"
 #include "ItemDataD.h"
+#include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -70,8 +71,8 @@ AEnemyCharacter::AEnemyCharacter()
     {
         InventoryWidgetClass = WidgetBPClass.Class;
     }
-
-   
+    
+ 
 }
 
 // Called when the game starts or when spawned

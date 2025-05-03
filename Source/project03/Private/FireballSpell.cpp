@@ -18,7 +18,7 @@ UFireballSpell::UFireballSpell()
 
     ManaCost = 20.0f;
     StaminaCost = 10.0f;
-    Damage = 50.0f;
+    Damage = 5000.0f;
 
 }
 
@@ -37,7 +37,7 @@ void UFireballSpell::ActivateSpell(AMyDCharacter* Caster)
     Caster->UpdateHUD();
 
     // 카메라 위치 및 방향
-    FVector SpawnLocation = Caster->GetActorLocation() + Caster->GetActorForwardVector() * 100.0f + FVector(0, 0, 50.0f);
+    FVector SpawnLocation = Caster->GetActorLocation() + Caster->GetActorForwardVector() * 200.0f + FVector(0, 0, 50.0f);
     FRotator SpawnRotation = Caster->GetControlRotation();
 
     FActorSpawnParameters SpawnParams;
