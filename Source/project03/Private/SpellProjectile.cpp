@@ -1,24 +1,23 @@
 #include "SpellProjectile.h"
-#include "Components/SphereComponent.h"
+#include "Components/BoxComponent.h" // Box로 교체
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "MyDCharacter.h"
 #include "Kismet/GameplayStatics.h"
-#include "HitInterface.h" // HitInterface 관련 include 필요
+#include "HitInterface.h"
 
 ASpellProjectile::ASpellProjectile()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    USphereComponent* Sphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
-    Sphere->InitSphereRadius(50.0f);
-    Sphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    Sphere->SetCollisionObjectType(ECC_WorldDynamic);
-    Sphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-    Sphere->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); // 캐릭터에 반응
-    Sphere->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
-    Sphere->OnComponentBeginOverlap.AddDynamic(this, &ASpellProjectile::OnOverlapBegin);
-    RootComponent = Sphere;
+    UBoxComponent* Box = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
+    Box->InitBoxExtent(FVector(50.f, 50.f, 50.f)); // 크기 조정
+    Box->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics); // 물리 충돌 포함
+    Box->SetCollisionObjectType(ECC_WorldDynamic);
+    Box->SetCollisionResponseToAllChannels(ECR_Block); // 전부 Block으로 처리
+    Box->SetNotifyRigidBodyCollision(true); // Hit 이벤트 활성화
+    Box->OnComponentHit.AddDynamic(this, &ASpellProjectile::OnHit); // 델리게이트 등록
+    RootComponent = Box;
 
     VisualEffect = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("Effect"));
     VisualEffect->SetupAttachment(RootComponent);
@@ -38,21 +37,20 @@ void ASpellProjectile::Init(AMyDCharacter* InCaster, float InDamage)
     Damage = InDamage;
 }
 
-void ASpellProjectile::OnOverlapBegin(
-    UPrimitiveComponent* OverlappedComp,
+void ASpellProjectile::OnHit(
+    UPrimitiveComponent* HitComp,
     AActor* OtherActor,
     UPrimitiveComponent* OtherComp,
-    int32 OtherBodyIndex,
-    bool bFromSweep,
-    const FHitResult& SweepResult)
+    FVector NormalImpulse,
+    const FHitResult& Hit)
 {
     if (!OtherActor || OtherActor == this || OtherActor == Caster) return;
 
-    UE_LOG(LogTemp, Warning, TEXT("Fireball overlapped with: %s"), *OtherActor->GetName());
+    UE_LOG(LogTemp, Warning, TEXT("Hit! Projectile hit: %s"), *OtherActor->GetName());
 
     if (OtherActor->Implements<UHitInterface>())
     {
-        IHitInterface::Execute_GetHit(OtherActor, SweepResult, Caster, Damage);
+        IHitInterface::Execute_GetHit(OtherActor, Hit, Caster, Damage);
     }
 
     Destroy();
@@ -70,8 +68,6 @@ void ASpellProjectile::Tick(float DeltaTime)
 
 void ASpellProjectile::LaunchInDirection(const FVector& LaunchVelocity)
 {
-    UE_LOG(LogTemp, Warning, TEXT("LaunchInDirection called with velocity: %s"), *LaunchVelocity.ToString());
-
     if (MovementComponent)
     {
         MovementComponent->Velocity = LaunchVelocity;

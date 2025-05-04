@@ -405,6 +405,8 @@ void AMyDCharacter::BeginPlay()
 		SpellSet.Add(Fireball);
 	}
 
+
+
 }
 
 // 매 프레임 호출
@@ -535,6 +537,8 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//스펠 사용 추가 (Q키)
 	PlayerInputComponent->BindAction("CastSpell1", IE_Pressed, this, &AMyDCharacter::CastSpell1);
+
+	PlayerInputComponent->BindAction("ToggleMapView", IE_Pressed, this, &AMyDCharacter::ToggleMapView);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -1477,4 +1481,49 @@ void AMyDCharacter::TryCastSpell(int32 Index)
 void AMyDCharacter::CastSpell1()
 {
 	TryCastSpell(0);
+}
+
+void AMyDCharacter::ToggleMapView()
+{
+	if (!FirstPersonCameraComponent) return;
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+
+	if (!bIsInOverheadView)
+	{
+		// 현재 카메라 위치 저장 (회전 포함)
+		DefaultCameraLocation = FirstPersonCameraComponent->GetComponentLocation();
+		DefaultCameraRotation = FirstPersonCameraComponent->GetComponentRotation();
+
+		// 맵 전체 보기 시점 설정
+		FVector OverheadLocation = FVector(15000.0f, 16000.0f, 50500.0f);
+		FRotator OverheadRotation = FRotator(-90.0f, 0.0f, 0.0f); // 진짜로 수직으로 내려다봄
+
+		FirstPersonCameraComponent->SetWorldLocation(OverheadLocation);
+		FirstPersonCameraComponent->SetWorldRotation(OverheadRotation);
+
+		if (PC)
+		{
+			PC->SetControlRotation(OverheadRotation); // ← 중요: 컨트롤러 회전도 고정
+			PC->SetIgnoreLookInput(true);              // 마우스 회전 막기
+		}
+
+		bUseControllerRotationYaw = false;
+		bIsInOverheadView = true;
+	}
+	else
+	{
+		// 원래 시점으로 복구
+		FirstPersonCameraComponent->SetWorldLocation(DefaultCameraLocation);
+		FirstPersonCameraComponent->SetWorldRotation(DefaultCameraRotation);
+
+		if (PC)
+		{
+			PC->SetControlRotation(DefaultCameraRotation); // ← 중요: 복구할 때도 같이 설정
+			PC->SetIgnoreLookInput(false);
+		}
+
+		bUseControllerRotationYaw = true;
+		bIsInOverheadView = false;
+	}
 }

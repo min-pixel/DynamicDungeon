@@ -54,6 +54,7 @@ void UFireballSpell::ActivateSpell(AMyDCharacter* Caster)
     if (Fireball)
     {
         FVector LaunchDirection = SpawnRotation.Vector();
+        Fireball->Init(Caster, Damage);
         Fireball->LaunchInDirection(LaunchDirection * FireballSpeed);
     }
 }

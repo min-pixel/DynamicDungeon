@@ -271,6 +271,12 @@ public:
 
 	void CastSpell1();
 
+	bool bIsInOverheadView = false;
+	FVector DefaultCameraLocation;
+	FRotator DefaultCameraRotation;
+
+	void ToggleMapView();
+
 	UUserWidget* WFCWarningWidgetInstance;
 	UUserWidget* WFCDoneWidgetInstance;
 
