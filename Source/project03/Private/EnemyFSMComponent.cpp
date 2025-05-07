@@ -80,9 +80,9 @@ void UEnemyFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
     FVector LeftDir = Forward.RotateAngleAxis(-HalfSightAngle, FVector::UpVector);
     FVector RightDir = Forward.RotateAngleAxis(HalfSightAngle, FVector::UpVector);
 
-    DrawDebugLine(GetWorld(), Start, Start + LeftDir * SightLength, FColor::Green, false, 0.1f);
+    /*DrawDebugLine(GetWorld(), Start, Start + LeftDir * SightLength, FColor::Green, false, 0.1f);
     DrawDebugLine(GetWorld(), Start, Start + RightDir * SightLength, FColor::Green, false, 0.1f);
-    DrawDebugLine(GetWorld(), Start, Start + Forward * SightLength, FColor::Yellow, false, 0.1f);
+    DrawDebugLine(GetWorld(), Start, Start + Forward * SightLength, FColor::Yellow, false, 0.1f);*/
 
 	// ...
 }
@@ -198,7 +198,7 @@ bool UEnemyFSMComponent::CanSeePlayer(FVector& OutToPlayer, float& OutDistance)
             );
 
             // 디버그 선 (선택)
-            DrawDebugLine(GetWorld(), Start, End, FColor::Yellow, false, 0.2f);
+            //DrawDebugLine(GetWorld(), Start, End, FColor::Yellow, false, 0.2f);
 
             if (bHit && Hit.GetActor() != Player)
             {

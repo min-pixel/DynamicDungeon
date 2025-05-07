@@ -57,7 +57,7 @@ AEnemyCharacter::AEnemyCharacter()
 
     InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
     InteractionBox->SetupAttachment(RootComponent);
-    InteractionBox->SetBoxExtent(FVector(100.f));
+    InteractionBox->SetBoxExtent(FVector(500.f));
     InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     InteractionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
     InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
@@ -190,6 +190,7 @@ void AEnemyCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor*
         }
 
         // »ç¸Á Ã³¸®
+        
         //SetActorEnableCollision(false);
         GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
         GetMesh()->SetSimulatePhysics(true);

@@ -24,7 +24,7 @@ Awfcex::Awfcex()
 void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
-	ExecuteWFCInSubsystem(90, 1966419713); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505
+	ExecuteWFCInSubsystem(90, 767089153); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505, 767089153
     SpawnPlayerOnCorridor();
 
     SpawnEnemiesOnCorridor(15);
@@ -140,15 +140,31 @@ void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
         }
 
         // Z축 살짝 올려서 바닥과 충돌 방지
-        FVector AdjustedLocation = Location + FVector(0.0f, 0.0f, 50.0f);
+        FVector AdjustedLocation = Location + FVector(0.0f, 0.0f, 100.0f);
 
         // 플레이어 스폰
         FActorSpawnParameters SpawnParams;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+
         AMyDCharacter* SpawnedPlayer = World->SpawnActor<AMyDCharacter>(PlayerClass, AdjustedLocation, FRotator::ZeroRotator, SpawnParams);
 
         if (SpawnedPlayer)
         {
             UE_LOG(LogTemp, Log, TEXT("olmkmknunwn: %s"), *AdjustedLocation.ToString());
+
+            FVector FinalLocation = SpawnedPlayer->GetActorLocation();
+
+            if (!FinalLocation.Equals(AdjustedLocation, 1.0f)) // 위치가 바뀌었으면
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Spawn location adjusted due to collision. Requested: %s | Actual: %s"),
+                    *AdjustedLocation.ToString(), *FinalLocation.ToString());
+            }
+            else
+            {
+                UE_LOG(LogTemp, Log, TEXT("Spawned at intended location: %s"), *FinalLocation.ToString());
+            }
+
+
 
             //컨트롤러 확인
             APlayerController* PlayerController = World->GetFirstPlayerController();
@@ -176,7 +192,7 @@ void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("Failed to spawn AMyDCharacter at location: %s"), *AdjustedLocation.ToString());
+            SpawnPlayerOnCorridor();
         }
     }
     else
@@ -400,6 +416,15 @@ void Awfcex::SpawnTreasureChestsOnTiles()
     float TileSize = WFCSubsystem->WFCModel->TileSize;
 
     TArray<FVector> ValidTilePositions;
+    TArray<FWaveFunctionCollapseOptionCustom> ValidTileOptions;
+
+    // 헬퍼 함수: t01 또는 t01-01만 허용
+    auto IsAllowedTile = [](const FWaveFunctionCollapseOptionCustom& Option) -> bool
+        {
+            FString Name = Option.BaseObject.ToString();
+            return Name.Contains("t01") || Name.Contains("t01-01");
+        };
+
 
     for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
     {
@@ -407,11 +432,11 @@ void Awfcex::SpawnTreasureChestsOnTiles()
         {
             const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
 
-            // 복도 또는 방 타일 모두 허용
-            if (Option.bIsCorridorTile || Option.bIsRoomTile)
+            if ((Option.bIsCorridorTile || Option.bIsRoomTile) && IsAllowedTile(Option))
             {
                 FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
                 ValidTilePositions.Add(TilePosition);
+                ValidTileOptions.Add(Option);
             }
         }
     }
@@ -421,29 +446,67 @@ void Awfcex::SpawnTreasureChestsOnTiles()
     UWorld* World = GetWorld();
     if (!World) return;
 
-    const float MaxOffsetRadius = 200.f;
-    const float ClampMargin = 50.f; // 여유 공간
-    const FVector2D TileHalfSize = FVector2D(TileSize * 0.5f, TileSize * 0.5f);
+    const float WallOffset = TileSize * 0.4f;
+
+    // 북/남 벽 붙이기
+    const TArray<TPair<FVector, float>> NorthSouthConfigs = {
+        { FVector(0, -WallOffset, 0), 0.f },     // 남쪽 벽, 북쪽 바라봄
+        { FVector(0, +WallOffset, 0), 180.f }    // 북쪽 벽, 남쪽 바라봄
+    };
+
+    // 좌/우 벽 붙이기 (t01-01 타일만)
+    const TArray<TPair<FVector, float>> EastWestConfigs = {
+        { FVector(-WallOffset, 0, 0), 90.f },    // 서쪽 벽, 동쪽 바라봄
+        { FVector(+WallOffset, 0, 0), 270.f }    // 동쪽 벽, 서쪽 바라봄
+    };
 
     for (int32 i = 0; i < 30; ++i)
     {
         int32 RandomIndex = FMath::RandRange(0, ValidTilePositions.Num() - 1);
-        FVector BaseLocation = ValidTilePositions[RandomIndex];
+        FVector TileCenter = ValidTilePositions[RandomIndex];
+        const FWaveFunctionCollapseOptionCustom& Option = ValidTileOptions[RandomIndex];
 
-        FVector2D RandomOffset = FMath::RandPointInCircle(MaxOffsetRadius);
+        FString TileMeshName = Option.BaseObject.ToString();
+        bool bIsHorizontal = TileMeshName.Contains("t01-01");
 
-        // Clamp: 타일 경계 넘지 않게 조정
-        RandomOffset.X = FMath::Clamp(RandomOffset.X, -TileHalfSize.X + ClampMargin, TileHalfSize.X - ClampMargin);
-        RandomOffset.Y = FMath::Clamp(RandomOffset.Y, -TileHalfSize.Y + ClampMargin, TileHalfSize.Y - ClampMargin);
+        const TArray<TPair<FVector, float>>& Configs = bIsHorizontal ? EastWestConfigs : NorthSouthConfigs;
 
-        FVector SpawnLocation = BaseLocation + FVector(RandomOffset.X, RandomOffset.Y, 5.0f);
+        int32 ConfigIndex = FMath::RandRange(0, Configs.Num() - 1);
+        FVector FinalOffset = Configs[ConfigIndex].Key;
+        float FinalYaw = Configs[ConfigIndex].Value;
 
-        float RandomYaw = FMath::FRandRange(0.f, 360.f);
-        FRotator SpawnRotation = FRotator(0.f, RandomYaw, 0.f);
+        FVector SpawnLocation = TileCenter + FinalOffset + FVector(0, 0, 5);
+        FRotator SpawnRotation = FRotator(0.f, FinalYaw, 0.f);
+
+        if (!CanSpawnAtLocation(World, SpawnLocation, 4.0f)) // ← 반지름은 보물 상자 사이즈에 맞게
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Spawn blocked at %s"), *SpawnLocation.ToString());
+            continue; // 건너뛰기
+        }
 
         FActorSpawnParameters Params;
         World->SpawnActor<ATreasureChest>(TreasureChestClass, SpawnLocation, SpawnRotation, Params);
 
-        UE_LOG(LogTemp, Log, TEXT("Treasure Chest spawned at %s with rotation %.2f"), *SpawnLocation.ToString(), RandomYaw);
+        UE_LOG(LogTemp, Log, TEXT("Treasure Chest spawned at %s with rotation %.1f (tile: %s)"),
+            *SpawnLocation.ToString(), FinalYaw, *TileMeshName);
     }
+}
+
+bool Awfcex::CanSpawnAtLocation(UWorld* World, const FVector& Location, float Radius)
+{
+    if (!World) return false;
+
+    FCollisionShape Shape = FCollisionShape::MakeSphere(Radius);
+    FCollisionQueryParams Params;
+    Params.bTraceComplex = false;
+    Params.bReturnPhysicalMaterial = false;
+
+    // 정적 오브젝트 충돌 검사 (예: 석상, 벽 등)
+    return !World->OverlapBlockingTestByChannel(
+        Location,
+        FQuat::Identity,
+        ECC_WorldStatic,
+        Shape,
+        Params
+    );
 }

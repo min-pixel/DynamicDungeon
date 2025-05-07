@@ -68,6 +68,8 @@ public:
 	void SpawnEscapeObjectsOnRoom();
 	void SpawnTreasureChestsOnTiles();
 
+	bool CanSpawnAtLocation(UWorld* World, const FVector& Location, float Radius);
+
 
 
 };

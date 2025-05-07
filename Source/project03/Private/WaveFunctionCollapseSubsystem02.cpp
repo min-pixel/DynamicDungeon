@@ -39,8 +39,9 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	TArray<FWaveFunctionCollapseTileCustom> Tiles;
 	TArray<int32> RemainingTiles;
 	TMap<int32, FWaveFunctionCollapseQueueElementCustom> ObservationQueue;
-	Tiles.Reserve(ArrayReserveValue);
-	RemainingTiles.Reserve(ArrayReserveValue);
+	Tiles.Reserve(ArrayReserveValue); 
+	RemainingTiles.Reserve(ArrayReserveValue); 
+	TArray<FVector> FixedRoomTilePositions; 
 
 	InitializeWFC(Tiles, RemainingTiles);
 
@@ -173,6 +174,22 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					//20250418
 					FIntVector GridCoord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
 					bool bIsUserFixed = UserFixedOptions.Contains(GridCoord);
+
+					if (bIsUserFixed)
+					{
+						FixedRoomTilePositions.Add(RoomTilePosition); // 고정된 방 위치 저장
+					}
+
+					//고정된 방과 겹치는 일반 방 제거
+					bool bOverlapsFixedRoom = false;
+					for (const FVector& FixedPos : FixedRoomTilePositions)
+					{
+						if (FVector::DistSquared(RoomTilePosition, FixedPos) < FMath::Square(TileSize * 1.5f))
+						{
+							bOverlapsFixedRoom = true;
+							break;
+						}
+					}
 
 					if (bOverlapsOtherRoomTile && !bIsUserFixed)
 					{
@@ -329,12 +346,12 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		// 성공한 타일 데이터를 저장
 		LastCollapsedTiles = Tiles;
 
-		if (bHasRegeneratorFixedTile)
+		for (const auto& Elem : UserFixedOptions)
 		{
-			PostProcessFixedRoomTileAt(RegeneratorFixedTileCoord, Tiles);
-			TOptional<FIntVector> CorridorDirection = PostProcessFixedRoomTileAt(RegeneratorFixedTileCoord, Tiles);
-			int32 FixedTileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(RegeneratorFixedTileCoord, Resolution);
+			const FIntVector& Coord = Elem.Key;
+			TOptional<FIntVector> CorridorDirection = PostProcessFixedRoomTileAt(Coord, Tiles);
 
+			int32 FixedTileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
 			if (Tiles.IsValidIndex(FixedTileIndex) && CorridorDirection.IsSet())
 			{
 				AdjustRoomTileFacingDirection(FixedTileIndex, Tiles, CorridorDirection.GetValue());
@@ -2263,40 +2280,40 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 			RoomIndex - Resolution.X * 2  // 아래쪽 2칸
 		};
 
-		for (int32 OffsetIndex : OffsetIndices)
+		/*for (int32 OffsetIndex : OffsetIndices)
 		{
 			if (Tiles.IsValidIndex(OffsetIndex) && !Tiles[OffsetIndex].RemainingOptions.IsEmpty())
 			{
 				bSurroundedByEmptySpace = false;
 				break;
 			}
-		}
+		}*/
 
 		//20250503, 고립된 방 판별
-		//for (int32 OffsetIndex : OffsetIndices)
-		//{
-		//	if (!Tiles.IsValidIndex(OffsetIndex)) continue;
+		for (int32 OffsetIndex : OffsetIndices)
+		{
+			if (!Tiles.IsValidIndex(OffsetIndex)) continue;
 
-		//	const TArray<FWaveFunctionCollapseOptionCustom>& Options = Tiles[OffsetIndex].RemainingOptions;
+			const TArray<FWaveFunctionCollapseOptionCustom>& Options = Tiles[OffsetIndex].RemainingOptions;
 
-		//	if (Options.IsEmpty())
-		//	{
-		//		continue; // 진짜 빈 타일
-		//	}
+			if (Options.IsEmpty())
+			{
+				continue; // 진짜 빈 타일
+			}
 
-		//	const FString& MeshPath = Options[0].BaseObject.ToString();
+			const FString& MeshPath = Options[0].BaseObject.ToString();
 
-		//	// Option_Empty와 goalt01이면 빈 공간처럼 간주
-		//	if (MeshPath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
-		//		MeshPath == TEXT("/Game/BP/goalt01.goalt01"))
-		//	{
-		//		continue;
-		//	}
+			// Option_Empty와 goalt01이면 빈 공간처럼 간주
+			if (MeshPath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
+				MeshPath == TEXT("/Game/BP/goalt01.goalt01"))
+			{
+				continue;
+			}
 
-		//	// 이 타일은 실제로 채워져 있는 유효한 공간
-		//	bSurroundedByEmptySpace = false;
-		//	break;
-		//}
+			// 이 타일은 실제로 채워져 있는 유효한 공간
+			bSurroundedByEmptySpace = false;
+			break;
+		}
 
 		if (bSurroundedByEmptySpace)
 		{

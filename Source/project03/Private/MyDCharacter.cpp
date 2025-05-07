@@ -146,6 +146,13 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Roll Montage!"));
 	}
 
+	//idle 포즈 추가 (상체)
+	/*static ConstructorHelpers::FObjectFinder<UAnimMontage> PoseMontageAsset(TEXT("/Game/BP/character/Retarget/RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage.RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage"));
+	if (PoseMontageAsset.Succeeded())
+	{
+		PoseMontage = PoseMontageAsset.Object;
+	}*/
+
 	// 초기 구르기 상태 설정
 	bIsRolling = false;
 
@@ -160,7 +167,7 @@ AMyDCharacter::AMyDCharacter()
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;  // 컨트롤러 회전 적용
 
 	//**카메라 위치 및 방향 유지**
-	FirstPersonCameraComponent->SetRelativeLocation(FVector(-100.0f, 0.0f, 80.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
+	FirstPersonCameraComponent->SetRelativeLocation(FVector(20.0f, 0.0f, 50.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
 	FirstPersonCameraComponent->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f)); // 정면 유지
 
 	//몸체 숨기기 (1인칭에서 보이지 않게)
@@ -280,6 +287,12 @@ void AMyDCharacter::BeginPlay()
 	// Agility 값에 따라 초기 이동 속도 설정
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
 	
+	//idle 포즈 재생 (상체)
+	/*if (PoseMontage && CharacterMesh && CharacterMesh->GetAnimInstance())
+	{
+		UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+		AnimInstance->Montage_Play(PoseMontage, 1.0f);
+	}*/
 	
 	if (HUDWidgetClass)
 	{
@@ -405,7 +418,19 @@ void AMyDCharacter::BeginPlay()
 		SpellSet.Add(Fireball);
 	}
 
+	if (!CachedDirectionalLight)
+	{
+		for (TActorIterator<ADirectionalLight> It(GetWorld()); It; ++It)
+		{
+			CachedDirectionalLight = *It;
+			break; // 하나만 사용한다고 가정
+		}
 
+		if (CachedDirectionalLight)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Directional Light cached: %s"), *CachedDirectionalLight->GetName());
+		}
+	}
 
 }
 
@@ -779,16 +804,16 @@ void AMyDCharacter::EquipWeaponFromClass(TSubclassOf<AItem> WeaponClass)
 	SpawnParams.Instigator = GetInstigator();
 
 	// 손 소켓 위치 출력
-	FTransform HandSocketTransform = CharacterMesh->GetSocketTransform(FName("hand_r"));
+	FTransform HandSocketTransform = CharacterMesh->GetSocketTransform(FName("middle_01_r"));
 	UE_LOG(LogTemp, Log, TEXT("Socket Location: %s"), *HandSocketTransform.GetLocation().ToString());
 
 	AWeapon* SpawnedWeapon = GetWorld()->SpawnActor<AWeapon>(WeaponClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 	EquippedWeapon = SpawnedWeapon;
 
-	if (CharacterMesh && CharacterMesh->DoesSocketExist("hand_r"))
+	if (CharacterMesh && CharacterMesh->DoesSocketExist("middle_01_r"))
 	{
 		FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
-		EquippedWeapon->AttachToComponent(CharacterMesh, AttachRules, FName("hand_r"));
+		EquippedWeapon->AttachToComponent(CharacterMesh, AttachRules, FName("middle_01_r"));
 
 		// 필수 초기화들 추가
 		if (EquippedWeapon->WeaponMesh)
@@ -1485,6 +1510,7 @@ void AMyDCharacter::CastSpell1()
 
 void AMyDCharacter::ToggleMapView()
 {
+
 	if (!FirstPersonCameraComponent) return;
 
 	APlayerController* PC = Cast<APlayerController>(GetController());
@@ -1508,6 +1534,14 @@ void AMyDCharacter::ToggleMapView()
 			PC->SetIgnoreLookInput(true);              // 마우스 회전 막기
 		}
 
+		
+
+		if (CachedDirectionalLight)
+		{
+			CachedDirectionalLight->SetActorHiddenInGame(false);
+			CachedDirectionalLight->SetEnabled(true);
+		}
+
 		bUseControllerRotationYaw = false;
 		bIsInOverheadView = true;
 	}
@@ -1521,6 +1555,12 @@ void AMyDCharacter::ToggleMapView()
 		{
 			PC->SetControlRotation(DefaultCameraRotation); // ← 중요: 복구할 때도 같이 설정
 			PC->SetIgnoreLookInput(false);
+		}
+
+		if (CachedDirectionalLight)
+		{
+			CachedDirectionalLight->SetActorHiddenInGame(true);
+			CachedDirectionalLight->SetEnabled(false);
 		}
 
 		bUseControllerRotationYaw = true;

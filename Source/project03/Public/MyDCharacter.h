@@ -12,6 +12,8 @@
 #include "Weapon.h"
 #include "Animation/AnimSequence.h"
 #include "HitInterface.h"
+#include "Engine/DirectionalLight.h"
+#include "EngineUtils.h"
 #include "USpellBase.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h" 
@@ -277,6 +279,8 @@ public:
 
 	void ToggleMapView();
 
+	ADirectionalLight* CachedDirectionalLight = nullptr;
+
 	UUserWidget* WFCWarningWidgetInstance;
 	UUserWidget* WFCDoneWidgetInstance;
 
@@ -365,6 +369,9 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
 	UAnimMontage* DaggerWeaponMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UAnimMontage* PoseMontage;
 
 	// 공격 종료 및 초기화 함수
 	void ResetAttack();
