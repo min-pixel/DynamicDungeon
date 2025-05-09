@@ -199,6 +199,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 						// 대체 타일 설정
 						FWaveFunctionCollapseOptionCustom AlternativeTileOption(TEXT("/Game/BP/goalt01.goalt01")); // 대체 타일 경로
+						//AlternativeTileOption.bIsCorridorTile = true;
 						Tiles[TileIndex].RemainingOptions.Empty();
 						Tiles[TileIndex].RemainingOptions.Add(AlternativeTileOption);
 
@@ -2280,6 +2281,7 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 			RoomIndex - Resolution.X * 2  // 아래쪽 2칸
 		};
 
+		//3초
 		/*for (int32 OffsetIndex : OffsetIndices)
 		{
 			if (Tiles.IsValidIndex(OffsetIndex) && !Tiles[OffsetIndex].RemainingOptions.IsEmpty())
@@ -2289,31 +2291,106 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 			}
 		}*/
 
-		//20250503, 고립된 방 판별
+		//20250509 속도개선 버전4 - 17초
+		static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+		static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
+
 		for (int32 OffsetIndex : OffsetIndices)
 		{
 			if (!Tiles.IsValidIndex(OffsetIndex)) continue;
 
-			const TArray<FWaveFunctionCollapseOptionCustom>& Options = Tiles[OffsetIndex].RemainingOptions;
+			const auto& Options = Tiles[OffsetIndex].RemainingOptions;
+			if (Options.IsEmpty()) continue;
 
-			if (Options.IsEmpty())
-			{
-				continue; // 진짜 빈 타일
-			}
+			const FName& AssetName = Options[0].BaseObject.GetAssetPathName();
 
-			const FString& MeshPath = Options[0].BaseObject.ToString();
-
-			// Option_Empty와 goalt01이면 빈 공간처럼 간주
-			if (MeshPath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
-				MeshPath == TEXT("/Game/BP/goalt01.goalt01"))
+			if (AssetName == EmptyTileName || AssetName == GoalTileName)
 			{
 				continue;
 			}
 
-			// 이 타일은 실제로 채워져 있는 유효한 공간
+			// 이건 실제로 유효한 공간임
 			bSurroundedByEmptySpace = false;
 			break;
 		}
+
+		//20250503, 고립된 방 판별 18초
+		//for (int32 OffsetIndex : OffsetIndices)
+		//{
+		//	if (!Tiles.IsValidIndex(OffsetIndex)) continue;
+
+		//	const TArray<FWaveFunctionCollapseOptionCustom>& Options = Tiles[OffsetIndex].RemainingOptions;
+
+		//	if (Options.IsEmpty())
+		//	{
+		//		continue; // 진짜 빈 타일
+		//	}
+
+		//	const FString& MeshPath = Options[0].BaseObject.ToString();
+
+		//	// Option_Empty와 goalt01이면 빈 공간처럼 간주
+		//	if (MeshPath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
+		//		MeshPath == TEXT("/Game/BP/goalt01.goalt01"))
+		//	{
+		//		continue;
+		//	}
+
+		//	// 이 타일은 실제로 채워져 있는 유효한 공간
+		//	bSurroundedByEmptySpace = false;
+		//	break;
+		//}
+
+		//20250509 실행속도 개선버전
+		/*static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+		static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
+
+		for (int32 OffsetIndex : OffsetIndices)
+		{
+			if (!Tiles.IsValidIndex(OffsetIndex)) continue;
+
+			const auto& Options = Tiles[OffsetIndex].RemainingOptions;
+			if (Options.IsEmpty()) continue;
+
+			const FName& AssetName = Options[0].BaseObject.GetAssetPathName();
+
+			if (AssetName == EmptyTileName || AssetName == GoalTileName)
+			{
+				continue;
+			}
+
+			bSurroundedByEmptySpace = false;
+			break;
+		}*/
+
+		//static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+		//static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
+
+		//const TArray<FIntVector> CardinalOffsets = {
+		//	FIntVector(2, 0, 0),   // 동쪽
+		//	FIntVector(-2, 0, 0),  // 서쪽
+		//	FIntVector(0, 2, 0),   // 북쪽
+		//	FIntVector(0, -2, 0)   // 남쪽
+		//};
+
+		//	FIntVector RoomCoord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(RoomIndex, Resolution);
+		//	//bool bSurroundedByEmptySpace = true;
+
+		//	for (const FIntVector& Offset : CardinalOffsets)
+		//	{
+		//		FIntVector CheckCoord = RoomCoord + Offset;
+		//		int32 CheckIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(CheckCoord, Resolution);
+		//		if (!Tiles.IsValidIndex(CheckIndex)) continue;
+
+		//		const auto& Options = Tiles[CheckIndex].RemainingOptions;
+		//		if (Options.IsEmpty()) continue;
+
+		//		const FName& AssetName = Options[0].BaseObject.GetAssetPathName();
+		//		if (AssetName == EmptyTileName || AssetName == GoalTileName) continue;
+
+		//		bSurroundedByEmptySpace = false;
+		//		break;
+		//	}
+		
 
 		if (bSurroundedByEmptySpace)
 		{
@@ -2411,6 +2488,223 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 	}
 
 }
+
+//202050509 속도 개선 버전2
+//void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+//{
+//	TArray<int32> IsolatedRoomIndices;
+//	TArray<int32> TempModifiedRoomTiles;
+//
+//	static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+//	static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
+//
+//	for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+//	{
+//		if (Tiles[TileIndex].RemainingOptions.IsEmpty()) continue;
+//		const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+//		if (!Option.bIsRoomTile) continue;
+//
+//		// 해당 방 타일이 고정 타일이면 일시적으로 복도처럼 간주
+//		FIntVector Coord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+//		if (UserFixedOptions.Contains(Coord))
+//		{
+//			Tiles[TileIndex].RemainingOptions[0].bIsCorridorTile = true;
+//			TempModifiedRoomTiles.Add(TileIndex);
+//		}
+//
+//		// 2칸 떨어진 4방향 검사
+//		bool bSurroundedByEmpty = true;
+//		TArray<int32> OffsetIndices = {
+//			TileIndex + 2,
+//			TileIndex - 2,
+//			TileIndex + Resolution.X * 2,
+//			TileIndex - Resolution.X * 2
+//		};
+//		for (int32 OffsetIndex : OffsetIndices)
+//		{
+//			if (!Tiles.IsValidIndex(OffsetIndex)) continue;
+//			const auto& Options = Tiles[OffsetIndex].RemainingOptions;
+//			if (Options.IsEmpty()) continue;
+//
+//			const FName& AssetName = Options[0].BaseObject.GetAssetPathName();
+//			if (AssetName == EmptyTileName || AssetName == GoalTileName) continue;
+//
+//			bSurroundedByEmpty = false;
+//			break;
+//		}
+//
+//		if (!bSurroundedByEmpty) continue;
+//
+//		// 주변 1칸에서 연결 시작점 선택
+//		TArray<int32> Adjacents = GetCardinalAdjacentIndices(TileIndex, Resolution);
+//		for (int32 AdjIndex : Adjacents)
+//		{
+//			if (Tiles.IsValidIndex(AdjIndex) && Tiles[AdjIndex].RemainingOptions.IsEmpty())
+//			{
+//				IsolatedRoomIndices.Add(AdjIndex);
+//				break;
+//			}
+//		}
+//	}
+//
+//	// A* 경로 연결
+//	for (int32 RoomIndex : IsolatedRoomIndices)
+//	{
+//		int32 ClosestCorridorIndex = FindClosestCorridor(RoomIndex, Tiles, Resolution);
+//		if (ClosestCorridorIndex == -1) continue;
+//
+//		int32 PreviousIndex = RoomIndex;
+//		TArray<int32> Adjacents = GetCardinalAdjacentIndices(RoomIndex, Resolution);
+//		for (int32 AdjIndex : Adjacents)
+//		{
+//			if (Tiles.IsValidIndex(AdjIndex) &&
+//				!Tiles[AdjIndex].RemainingOptions.IsEmpty() &&
+//				Tiles[AdjIndex].RemainingOptions[0].bIsRoomTile)
+//			{
+//				PreviousIndex = AdjIndex;
+//				break;
+//			}
+//		}
+//
+//		TArray<int32> Path = FindPathAStar(RoomIndex, ClosestCorridorIndex, PreviousIndex, Tiles, Resolution);
+//		if (Path.IsEmpty()) continue;
+//		FillEmptyTilesAlongPath(Path, Tiles);
+//	}
+//
+//	// 복원
+//	for (int32 TileIndex : TempModifiedRoomTiles)
+//	{
+//		if (Tiles.IsValidIndex(TileIndex) && Tiles[TileIndex].RemainingOptions.Num() > 0)
+//		{
+//			Tiles[TileIndex].RemainingOptions[0].bIsCorridorTile = false;
+//		}
+//	}
+//}
+
+//20250509 속도개선 버전3
+//void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+//{
+//	TSet<int32> ConnectedRoomIndices;
+//	TArray<int32> TempModifiedRoomTiles;
+//
+//	// 1. UserFixedOptions에 있는 방은 corridor처럼 속이기
+//	for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+//	{
+//		if (Tiles[TileIndex].RemainingOptions.IsEmpty()) continue;
+//
+//		FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+//		if (Option.bIsRoomTile)
+//		{
+//			FIntVector Coord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+//			if (UserFixedOptions.Contains(Coord))
+//			{
+//				Option.bIsCorridorTile = true;
+//				TempModifiedRoomTiles.Add(TileIndex);
+//			}
+//		}
+//	}
+//
+//	// 2. 각 방을 기준으로 고립 여부 검사 + A* 연결 시도 (1방당 최대 1회 A*)
+//	static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+//	static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
+//
+//	for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+//	{
+//		if (!Tiles.IsValidIndex(TileIndex)) continue;
+//		if (ConnectedRoomIndices.Contains(TileIndex)) continue;
+//
+//		if (Tiles[TileIndex].RemainingOptions.IsEmpty()) continue;
+//
+//		const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+//		if (!Option.bIsRoomTile) continue;
+//
+//		bool bIsIsolated = true;
+//		TArray<int32> AdjacentIndices = GetCardinalAdjacentIndices(TileIndex, Resolution);
+//
+//		for (int32 AdjIndex : AdjacentIndices)
+//		{
+//			if (!Tiles.IsValidIndex(AdjIndex)) continue;
+//
+//			const auto& AdjOptions = Tiles[AdjIndex].RemainingOptions;
+//			if (AdjOptions.IsEmpty()) continue;
+//
+//			const FName AssetName = AdjOptions[0].BaseObject.GetAssetPathName();
+//			if (AssetName != EmptyTileName && AssetName != GoalTileName)
+//			{
+//				bIsIsolated = false;
+//				break;
+//			}
+//		}
+//
+//		if (!bIsIsolated)
+//			continue;
+//
+//		// 고립되었으니 A*로 복도 연결 시도
+//		int32 ClosestCorridorIndex = FindClosestCorridor(TileIndex, Tiles, Resolution);
+//		if (ClosestCorridorIndex == -1)
+//			continue;
+//
+//		int32 PreviousIndex = -1;
+//		for (int32 AdjIndex : AdjacentIndices)
+//		{
+//			if (Tiles.IsValidIndex(AdjIndex) &&
+//				!Tiles[AdjIndex].RemainingOptions.IsEmpty() &&
+//				Tiles[AdjIndex].RemainingOptions[0].bIsRoomTile)
+//			{
+//				PreviousIndex = AdjIndex;
+//				break;
+//			}
+//		}
+//		if (PreviousIndex == -1)
+//			PreviousIndex = TileIndex;
+//
+//		TArray<int32> Path = FindPathAStar(TileIndex, ClosestCorridorIndex, PreviousIndex, Tiles, Resolution);
+//		if (Path.IsEmpty())
+//		{
+//			UE_LOG(LogWFC, Warning, TEXT("A* failed from room %d to corridor %d"), TileIndex, ClosestCorridorIndex);
+//			continue;
+//		}
+//
+//		ConnectedRoomIndices.Add(TileIndex);
+//		UE_LOG(LogWFC, Display, TEXT("Connected isolated room %d via A* (%d steps)"), TileIndex, Path.Num());
+//		FillEmptyTilesAlongPath(Path, Tiles);
+//
+//		// 3. 복도 메쉬 배치
+//		for (int32 PathIndex : Path)
+//		{
+//			if (!Tiles.IsValidIndex(PathIndex) || !Tiles[PathIndex].RemainingOptions.IsEmpty()) continue;
+//
+//			FWaveFunctionCollapseOptionCustom CorridorOption(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+//			Tiles[PathIndex].RemainingOptions.Add(CorridorOption);
+//			Tiles[PathIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+//				Tiles[PathIndex].RemainingOptions, WFCModel);
+//
+//			UWorld* World = GetWorld();
+//			if (World)
+//			{
+//				FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(PathIndex, Resolution)) * WFCModel->TileSize;
+//				FTransform SpawnTransform = FTransform(CorridorOption.BaseRotator, TilePosition, CorridorOption.BaseScale3D);
+//				AActor* SpawnedCorridorActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
+//
+//				if (!SpawnedCorridorActor)
+//				{
+//					UE_LOG(LogWFC, Error, TEXT("Failed to spawn corridor actor at index %d"), PathIndex);
+//				}
+//			}
+//		}
+//	}
+//
+//	// 4. corridor로 속였던 방 복구
+//	for (int32 TileIndex : TempModifiedRoomTiles)
+//	{
+//		if (Tiles.IsValidIndex(TileIndex) && Tiles[TileIndex].RemainingOptions.Num() > 0)
+//		{
+//			Tiles[TileIndex].RemainingOptions[0].bIsCorridorTile = false;
+//		}
+//	}
+//}
+
+
 void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 	const TArray<int32>& Path, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
 {
