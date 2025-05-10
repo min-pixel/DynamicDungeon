@@ -364,16 +364,21 @@ void AMyDCharacter::BeginPlay()
 	UBlueprint* LightBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, TEXT("/Game/BP/light.light")));
 	if (LightBP && LightBP->GeneratedClass)
 	{
-		AActor* LightActor = GetWorld()->SpawnActor<AActor>(LightBP->GeneratedClass);
+		AttachedTorch = GetWorld()->SpawnActor<AActor>(LightBP->GeneratedClass);
 
-		
-
-		if (LightActor && CharacterMesh && CharacterMesh->DoesSocketExist("hand_l"))
+		if (AttachedTorch && CharacterMesh && CharacterMesh->DoesSocketExist("hand_l"))
 		{
-			LightActor->AttachToComponent(CharacterMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("hand_l"));
+			AttachedTorch->AttachToComponent(CharacterMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("hand_l"));
+
+			// 회전 적용 (필요하다면 수정 가능)
 			FRotator DesiredRotation = FRotator(0.0f, 0.0f, 180.0f);
-			LightActor->SetActorRelativeRotation(DesiredRotation);
-			UE_LOG(LogTemp, Log, TEXT("Light attached to left hand."));
+			AttachedTorch->SetActorRelativeRotation(DesiredRotation);
+
+			// 처음엔 숨겨진 상태
+			AttachedTorch->SetActorHiddenInGame(true);
+			bTorchVisible = false;
+
+			UE_LOG(LogTemp, Log, TEXT("Torch attached and hidden on start."));
 		}
 	}
 
@@ -564,6 +569,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("CastSpell1", IE_Pressed, this, &AMyDCharacter::CastSpell1);
 
 	PlayerInputComponent->BindAction("ToggleMapView", IE_Pressed, this, &AMyDCharacter::ToggleMapView);
+
+	//f키
+	PlayerInputComponent->BindAction("ToggleTorch", IE_Pressed, this, &AMyDCharacter::ToggleTorch);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -814,6 +822,23 @@ void AMyDCharacter::EquipWeaponFromClass(TSubclassOf<AItem> WeaponClass)
 	{
 		FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
 		EquippedWeapon->AttachToComponent(CharacterMesh, AttachRules, FName("middle_01_r"));
+
+		if (EquippedWeapon->WeaponMesh && EquippedWeapon->WeaponMesh->DoesSocketExist("GripWeapon"))
+		{
+			FTransform GripTransform = EquippedWeapon->WeaponMesh->GetSocketTransform(FName("GripWeapon"), RTS_Component);
+
+			// 소켓 위치가 손 소켓에 오도록 WeaponMesh 전체를 반대로 이동
+			FVector OffsetLocation = -GripTransform.GetLocation();
+			FRotator OffsetRotation = (-GripTransform.GetRotation()).Rotator();
+
+			EquippedWeapon->WeaponMesh->SetRelativeLocation(OffsetLocation);
+			EquippedWeapon->WeaponMesh->SetRelativeRotation(OffsetRotation);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("GripWeapon 소켓이 StaticMesh에 없음"));
+		}
+
 
 		// 필수 초기화들 추가
 		if (EquippedWeapon->WeaponMesh)
@@ -1174,6 +1199,8 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 
 		// 이동 멈추기
 		GetCharacterMovement()->DisableMovement();
+
+		Die();
 		return;
 
 	}
@@ -1566,4 +1593,32 @@ void AMyDCharacter::ToggleMapView()
 		bUseControllerRotationYaw = true;
 		bIsInOverheadView = false;
 	}
+}
+
+void AMyDCharacter::ToggleTorch()
+{
+	if (AttachedTorch)
+	{
+		if (!AttachedTorch) return;
+
+		bTorchVisible = !bTorchVisible;
+		AttachedTorch->SetActorHiddenInGame(!bTorchVisible);
+
+		//UE_LOG(LogTemp, Log, TEXT("Torch is now %s"), bTorchVisible ? TEXT("visible") : TEXT("hidden"));
+	}
+}
+
+void AMyDCharacter::Die()
+{
+	//// 인벤토리 리셋
+	//if (InventoryComponent)
+	//{
+	//	InventoryComponent->ClearInventory(); // 너가 정의한 초기화 함수로 교체
+	//}
+
+	// 레벨 이동 (예: LobbyMap이라는 이름의 레벨로 전환)
+	UGameplayStatics::OpenLevel(this, FName("LobbyMap"));
+
+	// 필요시 로그
+	UE_LOG(LogTemp, Warning, TEXT("Player died. Returning to lobby..."));
 }

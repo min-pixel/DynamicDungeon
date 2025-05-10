@@ -2295,6 +2295,26 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 		static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
 		static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
 
+		//for (int32 OffsetIndex : OffsetIndices)
+		//{
+		//	if (!Tiles.IsValidIndex(OffsetIndex)) continue;
+
+		//	const auto& Options = Tiles[OffsetIndex].RemainingOptions;
+		//	if (Options.IsEmpty()) continue;
+
+		//	const FName& AssetName = Options[0].BaseObject.GetAssetPathName();
+
+		//	if (AssetName == EmptyTileName || AssetName == GoalTileName)
+		//	{
+		//		continue;
+		//	}
+
+		//	// 이건 실제로 유효한 공간임
+		//	bSurroundedByEmptySpace = false;
+		//	break;
+		//}
+
+		//20250510 개선 속도 14
 		for (int32 OffsetIndex : OffsetIndices)
 		{
 			if (!Tiles.IsValidIndex(OffsetIndex)) continue;
@@ -2302,14 +2322,14 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 			const auto& Options = Tiles[OffsetIndex].RemainingOptions;
 			if (Options.IsEmpty()) continue;
 
-			const FName& AssetName = Options[0].BaseObject.GetAssetPathName();
+			const FSoftObjectPath& Path = Options[0].BaseObject;
+			const FName AssetName = Path.GetAssetPathName();
 
 			if (AssetName == EmptyTileName || AssetName == GoalTileName)
 			{
 				continue;
 			}
 
-			// 이건 실제로 유효한 공간임
 			bSurroundedByEmptySpace = false;
 			break;
 		}

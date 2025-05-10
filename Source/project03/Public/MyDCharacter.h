@@ -273,6 +273,17 @@ public:
 
 	void CastSpell1();
 
+	// 횃불 액터 포인터 저장
+	UPROPERTY()
+	AActor* AttachedTorch = nullptr;
+
+	// 현재 횃불이 보이는 상태인지 여부
+	bool bTorchVisible = false;
+
+	void ToggleTorch();
+
+	void Die();
+
 	bool bIsInOverheadView = false;
 	FVector DefaultCameraLocation;
 	FRotator DefaultCameraRotation;

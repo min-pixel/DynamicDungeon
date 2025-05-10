@@ -44,7 +44,7 @@ void UAnimNotify_TraceAttack::Notify(USkeletalMeshComponent* MeshComp, UAnimSequ
             UEngineTypes::ConvertToTraceType(ECC_Pawn),
             false,
             IgnoredActors,
-            EDrawDebugTrace::ForDuration,
+            EDrawDebugTrace::None,
             HitResults,
             true
         );
