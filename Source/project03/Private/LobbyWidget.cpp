@@ -206,7 +206,7 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
 
 void ULobbyWidget::OnStartGameClicked()
 {
-    UE_LOG(LogTemp, Warning, TEXT("Start Game button clicked"));
+    //UE_LOG(LogTemp, Warning, TEXT("Start Game button clicked"));
 
     // 게임 준비 처리
     // 예: 플레이어 상태 변경, 서버에 알림 등
@@ -224,20 +224,17 @@ void ULobbyWidget::OnStartGameClicked()
         }
     }
 
-    UWorld* World = GetWorld();
-    if (World)
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (PC)
     {
-        FString TargetLevel = TEXT("/Game/DynamicDugeon"); // 디렉터리+레벨명 (확장자 없음)
-        FString Options = FString(TEXT("/Script/project03.DynamicDungeonModeBase"));
-        // 안전하게 월드 재로딩 준비
-       /* if (World->IsPendingKillPending())
-        {
-            World->ClearFlags(RF_PendingKill);
-        }*/
-        World->CleanupWorld();
-        //UGameplayStatics::OpenLevel(World, FName(*TargetLevel)); ///Script/CoreUObject.Class'' , true, FString("?game=/Script/project03.DynamicDungeonModeBase")
-        UGameplayStatics::OpenLevel(this, FName("DynamicDugeon"), true, FString("?game=/Script/project03.DynamicDungeonModeBase"));
+        UE_LOG(LogTemp, Warning, TEXT("Opening level now..."));
+        UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
     }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("PlayerController is null, cannot open level."));
+    }
+    
 }
 
 void ULobbyWidget::OnGoToShopClicked()

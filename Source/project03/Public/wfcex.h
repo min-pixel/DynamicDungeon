@@ -39,6 +39,12 @@ public:
 	// 지정된 위치에 플레이어 스폰
 	void SpawnPlayerAtLocation(const FVector& Location);
 
+	UPROPERTY(EditAnywhere, Category = "WFC")
+	UWaveFunctionCollapseModel02* WFCModelAsset;
+
+	UPROPERTY(EditAnywhere, Category = "WFC | CookKeepAlive")
+	TArray<TSoftObjectPtr<UObject>> ReferencedTileAssets;
+
 	// WFC 서브시스템에 접근
 	UWaveFunctionCollapseSubsystem02* GetWFCSubsystem();
 

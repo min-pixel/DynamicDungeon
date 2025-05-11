@@ -6,18 +6,22 @@
 #include "Engine/Texture.h"
 #include "WaveFunctionCollapseBPLibrary02.h"
 #include "Components/InstancedStaticMeshComponent.h"
-#include "Subsystems/EditorActorSubsystem.h"
-#include "Kismet2/ComponentEditorUtils.h"
-#include "Editor.h"
+
 #include "Engine/StreamableManager.h"
 #include "Engine/AssetManager.h"
 #include "WaveFunctionCollapseModel02.h"
 #include <queue>
 
+
+//#include "Subsystems/EditorActorSubsystem.h"
+//#include "Kismet2/ComponentEditorUtils.h"
+//#include "Editor.h"
+
+
 DEFINE_LOG_CATEGORY(LogWFC);
 
 
-AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */)
+AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */, UWorld* World)
 {
 	//Resolution 값 설정
 	Resolution.X = 60;
@@ -359,17 +363,23 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 			}
 		}
 
-		AActor* SpawnedActor = SpawnActorFromTiles(Tiles);
+		if (!World)
+		{
+			UE_LOG(LogWFC, Error, TEXT("World is null"));
+			return nullptr;
+		}
+
+		AActor* SpawnedActor = SpawnActorFromTiles(Tiles, World);
 
 		if (SpawnedActor)
 		{
 			SpawnedActor->Tags.Add(FName("WFCGenerated"));
 		}
 
-		UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
+		//UE_LOG(LogWFC, Display, TEXT("Success! Seed Value: %d. Spawned Actor: %s"), ChosenRandomSeed, *SpawnedActor->GetActorLabel());
 
 		// 테두리 블루프린트 소환 함수 호출
-		SpawnBorderBlueprints();
+		SpawnBorderBlueprints(); 
 
 		RoomTilePositions.Empty();
 
@@ -395,16 +405,16 @@ const TArray<FWaveFunctionCollapseTileCustom>& UWaveFunctionCollapseSubsystem02:
 void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 {
 	// 블루프린트 클래스 로드
-	UBlueprint* LeftBorderBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t02-L.t02-L"));
-	UBlueprint* RightBorderBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t02-r.t02-r"));
-	UBlueprint* FrontBorderBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t02-m.t02-m"));
-	UBlueprint* BackBorderBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t02-b.t02-b"));
+	UClass* LeftBorderBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t02-L.t02-L_C"));
+	UClass* RightBorderBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t02-r.t02-r_C"));
+	UClass* FrontBorderBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t02-m.t02-m_C"));
+	UClass* BackBorderBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t02-b.t02-b_C"));
 
-	// 모서리 블루프린트 클래스 로드
-	UBlueprint* BottomLeftCornerBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t03-back.t03-back"));
-	UBlueprint* TopLeftCornerBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t03-back1.t03-back1"));
-	UBlueprint* BottomRightCornerBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t03-back2.t03-back2"));
-	UBlueprint* TopRightCornerBlueprint = LoadObject<UBlueprint>(nullptr, TEXT("/Game/BP/Bedge/t03-back3.t03-back3"));
+	// 모서리
+	UClass* BottomLeftCornerBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t03-back.t03-back_C"));
+	UClass* TopLeftCornerBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t03-back1.t03-back1_C"));
+	UClass* BottomRightCornerBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t03-back2.t03-back2_C"));
+	UClass* TopRightCornerBlueprint = LoadObject<UClass>(nullptr, TEXT("/Game/BP/Bedge/t03-back3.t03-back3_C"));
 
 	if (!LeftBorderBlueprint || !RightBorderBlueprint || !FrontBorderBlueprint || !BackBorderBlueprint ||
 		!BottomLeftCornerBlueprint || !TopLeftCornerBlueprint || !BottomRightCornerBlueprint || !TopRightCornerBlueprint)
@@ -454,46 +464,46 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 					// 각 모서리 위치에 따라 다른 블루프린트 선택
 					if (X == 0 && Y == 0) // 좌하단 모서리
 					{
-						SelectedBPClass = BottomLeftCornerBlueprint->GeneratedClass;
+						SelectedBPClass = BottomLeftCornerBlueprint;// ->GeneratedClass;
 						PositionOffset.X -= WFCModel->TileSize;
 						PositionOffset.Y -= WFCModel->TileSize;
 					}
 					else if (X == 0 && Y == Resolution.Y - 1) // 좌상단 모서리
 					{
-						SelectedBPClass = BottomRightCornerBlueprint->GeneratedClass;
+						SelectedBPClass = BottomRightCornerBlueprint;// ->GeneratedClass;
 						PositionOffset.X -= WFCModel->TileSize;
 						PositionOffset.Y += WFCModel->TileSize;
 					}
 					else if (X == Resolution.X - 1 && Y == 0) // 우하단 모서리
 					{
-						SelectedBPClass = TopLeftCornerBlueprint->GeneratedClass;
+						SelectedBPClass = TopLeftCornerBlueprint;
 						PositionOffset.X += WFCModel->TileSize;
 						PositionOffset.Y -= WFCModel->TileSize;
 					}
 					else if (X == Resolution.X - 1 && Y == Resolution.Y - 1) // 우상단 모서리
 					{
-						SelectedBPClass = TopRightCornerBlueprint->GeneratedClass;
+						SelectedBPClass = TopRightCornerBlueprint;
 						PositionOffset.X += WFCModel->TileSize;
 						PositionOffset.Y += WFCModel->TileSize;
 					}
 					else if (X == 0) // 왼쪽 테두리
 					{
-						SelectedBPClass = BackBorderBlueprint->GeneratedClass;
+						SelectedBPClass = BackBorderBlueprint;
 						PositionOffset.X -= WFCModel->TileSize;
 					}
 					else if (X == Resolution.X - 1) // 오른쪽 테두리
 					{
-						SelectedBPClass = FrontBorderBlueprint->GeneratedClass;
+						SelectedBPClass = FrontBorderBlueprint;
 						PositionOffset.X += WFCModel->TileSize;
 					}
 					else if (Y == 0) // 앞쪽 테두리
 					{
-						SelectedBPClass = LeftBorderBlueprint->GeneratedClass;
+						SelectedBPClass = LeftBorderBlueprint;
 						PositionOffset.Y -= WFCModel->TileSize;
 					}
 					else if (Y == Resolution.Y - 1) // 뒤쪽 테두리
 					{
-						SelectedBPClass = RightBorderBlueprint->GeneratedClass;
+						SelectedBPClass = RightBorderBlueprint;
 						PositionOffset.Y += WFCModel->TileSize;
 					}
 
@@ -606,8 +616,8 @@ void UWaveFunctionCollapseSubsystem02::InitializeWFC(TArray<FWaveFunctionCollaps
 
 						Tiles.Add(FixedTile);
 
-						UE_LOG(LogTemp, Warning, TEXT("ioioio: (%d, %d, %d) → %s"),
-							X, Y, Z, *FixedOption->BaseObject.ToString());
+						//UE_LOG(LogTemp, Warning, TEXT("ioioio: (%d, %d, %d) → %s"),
+						//X, Y, Z, * FixedOption->BaseObject.ToString());
 
 						// RemainingTiles에 추가 안 함 → 완전 고정
 						continue;
@@ -1074,62 +1084,53 @@ bool UWaveFunctionCollapseSubsystem02::ObservationPropagation(TArray<FWaveFuncti
 	return !AreAllTilesNonSpawnable(Tiles);
 }
 
-UActorComponent* UWaveFunctionCollapseSubsystem02::AddNamedInstanceComponent(AActor* Actor, TSubclassOf<UActorComponent> ComponentClass, FName ComponentName)
+UActorComponent* UWaveFunctionCollapseSubsystem02::AddNamedInstanceComponent(
+	AActor* Actor, TSubclassOf<UActorComponent> ComponentClass, FName ComponentName)
 {
-	Actor->Modify();
-	// Assign Unique Name
+	if (!IsValid(Actor)) return nullptr;
+
+	Actor->Modify(); // 에디터에서만 안전
+
 	int32 Counter = 1;
 	FName ComponentInstanceName = ComponentName;
+	/*#if WITH_EDITOR
 	while (!FComponentEditorUtils::IsComponentNameAvailable(ComponentInstanceName.ToString(), Actor))
 	{
 		ComponentInstanceName = FName(*FString::Printf(TEXT("%s_%d"), *ComponentName.ToString(), Counter++));
 	}
+	#endif*/
 	UActorComponent* InstanceComponent = NewObject<UActorComponent>(Actor, ComponentClass, ComponentInstanceName, RF_Transactional);
 	if (InstanceComponent)
 	{
 		Actor->AddInstanceComponent(InstanceComponent);
 		Actor->FinishAddComponent(InstanceComponent, false, FTransform::Identity);
-		Actor->RerunConstructionScripts();
+		//Actor->RerunConstructionScripts();
 	}
+
 	return InstanceComponent;
 }
 
-AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+
+AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* WorldContext)
 {
-
-
-	// UWorld 참조 확인
-	UWorld* World = GetWorld();
-	if (!World)
+	if (!WorldContext)
 	{
-		UE_LOG(LogWFC, Error, TEXT("World is null, cannot spawn actors."));
+		UE_LOG(LogWFC, Error, TEXT("WorldContext is null, cannot spawn actors."));
 		return nullptr;
 	}
 
-	// 최상위 부모 액터 생성
 	FActorSpawnParameters SpawnParams;
-	AActor* SpawnedActor = World->SpawnActor<AActor>(AActor::StaticClass(), OriginLocation, Orientation, SpawnParams);
+	AActor* SpawnedActor = WorldContext->SpawnActor<AActor>(AActor::StaticClass(), OriginLocation, Orientation, SpawnParams);
 	if (!SpawnedActor)
 	{
-		UE_LOG(LogWFC, Error, TEXT("Failed to spawn actor."));
+		UE_LOG(LogWFC, Error, TEXT("Failed to spawn parent actor."));
 		return nullptr;
 	}
 
-	// 부모 액터 이름 설정
-	if (WFCModel)
-	{
-		FActorLabelUtilities::SetActorLabelUnique(SpawnedActor, WFCModel->GetFName().ToString());
-	}
-	else
-	{
-		UE_LOG(LogWFC, Error, TEXT("WFCModel is null, cannot set actor label."));
-	}
-
-	// Components 생성
 	TMap<FSoftObjectPath, UInstancedStaticMeshComponent*> BaseObjectToISM;
+
 	for (int32 Index = 0; Index < Tiles.Num(); Index++)
 	{
-		// 빈 타일 무시
 		if (Tiles[Index].RemainingOptions.IsEmpty())
 		{
 			UE_LOG(LogWFC, Display, TEXT("Skipped empty tile at index: %d"), Index);
@@ -1138,57 +1139,167 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 
 		const FWaveFunctionCollapseOptionCustom& Option = Tiles[Index].RemainingOptions[0];
 
-		// Empty, Void 타일 및 제외된 타일 무시
 		if (Option.BaseObject == FWaveFunctionCollapseOptionCustom::EmptyOption.BaseObject
 			|| Option.BaseObject == FWaveFunctionCollapseOptionCustom::VoidOption.BaseObject
 			|| WFCModel->SpawnExclusion.Contains(Option.BaseObject))
 		{
 			continue;
 		}
-		
-		UObject* LoadedObject = Option.BaseObject.TryLoad();
-		if (LoadedObject)
-		{
-			FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
-			FRotator TileRotation = Option.BaseRotator;
-			FVector TileScale = Option.BaseScale3D;
 
-			// Static Mesh 처리
-			if (UStaticMesh* LoadedStaticMesh = Cast<UStaticMesh>(LoadedObject))
+		// "_C"가 없는 경우 자동으로 보정
+		FSoftObjectPath FixedPath = Option.BaseObject;
+		FString PathStr = FixedPath.ToString();
+		if (!PathStr.EndsWith(TEXT("_C")))
+		{
+			PathStr += TEXT("_C");
+			FixedPath = FSoftObjectPath(PathStr);
+		}
+
+		UObject* LoadedObject = FixedPath.TryLoad();
+		FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
+		FRotator TileRotation = Option.BaseRotator;
+		FVector TileScale = Option.BaseScale3D;
+
+		// Blueprint 클래스 스폰 처리
+		if (UClass* ActorClass = Cast<UClass>(LoadedObject))
+		{
+			if (ActorClass->IsChildOf<AActor>())
 			{
-				UInstancedStaticMeshComponent* ISMComponent;
-				if (UInstancedStaticMeshComponent** FoundISMComponentPtr = BaseObjectToISM.Find(Option.BaseObject))
+				AActor* TileActor = WorldContext->SpawnActor<AActor>(ActorClass, TilePosition, TileRotation);
+				if (TileActor)
 				{
-					ISMComponent = *FoundISMComponentPtr;
+					TileActor->SetActorScale3D(TileScale);
+					TileActor->AttachToActor(SpawnedActor, FAttachmentTransformRules::KeepWorldTransform);
 				}
-				else
-				{
-					ISMComponent = Cast<UInstancedStaticMeshComponent>(
-						AddNamedInstanceComponent(SpawnedActor, UInstancedStaticMeshComponent::StaticClass(), LoadedObject->GetFName()));
-					BaseObjectToISM.Add(Option.BaseObject, ISMComponent);
-				}
+			}
+		}
+		// StaticMesh 처리 (기존 기능 유지)
+		else if (UStaticMesh* LoadedStaticMesh = Cast<UStaticMesh>(LoadedObject))
+		{
+			UInstancedStaticMeshComponent* ISMComponent = nullptr;
+
+			if (UInstancedStaticMeshComponent** FoundPtr = BaseObjectToISM.Find(Option.BaseObject))
+			{
+				ISMComponent = *FoundPtr;
+			}
+			else
+			{
+				ISMComponent = Cast<UInstancedStaticMeshComponent>(
+					AddNamedInstanceComponent(SpawnedActor, UInstancedStaticMeshComponent::StaticClass(), LoadedStaticMesh->GetFName()));
+				BaseObjectToISM.Add(Option.BaseObject, ISMComponent);
 				ISMComponent->SetStaticMesh(LoadedStaticMesh);
+			}
+
+			if (ISMComponent)
+			{
 				ISMComponent->AddInstance(FTransform(TileRotation, TilePosition, TileScale));
 			}
-			// Blueprint 처리
-			else if (UBlueprint* LoadedBlueprint = Cast<UBlueprint>(LoadedObject))
-			{
-				TSubclassOf<AActor> ActorClass = *LoadedBlueprint->GeneratedClass;
-
-				UChildActorComponent* ChildActorComponent = NewObject<UChildActorComponent>(SpawnedActor, UChildActorComponent::StaticClass());
-				ChildActorComponent->SetupAttachment(SpawnedActor->GetRootComponent());
-				ChildActorComponent->RegisterComponent();
-				ChildActorComponent->SetChildActorClass(ActorClass);
-				ChildActorComponent->SetRelativeLocation(TilePosition);
-				ChildActorComponent->SetRelativeRotation(TileRotation);
-				ChildActorComponent->SetRelativeScale3D(TileScale);
-				SpawnedActor->AddInstanceComponent(ChildActorComponent);
-			}
+		}
+		else
+		{
+			UE_LOG(LogWFC, Warning, TEXT("Failed to load tile asset: %s"), *Option.BaseObject.ToString());
 		}
 	}
 
 	return SpawnedActor;
 }
+
+
+//AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* WorldContext)
+//{
+//
+//
+//	// UWorld 참조 확인
+//	if (!WorldContext)
+//	{
+//		UE_LOG(LogWFC, Error, TEXT("WorldContext is null, cannot spawn actors."));
+//		return nullptr;
+//	}
+//
+//
+//	// 최상위 부모 액터 생성
+//	FActorSpawnParameters SpawnParams;
+//	AActor* SpawnedActor = WorldContext->SpawnActor<AActor>(AActor::StaticClass(), OriginLocation, Orientation, SpawnParams);
+//	if (!SpawnedActor)
+//	{
+//		UE_LOG(LogWFC, Error, TEXT("Failed to spawn actor."));
+//		return nullptr;
+//	}
+//	//#if WITH_EDITOR
+//	//// 부모 액터 이름 설정
+//	//if (WFCModel)
+//	//{
+//	//	FActorLabelUtilities::SetActorLabelUnique(SpawnedActor, WFCModel->GetFName().ToString());
+//	//}
+//	//else
+//	//{
+//	//	UE_LOG(LogWFC, Error, TEXT("WFCModel is null, cannot set actor label."));
+//	//}
+//	//#endif
+//	// Components 생성
+//	TMap<FSoftObjectPath, UInstancedStaticMeshComponent*> BaseObjectToISM;
+//	for (int32 Index = 0; Index < Tiles.Num(); Index++)
+//	{
+//		// 빈 타일 무시
+//		if (Tiles[Index].RemainingOptions.IsEmpty())
+//		{
+//			UE_LOG(LogWFC, Display, TEXT("Skipped empty tile at index: %d"), Index);
+//			continue;
+//		}
+//
+//		const FWaveFunctionCollapseOptionCustom& Option = Tiles[Index].RemainingOptions[0];
+//
+//		// Empty, Void 타일 및 제외된 타일 무시
+//		if (Option.BaseObject == FWaveFunctionCollapseOptionCustom::EmptyOption.BaseObject
+//			|| Option.BaseObject == FWaveFunctionCollapseOptionCustom::VoidOption.BaseObject
+//			|| WFCModel->SpawnExclusion.Contains(Option.BaseObject))
+//		{
+//			continue;
+//		}
+//		
+//		UObject* LoadedObject = Option.BaseObject.TryLoad();
+//		if (LoadedObject)
+//		{
+//			FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
+//			FRotator TileRotation = Option.BaseRotator;
+//			FVector TileScale = Option.BaseScale3D;
+//
+//			// Static Mesh 처리
+//			if (UStaticMesh* LoadedStaticMesh = Cast<UStaticMesh>(LoadedObject))
+//			{
+//				UInstancedStaticMeshComponent* ISMComponent;
+//				if (UInstancedStaticMeshComponent** FoundISMComponentPtr = BaseObjectToISM.Find(Option.BaseObject))
+//				{
+//					ISMComponent = *FoundISMComponentPtr;
+//				}
+//				else
+//				{
+//					ISMComponent = Cast<UInstancedStaticMeshComponent>(
+//						AddNamedInstanceComponent(SpawnedActor, UInstancedStaticMeshComponent::StaticClass(), LoadedObject->GetFName()));
+//					BaseObjectToISM.Add(Option.BaseObject, ISMComponent);
+//				}
+//				ISMComponent->SetStaticMesh(LoadedStaticMesh);
+//				ISMComponent->AddInstance(FTransform(TileRotation, TilePosition, TileScale));
+//			}
+//			// Blueprint 처리
+//			if (UBlueprint* LoadedBlueprint = Cast<UBlueprint>(LoadedObject))
+//			{
+//				TSubclassOf<AActor> ActorClass = *LoadedBlueprint->GeneratedClass;
+//
+//				UChildActorComponent* ChildActorComponent = NewObject<UChildActorComponent>(SpawnedActor, UChildActorComponent::StaticClass());
+//				ChildActorComponent->SetupAttachment(SpawnedActor->GetRootComponent());
+//				ChildActorComponent->RegisterComponent();
+//				ChildActorComponent->SetChildActorClass(ActorClass);
+//				ChildActorComponent->SetRelativeLocation(TilePosition);
+//				ChildActorComponent->SetRelativeRotation(TileRotation);
+//				ChildActorComponent->SetRelativeScale3D(TileScale);
+//				SpawnedActor->AddInstanceComponent(ChildActorComponent);
+//			}
+//		}
+//	}
+//
+//	return SpawnedActor;
+//}
 
 
 bool UWaveFunctionCollapseSubsystem02::AreAllTilesNonSpawnable(const TArray<FWaveFunctionCollapseTileCustom>& Tiles)
@@ -1390,9 +1501,17 @@ void UWaveFunctionCollapseSubsystem02::DeriveGridFromTransforms(const TArray<FTr
 	}
 }
 
-void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSeed)
+void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSeed, UWorld* World)
 {
-	
+	if (!WFCModel)
+	{
+		WFCModel = LoadObject<UWaveFunctionCollapseModel02>(nullptr, TEXT("/Game/WFCCORE/wfcmodel/zxzx34.zxzx34"));
+		if (!WFCModel)
+		{
+			//UE_LOG(LogTemp, Error, TEXT("WFCModel 로딩 실패! 경로를 확인하세요."));
+			return;
+		}
+	}
 
 	OriginLocation = FVector(0.0f, 0.0f, 0.0f);
 	Orientation = FRotator(0.0f, 0.0f, 0.0f);
@@ -1407,9 +1526,9 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 	//		break; // 첫 번째 키 하나만 사용
 	//	}
 	//}
-
+	
 	// WFC Collapse 실행
-	AActor* ResultActor = CollapseCustom(TryCount, RandomSeed);
+	AActor* ResultActor = CollapseCustom(TryCount, RandomSeed, World);
 	if (ResultActor)
 	{
 		UE_LOG(LogWFC, Display, TEXT("Successfully collapsed WFC and spawned actor: %s"), *ResultActor->GetName());
@@ -1422,22 +1541,9 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 
 void UWaveFunctionCollapseSubsystem02::SetWFCModel()
 {
-	// zxzx34 모델의 경로
-	const FStringAssetReference ModelPath(TEXT("/Game/WFCCORE/zxzx34.zxzx34"));
-
-	// 모델 로드
-	FStreamableManager& StreamableManager = UAssetManager::GetStreamableManager();
-	UWaveFunctionCollapseModel02* LoadedModel = Cast<UWaveFunctionCollapseModel02>(StreamableManager.LoadSynchronous(ModelPath));
-
-	if (LoadedModel)
-	{
-		WFCModel = LoadedModel;
-		UE_LOG(LogWFC, Log, TEXT("WFCModel이 zxzx34로 설정되었습니다."));
-	}
-	else
-	{
-		UE_LOG(LogWFC, Error, TEXT("WFCModel 로드 실패: %s"), *ModelPath.ToString());
-	}
+	FSoftObjectPath ModelPath(TEXT("/Game/WFCCORE/wfcmodel/zxzx34.zxzx34"));
+	FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
+	UWaveFunctionCollapseModel02* LoadedModel = Cast<UWaveFunctionCollapseModel02>(Streamable.LoadSynchronous(ModelPath));
 }
 
 void UWaveFunctionCollapseSubsystem02::Initialize(FSubsystemCollectionBase& Collection)
@@ -2292,8 +2398,8 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 		}*/
 
 		//20250509 속도개선 버전4 - 17초
-		static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
-		static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
+		//static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+		//static const FName GoalTileName(TEXT("/Game/BP/goalt01.goalt01"));
 
 		//for (int32 OffsetIndex : OffsetIndices)
 		//{
@@ -2315,7 +2421,7 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 		//}
 
 		//20250510 개선 속도 14
-		for (int32 OffsetIndex : OffsetIndices)
+		/*for (int32 OffsetIndex : OffsetIndices)
 		{
 			if (!Tiles.IsValidIndex(OffsetIndex)) continue;
 
@@ -2332,33 +2438,33 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 
 			bSurroundedByEmptySpace = false;
 			break;
-		}
+		}*/
 
 		//20250503, 고립된 방 판별 18초
-		//for (int32 OffsetIndex : OffsetIndices)
-		//{
-		//	if (!Tiles.IsValidIndex(OffsetIndex)) continue;
+		for (int32 OffsetIndex : OffsetIndices)
+		{
+			if (!Tiles.IsValidIndex(OffsetIndex)) continue;
 
-		//	const TArray<FWaveFunctionCollapseOptionCustom>& Options = Tiles[OffsetIndex].RemainingOptions;
+			const TArray<FWaveFunctionCollapseOptionCustom>& Options = Tiles[OffsetIndex].RemainingOptions;
 
-		//	if (Options.IsEmpty())
-		//	{
-		//		continue; // 진짜 빈 타일
-		//	}
+			if (Options.IsEmpty())
+			{
+				continue; // 진짜 빈 타일
+			}
 
-		//	const FString& MeshPath = Options[0].BaseObject.ToString();
+			const FString& MeshPath = Options[0].BaseObject.ToString();
 
-		//	// Option_Empty와 goalt01이면 빈 공간처럼 간주
-		//	if (MeshPath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
-		//		MeshPath == TEXT("/Game/BP/goalt01.goalt01"))
-		//	{
-		//		continue;
-		//	}
+			// Option_Empty와 goalt01이면 빈 공간처럼 간주
+			if (MeshPath == TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty") ||
+				MeshPath == TEXT("/Game/BP/goalt01.goalt01"))
+			{
+				continue;
+			}
 
-		//	// 이 타일은 실제로 채워져 있는 유효한 공간
-		//	bSurroundedByEmptySpace = false;
-		//	break;
-		//}
+			// 이 타일은 실제로 채워져 있는 유효한 공간
+			bSurroundedByEmptySpace = false;
+			break;
+		}
 
 		//20250509 실행속도 개선버전
 		/*static const FName EmptyTileName(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));

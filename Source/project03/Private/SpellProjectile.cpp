@@ -11,12 +11,15 @@ ASpellProjectile::ASpellProjectile()
     PrimaryActorTick.bCanEverTick = true;
 
     UBoxComponent* Box = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
-    Box->InitBoxExtent(FVector(50.f, 50.f, 50.f)); // 크기 조정
-    Box->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics); // 물리 충돌 포함
-    Box->SetCollisionObjectType(ECC_WorldDynamic);
-    Box->SetCollisionResponseToAllChannels(ECR_Block); // 전부 Block으로 처리
-    Box->SetNotifyRigidBodyCollision(true); // Hit 이벤트 활성화
-    Box->OnComponentHit.AddDynamic(this, &ASpellProjectile::OnHit); // 델리게이트 등록
+    if (!HasAnyFlags(RF_ClassDefaultObject))
+    {
+        Box->InitBoxExtent(FVector(50.f, 50.f, 50.f)); // 크기 조정
+        Box->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics); // 물리 충돌 포함
+        Box->SetCollisionObjectType(ECC_WorldDynamic);
+        Box->SetCollisionResponseToAllChannels(ECR_Block); // 전부 Block으로 처리
+        Box->SetNotifyRigidBodyCollision(true); // Hit 이벤트 활성화
+        Box->OnComponentHit.AddDynamic(this, &ASpellProjectile::OnHit); // 델리게이트 등록
+    }
     RootComponent = Box;
 
     VisualEffect = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("Effect"));

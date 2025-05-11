@@ -16,6 +16,7 @@ AWeapon::AWeapon()
 {
     PrimaryActorTick.bCanEverTick = true;
 
+
     static ConstructorHelpers::FObjectFinder<UMaterialInterface> ChromeMatFinder(TEXT("/Game/StarterContent/Materials/M_Metal_Chrome.M_Metal_Chrome"));
     if (ChromeMatFinder.Succeeded())
     {
@@ -41,6 +42,27 @@ AWeapon::AWeapon()
         WeaponMesh->SetStaticMesh(MeshAsset.Object);
     }
 
+   
+
+    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-sword-9078345.free-icon-sword-9078345"));
+    if (IconTexture.Succeeded())
+    {
+        ItemIcon = IconTexture.Object;
+    }
+
+    ItemName = TEXT("Weapon");
+
+    
+}
+
+// 게임 시작 시 호출
+void AWeapon::BeginPlay()
+{
+    Super::BeginPlay();
+    AMyDCharacter* Character = Cast<AMyDCharacter>(GetOwner());
+    ApplyGradeEffects(Character);
+
+
     // 콜리전 박스 추가
     CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
     CollisionBox->SetupAttachment(RootComponent);
@@ -55,22 +77,8 @@ AWeapon::AWeapon()
     WeaponMesh->SetEnableGravity(true);
     WeaponMesh->SetMassOverrideInKg(NAME_None, Weight); // 무게 적용
 
-    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-sword-9078345.free-icon-sword-9078345"));
-    if (IconTexture.Succeeded())
-    {
-        ItemIcon = IconTexture.Object;
-    }
+    
 
-    ItemName = TEXT("Weapon");
-
-}
-
-// 게임 시작 시 호출
-void AWeapon::BeginPlay()
-{
-    Super::BeginPlay();
-    AMyDCharacter* Character = Cast<AMyDCharacter>(GetOwner());
-    ApplyGradeEffects(Character);
 }
 
 // 매 프레임 호출
@@ -211,7 +219,7 @@ void AWeapon::ApplyGradeEffects(AMyDCharacter* Character)
         Character->AttackStaminaCost -= 5.0f;
         if (WeaponMesh && ChromeMaterial)
         {
-            WeaponMesh->SetMaterial(0, ChromeMaterial);
+            //WeaponMesh->SetMaterial(0, ChromeMaterial);
         }
         break;
 
@@ -220,7 +228,7 @@ void AWeapon::ApplyGradeEffects(AMyDCharacter* Character)
         Character->AttackStaminaCost -= 10.0f;
         if (WeaponMesh && GoldMaterial)
         {
-            WeaponMesh->SetMaterial(0, GoldMaterial);
+            //WeaponMesh->SetMaterial(0, GoldMaterial);
         }
         break;
     }

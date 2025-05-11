@@ -62,8 +62,9 @@ AMyDCharacter::AMyDCharacter()
 
 	// 충돌 설정: 래그돌 전환을 위한 기본 설정
 	CharacterMesh->SetCollisionProfileName(TEXT("CharacterMesh")); // 나중에 Ragdoll로 바꿀 수 있도록
-	CharacterMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-
+	
+		CharacterMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	
 
 	// 메쉬 로드 (ConstructorHelpers 사용)
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Script/Engine.SkeletalMesh'/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'"));
@@ -182,15 +183,18 @@ AMyDCharacter::AMyDCharacter()
 	InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
 	InteractionBox->SetupAttachment(RootComponent);
 	InteractionBox->SetBoxExtent(FVector(50.0f, 50.0f, 100.0f)); // 콜리전 크기 설정
-	InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	
-	InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	InteractionBox->SetCollisionObjectType(ECC_WorldDynamic);  // or ECC_GameTraceChannel1 등 사용자 채널 설정 가능
+	//if (!HasAnyFlags(RF_ClassDefaultObject))
+	//{
+		InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
-	// 이렇게 모든 채널에 대해 오버랩 하게
-	InteractionBox->SetCollisionResponseToAllChannels(ECR_Overlap);
-	InteractionBox->OnComponentBeginOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapBegin);
-	InteractionBox->OnComponentEndOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapEnd);
+		InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+		InteractionBox->SetCollisionObjectType(ECC_WorldDynamic);  // or ECC_GameTraceChannel1 등 사용자 채널 설정 가능
+
+		// 이렇게 모든 채널에 대해 오버랩 하게
+		InteractionBox->SetCollisionResponseToAllChannels(ECR_Overlap);
+		InteractionBox->OnComponentBeginOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapBegin);
+		InteractionBox->OnComponentEndOverlap.AddDynamic(this, &AMyDCharacter::OnOverlapEnd);
+	//}
 
 	// HUDWidgetClass를 블루프린트 경로에서 로드
 	static ConstructorHelpers::FClassFinder<UUCharacterHUDWidget> WidgetBPClass(TEXT("/Game/BP/UI/CharacterHUDWidget_BP.CharacterHUDWidget_BP_C"));
@@ -229,11 +233,7 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load EquipmentWidget_BP!"));
 	}
 
-	static ConstructorHelpers::FClassFinder<UUserWidget> CombinedWidgetBP(TEXT("/Game/BP/UI/CombinedInventoryWidget.CombinedInventoryWidget_C"));
-	if (CombinedWidgetBP.Succeeded())
-	{
-		CombinedInventoryWidgetClass = CombinedWidgetBP.Class;
-	}
+	
 
 	//Tags.Add(FName("Player"));
 
@@ -272,27 +272,14 @@ void AMyDCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-
-	// 애니메이션 블루프린트 수동 설정
-	UClass* AnimClass = LoadObject<UClass>(nullptr, TEXT("/Game/Characters/Mannequins/Animations/ABP_Manny.ABP_Manny_C"));
-	if (AnimClass)
+	if (!CharacterMesh)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Successfully loaded ABP_Manny via LoadObject"));
-		CharacterMesh->SetAnimInstanceClass(AnimClass);
+		UE_LOG(LogTemp, Error, TEXT("CharacterMesh is null!"));
 	}
-	else
+	if (!FirstPersonCameraComponent)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to load ABP_Manny via LoadObject"));
+		UE_LOG(LogTemp, Error, TEXT("FirstPersonCameraComponent is null!"));
 	}
-	// Agility 값에 따라 초기 이동 속도 설정
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
-	
-	//idle 포즈 재생 (상체)
-	/*if (PoseMontage && CharacterMesh && CharacterMesh->GetAnimInstance())
-	{
-		UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-		AnimInstance->Montage_Play(PoseMontage, 1.0f);
-	}*/
 	
 	if (HUDWidgetClass)
 	{
@@ -1563,11 +1550,11 @@ void AMyDCharacter::ToggleMapView()
 
 		
 
-		if (CachedDirectionalLight)
+		/*if (CachedDirectionalLight)
 		{
 			CachedDirectionalLight->SetActorHiddenInGame(false);
 			CachedDirectionalLight->SetEnabled(true);
-		}
+		}*/
 
 		bUseControllerRotationYaw = false;
 		bIsInOverheadView = true;
@@ -1584,11 +1571,11 @@ void AMyDCharacter::ToggleMapView()
 			PC->SetIgnoreLookInput(false);
 		}
 
-		if (CachedDirectionalLight)
+		/*if (CachedDirectionalLight)
 		{
 			CachedDirectionalLight->SetActorHiddenInGame(true);
 			CachedDirectionalLight->SetEnabled(false);
-		}
+		}*/
 
 		bUseControllerRotationYaw = true;
 		bIsInOverheadView = false;

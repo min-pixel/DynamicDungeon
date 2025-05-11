@@ -16,6 +16,14 @@ ADagger::ADagger()
 
     Damage = BaseDamage;
 
+    
+
+}
+
+// Called when the game starts or when spawned
+void ADagger::BeginPlay()
+{
+	Super::BeginPlay();
     // 단검 무기 전용 메쉬 적용
     static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/Weapon_Pack/Mesh/Weapons/Weapons_Kit/SM_Dagger_2.SM_Dagger_2"));
     if (MeshAsset.Succeeded())
@@ -30,14 +38,6 @@ ADagger::ADagger()
     }
 
     ItemName = TEXT("DaggerWeapon");
-
-}
-
-// Called when the game starts or when spawned
-void ADagger::BeginPlay()
-{
-	Super::BeginPlay();
-	
 }
 
 // Called every frame

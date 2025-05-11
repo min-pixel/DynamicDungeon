@@ -59,26 +59,26 @@ public:
 	void DropWeapon();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-	float Health; // 체력
+	float Health = 100; // 체력
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-	float MaxHealth; // 최대 체력
+	float MaxHealth = 100; // 최대 체력
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-	float Agility; // 민첩성 (이동 속도와 연결)
+	float Agility = 50; // 민첩성 (이동 속도와 연결)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-	float Knowledge; // 지식 (마나량)
+	float Knowledge = 100; // 지식 (마나량)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-	float MaxKnowledge; // 최대 마나량
+	float MaxKnowledge = 100; // 최대 마나량
 
 	//스테미나 관련 변수
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-	float Stamina;  // 현재 스테미나
+	float Stamina = 100;  // 현재 스테미나
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
-	float MaxStamina;  // 최대 스테미나
+	float MaxStamina = 100;  // 최대 스테미나
 
 	// 스태미나 소모량 변수 추가
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")

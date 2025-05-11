@@ -32,26 +32,37 @@ void ALobbyGameMode::BeginPlay()
 		{
 			LobbyWidgetInstance->AddToViewport(1);
 
-			APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-			if (PC)
-			{
-				AMyDCharacter* PlayerCharacter = Cast<AMyDCharacter>(PC->GetPawn());
-				LobbyWidgetInstance->InitializeLobby(PlayerCharacter);
-				PC->bShowMouseCursor = true;
-				FInputModeUIOnly InputMode;
-				InputMode.SetWidgetToFocus(LobbyWidgetInstance->TakeWidget());
-				InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-				PC->SetInputMode(InputMode);
-			}
-			else
-			{
-				LobbyWidgetInstance->InitializeLobby(nullptr);
-				PC->bShowMouseCursor = true;
-				FInputModeUIOnly InputMode;
-				InputMode.SetWidgetToFocus(LobbyWidgetInstance->TakeWidget());
-				InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-				PC->SetInputMode(InputMode);
-			}
+			// 약간의 딜레이를 줘서 Pawn이 생성되기를 기다림
+			
+			GetWorld()->GetTimerManager().SetTimer(DelayHandle, [this]()
+				{
+					APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+					if (PC)
+					{
+						AMyDCharacter* PlayerCharacter = Cast<AMyDCharacter>(PC->GetPawn());
+						if (LobbyWidgetInstance)
+						{
+							LobbyWidgetInstance->InitializeLobby(PlayerCharacter);
+						}
+
+						PC->bShowMouseCursor = true;
+						FInputModeUIOnly InputMode;
+						InputMode.SetWidgetToFocus(LobbyWidgetInstance->TakeWidget());
+						InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+						PC->SetInputMode(InputMode);
+					}
+					else
+					{
+						LobbyWidgetInstance->InitializeLobby(nullptr);
+						PC->bShowMouseCursor = true;
+						FInputModeUIOnly InputMode;
+						InputMode.SetWidgetToFocus(LobbyWidgetInstance->TakeWidget());
+						InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+						PC->SetInputMode(InputMode);
+					}
+
+				}, 0.1f, false);
+			
 
 			
 		}

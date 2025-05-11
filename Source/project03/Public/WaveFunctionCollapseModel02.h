@@ -29,6 +29,8 @@ struct PROJECT03_API FWaveFunctionCollapseOptionCustom
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse", meta = (AllowedClasses = "StaticMesh, Blueprint"))
 	FSoftObjectPath BaseObject;
 
+
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
 	FRotator BaseRotator = FRotator::ZeroRotator;
 
@@ -51,6 +53,11 @@ struct PROJECT03_API FWaveFunctionCollapseOptionCustom
 	bool bHasDoorWest = false; // 방 타일 여부
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
+
+
+	
+
+
 	bool bIsCorridorTile = true; // 복도 타일 여부 추가
 
 	FWaveFunctionCollapseOptionCustom() = default;
@@ -148,6 +155,10 @@ public:
 	*/
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
 	float TileSize;
+
+
+
+
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "WaveFunctionCollapse")
 	TMap<FWaveFunctionCollapseOptionCustom, FWaveFunctionCollapseAdjacencyToOptionsMapCustom> Constraints;

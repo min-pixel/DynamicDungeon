@@ -58,12 +58,12 @@ AEnemyCharacter::AEnemyCharacter()
     InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
     InteractionBox->SetupAttachment(RootComponent);
     InteractionBox->SetBoxExtent(FVector(500.f));
-    InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    InteractionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
-    InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-    InteractionBox->OnComponentBeginOverlap.AddDynamic(this, &AEnemyCharacter::OnOverlapBegin);
-    InteractionBox->OnComponentEndOverlap.AddDynamic(this, &AEnemyCharacter::OnOverlapEnd);
-
+        InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        InteractionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+        InteractionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+        InteractionBox->OnComponentBeginOverlap.AddDynamic(this, &AEnemyCharacter::OnOverlapBegin);
+        InteractionBox->OnComponentEndOverlap.AddDynamic(this, &AEnemyCharacter::OnOverlapEnd);
+    
     LootInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("LootInventory"));
 
     static ConstructorHelpers::FClassFinder<UInventoryWidget> WidgetBPClass(TEXT("/Game/BP/UI/InventoryWidget.InventoryWidget_C"));

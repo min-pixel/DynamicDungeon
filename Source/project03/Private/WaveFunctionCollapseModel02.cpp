@@ -189,13 +189,14 @@ void UWaveFunctionCollapseModel02::SwapMeshes(TMap<UStaticMesh*, UStaticMesh*> S
 void UWaveFunctionCollapseModel02::InitializeModel()
 {
 	// 방 타일 정의
-	FWaveFunctionCollapseOptionCustom RoomTile(TEXT("/Game/Meshes/RoomMesh")); // 방 타일 메쉬 경로
+	FWaveFunctionCollapseOptionCustom RoomTile(TEXT("/Game/BP")); // 방 타일 메쉬 경로
 	RoomTile.bIsRoomTile = true; // 방 타일 플래그 설정
 
 	// 일반 타일 정의
-	FWaveFunctionCollapseOptionCustom OtherTile(TEXT("/Game/Meshes/OtherMesh"));
+	FWaveFunctionCollapseOptionCustom OtherTile(TEXT("/Game/BP"));
 
 	// 방 타일과 일반 타일 간 제약 설정
 	AddConstraint(RoomTile, EWaveFunctionCollapseAdjacencyCustom::Front, OtherTile);
 	AddConstraint(OtherTile, EWaveFunctionCollapseAdjacencyCustom::Back, RoomTile);
 }
+

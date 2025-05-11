@@ -19,6 +19,15 @@ struct FPlayerCharacterData
 {
     GENERATED_BODY()
 
+    FPlayerCharacterData()
+        : PlayerName(TEXT("Player"))
+        , PlayerClass(EPlayerClass::Warrior)
+        , MaxHealth(100.f)
+        , MaxStamina(50.f)
+        , MaxKnowledge(30.f)
+        , Level(1)
+    {}
+
     UPROPERTY(BlueprintReadWrite)
     FString PlayerName;
 

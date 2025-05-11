@@ -7,7 +7,7 @@
 #include "WaveFunctionCollapseBPLibrary02.h"
 #include "GameFramework/PlayerStart.h"
 #include "EngineUtils.h" 
-#include "Editor.h" 
+//#include "Editor.h" 
 
 // Sets default values
 Awfcex::Awfcex()
@@ -18,12 +18,18 @@ Awfcex::Awfcex()
     EscapeObjectClass = AEscapeObject::StaticClass();
     TreasureChestClass = ATreasureChest::StaticClass();
 
+    
+
 }
 
 
 void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
+
+    
+
+
 	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505, 767089153, 1948641409, 1358936321, 1964145409
     SpawnPlayerOnCorridor();
 
@@ -45,12 +51,12 @@ void Awfcex::Tick(float DeltaTime)
 void Awfcex::ExecuteWFCInSubsystem(int32 TryCount, int32 RandomSeed)
 {
     // WFC 서브시스템 가져오기
+    UWorld* World = GetWorld(); // 안전
     UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
 
     if (WFCSubsystem)
     {
-        WFCSubsystem->ExecuteWFC(TryCount, RandomSeed);
-        
+        WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);
     }
     else
     {
@@ -499,7 +505,7 @@ bool Awfcex::CanSpawnAtLocation(UWorld* World, const FVector& Location, float Ra
     FCollisionShape Shape = FCollisionShape::MakeSphere(Radius);
     FCollisionQueryParams Params;
     Params.bTraceComplex = false;
-    Params.bReturnPhysicalMaterial = false;
+    //Params.bReturnPhysicalMaterial = false;
 
     // 정적 오브젝트 충돌 검사 (예: 석상, 벽 등)
     return !World->OverlapBlockingTestByChannel(

@@ -27,4 +27,6 @@ protected:
 	UPROPERTY()
 	class ULobbyWidget* LobbyWidgetInstance;
 
+	FTimerHandle DelayHandle; 
+
 };

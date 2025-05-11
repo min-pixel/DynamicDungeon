@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-
-#include "EditorSubsystem.h"
+//#if WITH_EDITOR
+//#include "EditorSubsystem.h"
+//#endif
 #include "WaveFunctionCollapseModel02.h"
 #include "Components/ActorComponent.h"
 #include "WaveFunctionCollapseSubsystem02.generated.h"
@@ -23,9 +24,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFCSettings")
 	TObjectPtr<UWaveFunctionCollapseModel02> WFCModel;
 
+	void SetExecutionContext(UObject* InContext) { ExecutionContext = InContext; }
+
 	// WFC 실행 함수
 	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
-	void ExecuteWFC(int32 TryCount = 1, int32 RandomSeed = 0);
+	void ExecuteWFC(int32 TryCount = 1, int32 RandomSeed = 0, UWorld* WorldContext = nullptr);
 
 	// WFC 모델 설정 메서드
 	void SetWFCModel();
@@ -110,7 +113,7 @@ public:
 	AActor* CollapseCustom(int32 TryCount = 1, int32 RandomSeed = 0);*/
 
 	//20250419
-	AActor* CollapseCustom(int32 TryCount, int32 RandomSeed);
+	AActor* CollapseCustom(int32 TryCount, int32 RandomSeed, UWorld* WorldContext);
 
 	//UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
 	//AActor* CollapseCustom002(int32 TryCount, int32 RandomSeed);
@@ -210,7 +213,7 @@ private:
 
 	TArray<FVector> RoomTilePositions; // 방 타일의 월드 좌표를 저장
 
-	
+	TWeakObjectPtr<UObject> ExecutionContext;
 
 	/**
 	* Builds the Initial Tile which is a tile containing all possible options
@@ -259,11 +262,22 @@ private:
 	* Spawn an actor given an array of successfully solved tiles
 	* @param Tiles Successfully solved array of tiles
 	*/
-	AActor* SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+	AActor* SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* WorldContext);
 
 	/**
 	* Returns true if no remaining options in given tiles are an empty/void option or included in the SpawnExclusion list
 	* @param Tiles Successfully solved array of tiles
 	*/
 	bool AreAllTilesNonSpawnable(const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+protected:
+		UWorld* GetEffectiveWorld() const
+		{
+			if (ExecutionContext.IsValid())
+			{
+				return ExecutionContext->GetWorld();
+			}
+			return nullptr;
+		}
+
 };
