@@ -20,7 +20,7 @@ AGreatWeapon::AGreatWeapon()
     static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/Weapon_Pack/Mesh/Weapons/Weapons_Kit/SM_GreatHammer.SM_GreatHammer"));
     if (MeshAsset.Succeeded())
     {
-        WeaponMesh->SetStaticMesh(MeshAsset.Object);
+        LoadedGreatWeaponMesh = MeshAsset.Object;
     }
 
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-weapon-1583527.free-icon-weapon-1583527"));
@@ -38,6 +38,13 @@ void AGreatWeapon::BeginPlay()
 {
 	Super::BeginPlay();
     //SetDefaultIcon();
+
+    if (LoadedGreatWeaponMesh && WeaponMesh)
+    {
+        WeaponMesh->SetStaticMesh(LoadedGreatWeaponMesh); // 안전하게 여기서 호출
+    }
+
+    
 	
 }
 

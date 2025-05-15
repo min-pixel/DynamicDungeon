@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+//#include "MyDCharacter.h"
 #include "ItemDataD.h"
 #include "Item.generated.h"
 
@@ -43,6 +44,11 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EItemType ItemType;
+
+	/*UFUNCTION(BlueprintNativeEvent, Category = "Item")
+	void Use(AMyDCharacter* Character);
+
+	virtual void Use_Implementation(AMyDCharacter* Character);*/
 
 	//virtual FItemData ToItemData() const;
 

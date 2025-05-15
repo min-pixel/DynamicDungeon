@@ -148,7 +148,8 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
     const int32 FromIndex = SourceSlot->SlotIndex;
     const int32 ToIndex = this->SlotIndex;
 
-
+    
+    
 
     //1. 보물상자 → 플레이어 인벤토리
     if (SourceSlot->bIsChestInventory && !this->bIsChestInventory)
@@ -171,6 +172,22 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
             SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
 
             UE_LOG(LogTemp, Log, TEXT("Moved item from Player Inventory to Chest"));
+        }
+    }
+
+    //  인벤토리 → 핫키 슬롯
+    else if (!SourceSlot->bIsHotkeySlot && this->bIsHotkeySlot)
+    {
+        if (EquipmentOwner)
+        {
+            EquipmentOwner->SetSlot(ToIndex, SourceSlot->StoredData);
+
+            if (SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
+            {
+                SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+            }
+
+            UE_LOG(LogTemp, Log, TEXT("Moved item from Inventory to Hotkey Slot %d"), ToIndex);
         }
     }
 

@@ -36,6 +36,12 @@ public:
     UPROPERTY(BlueprintReadWrite)
     class UEquipmentWidget* EquipmentOwner;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsHotkeySlot = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 HotkeyIndex = -1; // 0 ~ 4 (1¹ø ½½·Ô ~ 5¹ø ½½·Ô)
+
     UFUNCTION(BlueprintCallable)
     AItem* GetStoredItem() const { return StoredItem; }
 

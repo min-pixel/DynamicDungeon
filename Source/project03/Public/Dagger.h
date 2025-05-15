@@ -29,4 +29,6 @@ public:
 
 	virtual void SetDefaultIcon() override;
 
+	UStaticMesh* LoadedDaggerMesh = nullptr;
+	UTexture2D* LoadedIconTexture = nullptr;
 };

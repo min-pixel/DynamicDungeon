@@ -12,6 +12,9 @@ UInventoryComponent::UInventoryComponent()
     //InventoryItems.SetNum(Capacity); // Capacity만큼 슬롯 확보
     InventoryItemsStruct.SetNum(Capacity);
 	// ...
+
+    HotkeyItems.SetNum(5);
+
 }
 
 

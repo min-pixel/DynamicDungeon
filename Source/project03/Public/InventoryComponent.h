@@ -32,6 +32,9 @@ public:
 	/*UFUNCTION(BlueprintCallable)
 	bool TryAddItem(AItem* NewItem);*/
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hotkey")
+	TArray<FItemData> HotkeyItems;
+
 	bool TryAddItemByClass(TSubclassOf<AItem> ItemClass);
 
 	bool RemoveItemAtStruct(int32 Index);

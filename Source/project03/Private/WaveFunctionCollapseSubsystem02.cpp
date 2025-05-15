@@ -1170,6 +1170,8 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 				{
 					TileActor->SetActorScale3D(TileScale);
 					TileActor->AttachToActor(SpawnedActor, FAttachmentTransformRules::KeepWorldTransform);
+					TileActor->Tags.Add(FName("WFCGenerated"));
+
 				}
 			}
 		}

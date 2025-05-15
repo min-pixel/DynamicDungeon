@@ -36,11 +36,11 @@ AWeapon::AWeapon()
     BaseDamage = 20.0f;
     Damage = BaseDamage; // 무기 생성 시 기본 데미지 적용
 
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/Weapon_Pack/Mesh/Weapons/Weapons_Kit/SM_Sword.SM_Sword"));
+    /*static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/Weapon_Pack/Mesh/Weapons/Weapons_Kit/SM_Sword.SM_Sword"));
     if (MeshAsset.Succeeded())
     {
         WeaponMesh->SetStaticMesh(MeshAsset.Object);
-    }
+    }*/
 
    
 
@@ -49,6 +49,18 @@ AWeapon::AWeapon()
     {
         ItemIcon = IconTexture.Object;
     }
+
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/Weapon_Pack/Mesh/Weapons/Weapons_Kit/SM_Sword.SM_Sword"));
+    if (MeshAsset.Succeeded())
+    {
+        LoadedWeaponMesh = MeshAsset.Object; // 저장만
+    }
+
+    /*static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-sword-9078345.free-icon-sword-9078345"));
+    if (IconTexture.Succeeded())
+    {
+        LoadedIcon = IconTexture.Object;
+    }*/
 
     ItemName = TEXT("Weapon");
 
@@ -62,20 +74,30 @@ void AWeapon::BeginPlay()
     AMyDCharacter* Character = Cast<AMyDCharacter>(GetOwner());
     ApplyGradeEffects(Character);
 
+    if (LoadedWeaponMesh && WeaponMesh)
+    {
+        WeaponMesh->SetStaticMesh(LoadedWeaponMesh);
+    }
 
-    // 콜리전 박스 추가
-    CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
-    CollisionBox->SetupAttachment(RootComponent);
-    CollisionBox->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f)); // 크기 조정
-    CollisionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-    CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
-    CollisionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-    CollisionBox->OnComponentBeginOverlap.AddDynamic(this, &AWeapon::OnOverlapBegin);
+    /*if (LoadedIcon)
+    {
+        ItemIcon = LoadedIcon;
+    }*/
 
-    // 물리 적용 (기본 상태)
-    WeaponMesh->SetSimulatePhysics(true);
-    WeaponMesh->SetEnableGravity(true);
-    WeaponMesh->SetMassOverrideInKg(NAME_None, Weight); // 무게 적용
+
+    //// 콜리전 박스 추가
+    //CollisionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("CollisionBox"));
+    //CollisionBox->SetupAttachment(RootComponent);
+    //CollisionBox->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f)); // 크기 조정
+    //CollisionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    //CollisionBox->SetCollisionResponseToAllChannels(ECR_Ignore);
+    //CollisionBox->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+    //CollisionBox->OnComponentBeginOverlap.AddDynamic(this, &AWeapon::OnOverlapBegin);
+
+    //// 물리 적용 (기본 상태)
+    //WeaponMesh->SetSimulatePhysics(true);
+    //WeaponMesh->SetEnableGravity(true);
+    //WeaponMesh->SetMassOverrideInKg(NAME_None, Weight); // 무게 적용
 
     
 

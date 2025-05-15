@@ -83,7 +83,8 @@ public:
 
     void StartTrace();
 
-   
+    UStaticMesh* LoadedWeaponMesh = nullptr;
+    UTexture2D* LoadedIcon = nullptr;
 
     FVector LastStartLocation;
     FVector LastEndLocation;

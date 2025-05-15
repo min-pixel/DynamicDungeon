@@ -73,7 +73,7 @@ void UEquipmentWidget::SwapSlots(int32 From, int32 To)
 
 void UEquipmentWidget::RefreshEquipmentSlots()
 {
-    EquipmentSlots.SetNum(4);
+    EquipmentSlots.SetNum(9);
     EquipmentSlotContainer->ClearChildren();
     for (int32 i = 0; i < EquipmentSlots.Num(); ++i)
     {
@@ -85,6 +85,13 @@ void UEquipmentWidget::RefreshEquipmentSlots()
             NewSlot->bIsEquipmentSlot = true;
             NewSlot->EquipmentOwner = this;
             NewSlot->InventoryOwner = this->InventoryOwner;
+
+            // 핫키 슬롯이면 표시용 플래그 설정
+            if (i >= 4)
+            {
+                NewSlot->bIsHotkeySlot = true;
+            }
+
             EquipmentSlotContainer->AddChild(NewSlot);
         }
     }

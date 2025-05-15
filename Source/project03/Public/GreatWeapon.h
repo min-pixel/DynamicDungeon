@@ -28,4 +28,7 @@ public:
 	virtual void RemoveWeaponStats(class AMyDCharacter* Character) override;
 	virtual void SetDefaultIcon() override;
 
+	UStaticMesh* LoadedGreatWeaponMesh = nullptr;
+	UTexture2D* LoadedIconTexture = nullptr;
+
 };

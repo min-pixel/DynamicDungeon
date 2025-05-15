@@ -22,8 +22,8 @@ struct FPlayerCharacterData
     FPlayerCharacterData()
         : PlayerName(TEXT("Player"))
         , PlayerClass(EPlayerClass::Warrior)
-        , MaxHealth(100.f)
-        , MaxStamina(50.f)
+        , MaxHealth(1000.f)
+        , MaxStamina(500.f)
         , MaxKnowledge(30.f)
         , Level(1)
     {}

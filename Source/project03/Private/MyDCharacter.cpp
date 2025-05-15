@@ -20,6 +20,7 @@
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
+#include "Potion.h"
 #include "FireballSpell.h"
 #include "Camera/CameraShakeBase.h"
 #include "WFCRegenerator.h"
@@ -348,26 +349,49 @@ void AMyDCharacter::BeginPlay()
 		}
 	}*/
 
-	UBlueprint* LightBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, TEXT("/Game/BP/light.light")));
-	if (LightBP && LightBP->GeneratedClass)
+	//UBlueprint* LightBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, TEXT("/Game/BP/light.light")));
+	//if (LightBP && LightBP->GeneratedClass)
+	//{
+	//	AttachedTorch = GetWorld()->SpawnActor<AActor>(LightBP->GeneratedClass);
+
+	//	if (AttachedTorch && CharacterMesh && CharacterMesh->DoesSocketExist("hand_l"))
+	//	{
+	//		AttachedTorch->AttachToComponent(CharacterMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("hand_l"));
+
+	//		// 회전 적용 (필요하다면 수정 가능)
+	//		FRotator DesiredRotation = FRotator(0.0f, 0.0f, 180.0f);
+	//		AttachedTorch->SetActorRelativeRotation(DesiredRotation);
+
+	//		// 처음엔 숨겨진 상태
+	//		AttachedTorch->SetActorHiddenInGame(true);
+	//		bTorchVisible = false;
+
+	//		UE_LOG(LogTemp, Log, TEXT("Torch attached and hidden on start."));
+	//	}
+	//}
+
+	FSoftObjectPath TorchClassPath(TEXT("/Game/BP/light.light_C"));  // 꼭 "_C" 붙일 것!
+	UClass* TorchClass = Cast<UClass>(TorchClassPath.TryLoad());
+
+	if (TorchClass)
 	{
-		AttachedTorch = GetWorld()->SpawnActor<AActor>(LightBP->GeneratedClass);
+		AttachedTorch = GetWorld()->SpawnActor<AActor>(TorchClass);
 
 		if (AttachedTorch && CharacterMesh && CharacterMesh->DoesSocketExist("hand_l"))
 		{
 			AttachedTorch->AttachToComponent(CharacterMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("hand_l"));
-
-			// 회전 적용 (필요하다면 수정 가능)
-			FRotator DesiredRotation = FRotator(0.0f, 0.0f, 180.0f);
-			AttachedTorch->SetActorRelativeRotation(DesiredRotation);
-
-			// 처음엔 숨겨진 상태
+			AttachedTorch->SetActorRelativeRotation(FRotator(0.0f, 0.0f, 180.0f));
 			AttachedTorch->SetActorHiddenInGame(true);
 			bTorchVisible = false;
 
 			UE_LOG(LogTemp, Log, TEXT("Torch attached and hidden on start."));
 		}
 	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Torch class at runtime!"));
+	}
+
 
 	if (WFCWarningWidgetClass)
 	{
@@ -402,6 +426,19 @@ void AMyDCharacter::BeginPlay()
 	if (GameInstance)
 	{
 		ApplyCharacterData(GameInstance->CurrentCharacterData);
+
+		// 인벤토리 복원
+		if (InventoryComponent)
+		{
+			InventoryComponent->InventoryItemsStruct = GameInstance->SavedInventoryItems;
+		}
+
+		// 장비창 복원
+		if (EquipmentWidgetInstance)
+		{
+			EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
+		}
+
 	}
 
 	if (PlayerClass == EPlayerClass::Mage)
@@ -559,6 +596,12 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//f키
 	PlayerInputComponent->BindAction("ToggleTorch", IE_Pressed, this, &AMyDCharacter::ToggleTorch);
+
+	//m
+	PlayerInputComponent->BindAction("TeleportToRegen", IE_Pressed, this, &AMyDCharacter::TeleportToWFCRegen);
+
+	//n
+	PlayerInputComponent->BindAction("TeleportToEscape", IE_Pressed, this, &AMyDCharacter::TeleportToEscapeObject);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -1550,11 +1593,11 @@ void AMyDCharacter::ToggleMapView()
 
 		
 
-		/*if (CachedDirectionalLight)
+		if (CachedDirectionalLight)
 		{
 			CachedDirectionalLight->SetActorHiddenInGame(false);
 			CachedDirectionalLight->SetEnabled(true);
-		}*/
+		}
 
 		bUseControllerRotationYaw = false;
 		bIsInOverheadView = true;
@@ -1571,11 +1614,11 @@ void AMyDCharacter::ToggleMapView()
 			PC->SetIgnoreLookInput(false);
 		}
 
-		/*if (CachedDirectionalLight)
+		if (CachedDirectionalLight)
 		{
 			CachedDirectionalLight->SetActorHiddenInGame(true);
 			CachedDirectionalLight->SetEnabled(false);
-		}*/
+		}
 
 		bUseControllerRotationYaw = true;
 		bIsInOverheadView = false;
@@ -1608,4 +1651,112 @@ void AMyDCharacter::Die()
 
 	// 필요시 로그
 	UE_LOG(LogTemp, Warning, TEXT("Player died. Returning to lobby..."));
+}
+
+void AMyDCharacter::TeleportToWFCRegen()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	TArray<AActor*> FoundRegens;
+	UGameplayStatics::GetAllActorsOfClass(World, AWFCRegenerator::StaticClass(), FoundRegens);
+
+	if (FoundRegens.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No AWFCRegenerator found in level"));
+		return;
+	}
+
+	// 가장 가까운 WFCRegen 찾기
+	AActor* Closest = nullptr;
+	float MinDistSqr = TNumericLimits<float>::Max();
+	FVector MyLocation = GetActorLocation();
+
+	for (AActor* Regen : FoundRegens)
+	{
+		float DistSqr = FVector::DistSquared(MyLocation, Regen->GetActorLocation());
+		if (DistSqr < MinDistSqr)
+		{
+			MinDistSqr = DistSqr;
+			Closest = Regen;
+		}
+	}
+
+	if (Closest)
+	{
+		FVector TargetLocation = Closest->GetActorLocation() + FVector(0, 0, 100); // 약간 위로 띄워주기
+		SetActorLocation(TargetLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		UE_LOG(LogTemp, Log, TEXT("Teleported to WFCRegenerator at %s"), *TargetLocation.ToString());
+	}
+}
+
+void AMyDCharacter::TeleportToEscapeObject()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	TArray<AActor*> EscapeActors;
+	UGameplayStatics::GetAllActorsWithTag(World, FName("Escape"), EscapeActors);
+
+	if (EscapeActors.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No escape objects found!"));
+		return;
+	}
+
+	// 가장 가까운 Escape 오브젝트 찾기
+	AActor* ClosestEscape = nullptr;
+	float MinDistanceSq = FLT_MAX;
+	FVector MyLocation = GetActorLocation();
+
+	for (AActor* EscapeActor : EscapeActors)
+	{
+		float DistSq = FVector::DistSquared(MyLocation, EscapeActor->GetActorLocation());
+		if (DistSq < MinDistanceSq)
+		{
+			MinDistanceSq = DistSq;
+			ClosestEscape = EscapeActor;
+		}
+	}
+
+	if (ClosestEscape)
+	{
+		SetActorLocation(ClosestEscape->GetActorLocation() + FVector(0, 0, 100)); // 살짝 위로 띄워서 이동
+		UE_LOG(LogTemp, Log, TEXT("Teleported to escape object: %s"), *ClosestEscape->GetName());
+	}
+}
+
+void AMyDCharacter::HealPlayer(int32 Amount)
+{
+	Health = FMath::Clamp(Health + Amount, 0, MaxHealth);
+	UpdateHUD();
+}
+
+void AMyDCharacter::UseHotkey(int32 Index)
+{
+	const int32 EquipSlotIndex = 4 + Index;
+	FItemData& Item = EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex];
+
+	if (Item.ItemType == EItemType::Potion && Item.ItemClass)
+	{
+		AItem* SpawnedItem = GetWorld()->SpawnActor<AItem>(Item.ItemClass);
+		if (APotion* Potion = Cast<APotion>(SpawnedItem))
+		{
+			HealPlayer(Potion->GetHealAmount());
+			UE_LOG(LogTemp, Log, TEXT("Healed %d from potion"), Potion->GetHealAmount());
+		}
+
+		if (SpawnedItem)
+		{
+			SpawnedItem->Destroy();
+		}
+
+		Item.Count--;
+		if (Item.Count <= 0)
+		{
+			EquipmentWidgetInstance->ClearSlot(EquipSlotIndex);
+		}
+
+		EquipmentWidgetInstance->RefreshEquipmentSlots();
+	}
 }

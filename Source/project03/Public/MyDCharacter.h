@@ -93,6 +93,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float StaminaRegenRate = 10.0f;
 
+	
+
+	void UseHotkey(int32 Index);
+
 	UFUNCTION(BlueprintCallable, Category = "State")
 	bool IsDead() const;
 
@@ -222,6 +226,14 @@ public:
 	void FadeAndRegenWFC();
 
 	void ExecuteWFCNow();
+
+	UFUNCTION()
+	void TeleportToWFCRegen();
+
+	UFUNCTION()
+	void TeleportToEscapeObject();
+
+	void HealPlayer(int32 Amount);
 
 	// 인벤토리 컴포넌트 가져오기
 	FORCEINLINE UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }

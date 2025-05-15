@@ -227,9 +227,9 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	WFCSubsystem->RegeneratorFixedTileCoord = TileCoord;
 	WFCSubsystem->RegeneratorFixedTileOption = FixedOption;
 	WFCSubsystem->bHasRegeneratorFixedTile = true;
-
+	UWorld* World = GetWorld();
 	// WFC ½ÇÇà
-	WFCSubsystem->ExecuteWFC(TryCount, RandomSeed);
+	WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);
 	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
 
 	if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
