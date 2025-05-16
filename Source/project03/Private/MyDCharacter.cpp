@@ -602,6 +602,14 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//n
 	PlayerInputComponent->BindAction("TeleportToEscape", IE_Pressed, this, &AMyDCharacter::TeleportToEscapeObject);
+
+	// 핫키 입력 바인딩 (예: 1~5 키)
+
+	PlayerInputComponent->BindAction("UseHotkey1", IE_Pressed, this, &AMyDCharacter::UseHotkey1);
+	PlayerInputComponent->BindAction("UseHotkey2", IE_Pressed, this, &AMyDCharacter::UseHotkey2);
+	PlayerInputComponent->BindAction("UseHotkey3", IE_Pressed, this, &AMyDCharacter::UseHotkey3);
+	PlayerInputComponent->BindAction("UseHotkey4", IE_Pressed, this, &AMyDCharacter::UseHotkey4);
+	PlayerInputComponent->BindAction("UseHotkey5", IE_Pressed, this, &AMyDCharacter::UseHotkey5);
 }
 
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -1734,21 +1742,36 @@ void AMyDCharacter::HealPlayer(int32 Amount)
 
 void AMyDCharacter::UseHotkey(int32 Index)
 {
+
 	const int32 EquipSlotIndex = 4 + Index;
-	FItemData& Item = EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex];
+	FItemData& Item = EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]; 
+
+
+	UE_LOG(LogTemp, Warning, TEXT("gpt bbbbbyu"));
+
+
+	if (Item.ItemClass && Item.ItemType != EItemType::Potion)
+	{
+		Item.ItemType = EItemType::Potion;
+		UE_LOG(LogTemp, Warning, TEXT("ItemType hhhhh: Potion"));
+	}
 
 	if (Item.ItemType == EItemType::Potion && Item.ItemClass)
 	{
-		AItem* SpawnedItem = GetWorld()->SpawnActor<AItem>(Item.ItemClass);
-		if (APotion* Potion = Cast<APotion>(SpawnedItem))
-		{
-			HealPlayer(Potion->GetHealAmount());
-			UE_LOG(LogTemp, Log, TEXT("Healed %d from potion"), Potion->GetHealAmount());
-		}
+		AItem* DefaultItem = Item.ItemClass->GetDefaultObject<AItem>();
+		APotion* DefaultPotion = Cast<APotion>(DefaultItem);
 
-		if (SpawnedItem)
+		UE_LOG(LogTemp, Warning, TEXT("ItemClass name: %s"), *Item.ItemClass->GetName());
+
+		if (DefaultPotion)
 		{
-			SpawnedItem->Destroy();
+			int32 Heal = DefaultPotion->GetHealAmount();
+
+			HealPlayer(Heal);
+			UE_LOG(LogTemp, Log, TEXT("Healed %d from potion"), DefaultPotion->GetHealAmount());
+		}
+		else {
+			UE_LOG(LogTemp, Log, TEXT("Healedsssssssssssssssssssss"), DefaultPotion->GetHealAmount());
 		}
 
 		Item.Count--;
@@ -1760,3 +1783,9 @@ void AMyDCharacter::UseHotkey(int32 Index)
 		EquipmentWidgetInstance->RefreshEquipmentSlots();
 	}
 }
+
+void AMyDCharacter::UseHotkey1() { UseHotkey(0); }
+void AMyDCharacter::UseHotkey2() { UseHotkey(1); }
+void AMyDCharacter::UseHotkey3() { UseHotkey(2); }
+void AMyDCharacter::UseHotkey4() { UseHotkey(3); }
+void AMyDCharacter::UseHotkey5() { UseHotkey(4); }

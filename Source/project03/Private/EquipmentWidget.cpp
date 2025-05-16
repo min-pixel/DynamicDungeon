@@ -90,6 +90,20 @@ void UEquipmentWidget::RefreshEquipmentSlots()
             if (i >= 4)
             {
                 NewSlot->bIsHotkeySlot = true;
+
+                const FItemData& Data = EquipmentSlots[i];
+                if (Data.ItemClass)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Hotkey Slot %d: %s (%s)"),
+                        i,
+                        *Data.ItemName,
+                        *Data.ItemClass->GetName());
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Log, TEXT("Hotkey Slot %d: [Empty]"), i);
+                }
+
             }
 
             EquipmentSlotContainer->AddChild(NewSlot);

@@ -11,20 +11,29 @@ APotion::APotion()
     
     HealAmount = 50; // 기본 회복량
 
-    static ConstructorHelpers::FObjectFinder<UTexture2D> IconAsset(TEXT("/Game/BP/Icon/free-icon-potion-114123.free-icon-potion-114123"));
-    if (IconAsset.Succeeded())
+    
+   
+
+
+
+    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/free-icon-potion-114123.free-icon-potion-114123"));
+    if (IconTexture.Succeeded())
     {
-        ItemData.ItemIcon = IconAsset.Object;
+        ItemIcon = IconTexture.Object;  
     }
     else
     {
         UE_LOG(LogTemp, Error, TEXT("Failed to load potion icon!"));
     }
+   
+
 
 }
 
 void APotion::BeginPlay()
 {
     Super::BeginPlay();
+
+    
 }
 

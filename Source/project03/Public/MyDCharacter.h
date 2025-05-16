@@ -94,8 +94,24 @@ public:
 	float StaminaRegenRate = 10.0f;
 
 	
-
+	//핫키 인덱스 기반 호출 함수
 	void UseHotkey(int32 Index);
+
+	//개별 바인딩용 래퍼 함수들
+	UFUNCTION()
+	void UseHotkey1();
+
+	UFUNCTION()
+	void UseHotkey2();
+
+	UFUNCTION()
+	void UseHotkey3();
+
+	UFUNCTION()
+	void UseHotkey4();
+
+	UFUNCTION()
+	void UseHotkey5();
 
 	UFUNCTION(BlueprintCallable, Category = "State")
 	bool IsDead() const;

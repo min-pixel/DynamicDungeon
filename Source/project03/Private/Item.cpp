@@ -42,6 +42,7 @@ FItemData AItem::ToItemData() const
     Data.ItemClass = GetClass();
     Data.ItemName = ItemName;
     Data.ItemIcon = ItemIcon;
+    Data.ItemType = ItemType;
     Data.bIsStackable = bIsStackable;
     Data.MaxStack = MaxStack;
     Data.Count = 1; // 기본 수량

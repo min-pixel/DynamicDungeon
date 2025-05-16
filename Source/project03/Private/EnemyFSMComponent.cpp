@@ -203,7 +203,7 @@ bool UEnemyFSMComponent::CanSeePlayer(FVector& OutToPlayer, float& OutDistance)
             if (bHit && Hit.GetActor() != Player)
             {
                 // 뭔가 사이에 있으면 무시 (시야가 가려졌음)
-                UE_LOG(LogTemp, Warning, TEXT("NO EYE: %s"), *GetNameSafe(Hit.GetActor()));
+                //UE_LOG(LogTemp, Warning, TEXT("NO EYE: %s"), *GetNameSafe(Hit.GetActor()));
                 if (Distance > 300.0f) 
                 {
                     continue;
