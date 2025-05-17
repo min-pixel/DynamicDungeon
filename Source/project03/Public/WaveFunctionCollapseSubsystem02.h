@@ -33,6 +33,12 @@ public:
 	// WFC 모델 설정 메서드
 	void SetWFCModel();
 
+	void PrecomputeMapAsync(int32 TryCount, int32 RandomSeed, TFunction<void()> OnCompleted);
+
+	// 캐시된 결과 저장
+	
+	bool bHasCachedTiles = false;
+
 	// Subsystem 초기화 메서드
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 

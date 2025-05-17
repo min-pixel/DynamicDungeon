@@ -146,6 +146,103 @@ void AWFCRegenerator::ClearPreviousWFCActors()
 	UE_LOG(LogTemp, Log, TEXT("Destroyed %d Enemy actors."), FoundEnemies.Num());
 }
 
+//void AWFCRegenerator::GenerateWFCAtLocation()
+//{
+//	UE_LOG(LogTemp, Warning, TEXT("GenerateWFCAtLocation started"));
+//
+//	// 기존 WFC 액터 제거
+//	ClearPreviousWFCActors();
+//	UE_LOG(LogTemp, Warning, TEXT("Previous WFC actors cleared"));
+//
+//	// 서브시스템 가져오기
+//	UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetGameInstance()->GetSubsystem<UWaveFunctionCollapseSubsystem02>();
+//	if (!WFCSubsystem || !WFCSubsystem->WFCModel)
+//	{
+//		UE_LOG(LogTemp, Error, TEXT("Failed to acquire WFCSubsystem or WFCModel"));
+//		return;
+//	}
+//
+//	// 타일 좌표 계산
+//	FVector LocalOffset = GetActorLocation() - WFCSubsystem->OriginLocation;
+//	int32 TileSize = WFCSubsystem->GetTileSize();
+//	FIntVector TileCoord = FIntVector(
+//		FMath::FloorToInt(LocalOffset.X / TileSize),
+//		FMath::FloorToInt(LocalOffset.Y / TileSize),
+//		FMath::FloorToInt(LocalOffset.Z / TileSize)
+//	);
+//
+//	UE_LOG(LogTemp, Warning, TEXT("Tile coordinate calculated: (%d, %d, %d)"), TileCoord.X, TileCoord.Y, TileCoord.Z);
+//
+//	// 방 타일 옵션 찾기
+//	FWaveFunctionCollapseOptionCustom FixedOption;
+//	bool bFound = false;
+//
+//	/*for (const auto& Elem : WFCSubsystem->WFCModel->Constraints)
+//	{
+//		const FWaveFunctionCollapseOptionCustom& Option = Elem.Key;
+//		FString Path = Option.BaseObject.ToString();
+//
+//		UE_LOG(LogTemp, Warning, TEXT("Checking Option: %s"), *Path);
+//
+//		if (Path == TEXT("/Game/BP/romm.romm"))
+//		{
+//			FixedOption = Option;
+//			bFound = true;
+//			UE_LOG(LogTemp, Warning, TEXT("Matched room tile option from Constraints: %s (IsRoomTile: %s)"),
+//				*Path, Option.bIsRoomTile ? TEXT("true") : TEXT("false"));
+//			break;
+//		}
+//	}*/
+//
+//	
+//
+//	for (const auto& Elem : WFCSubsystem->WFCModel->Constraints)
+//	{
+//		const FWaveFunctionCollapseOptionCustom& Option = Elem.Key;
+//		if (Option.BaseObject.ToString() == TEXT("/Game/BP/romm.romm"))
+//		{
+//			FixedOption = Option; //반드시 Constraints에서 찾기
+//			bFound = true;
+//			break;
+//		}
+//	}
+//
+//
+//
+//	if (!bFound)
+//	{
+//		UE_LOG(LogTemp, Error, TEXT("Could not find valid room tile option for /Game/BP/romm.romm"));
+//		return;
+//	}
+//
+//
+//	UE_LOG(LogTemp, Warning, TEXT("Adding UserFixedOptions before ExecuteWFC at (%d, %d, %d)"), TileCoord.X, TileCoord.Y, TileCoord.Z);
+//	// 고정 타일 설정
+//	WFCSubsystem->UserFixedOptions.Add(TileCoord, FixedOption);
+//	UE_LOG(LogTemp, Warning, TEXT("UserFixedOptions set: %s (RoomTile: %s)"),
+//		*FixedOption.BaseObject.ToString(), FixedOption.bIsRoomTile ? TEXT("true") : TEXT("false"));
+//
+//	UE_LOG(LogTemp, Warning, TEXT("UserFixedOptions.Num() after add: %d"), WFCSubsystem->UserFixedOptions.Num());
+//
+//	WFCSubsystem->RegeneratorFixedTileCoord = TileCoord;
+//	WFCSubsystem->RegeneratorFixedTileOption = FixedOption;
+//	WFCSubsystem->bHasRegeneratorFixedTile = true;
+//	UWorld* World = GetWorld();
+//	// WFC 실행
+//	WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);
+//	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
+//
+//	if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
+//	{
+//		WFCManager->SpawnEnemiesOnCorridor(15);
+//		WFCManager->SpawnEscapeObjectsOnRoom();
+//		WFCManager->SpawnTreasureChestsOnTiles();
+//	}
+//
+//	// 후처리 실행
+//	//WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord, Tiles);
+//}
+
 void AWFCRegenerator::GenerateWFCAtLocation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("GenerateWFCAtLocation started"));
@@ -229,7 +326,11 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	WFCSubsystem->bHasRegeneratorFixedTile = true;
 	UWorld* World = GetWorld();
 	// WFC 실행
-	WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);
+
+
+	WFCSubsystem->PrecomputeMapAsync(TryCount, RandomSeed, [this]() {});
+
+	//WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);
 	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
 
 	if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
@@ -242,3 +343,4 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	// 후처리 실행
 	//WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord, Tiles);
 }
+
