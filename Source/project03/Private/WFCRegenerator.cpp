@@ -328,17 +328,44 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	// WFC 실행
 
 
-	WFCSubsystem->PrecomputeMapAsync(TryCount, RandomSeed, [this]() {});
+	//WFCSubsystem->PrecomputeMapAsync(TryCount, RandomSeed, [this]() {});
+
+
+	// 타이머 시작
+	double StartTime = FPlatformTime::Seconds();
+
+	WFCSubsystem->PrecomputeMapAsync(TryCount, RandomSeed, [this, StartTime]()
+		{
+
+			//타이머 끝
+			double EndTime = FPlatformTime::Seconds();
+			double Duration = EndTime - StartTime;
+			UE_LOG(LogTemp, Warning, TEXT("WFC finished. Total time: %.3f seconds"), Duration);
+
+			UE_LOG(LogTemp, Warning, TEXT("WFC good enemy start"));
+
+			if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
+			{
+				WFCManager->SpawnEnemiesOnCorridor(15);
+				WFCManager->SpawnEscapeObjectsOnRoom();
+				WFCManager->SpawnTreasureChestsOnTiles();
+			}
+
+			
+
+		});
+
+	
 
 	//WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);
 	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));
 
-	if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
+	/*if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
 	{
 		WFCManager->SpawnEnemiesOnCorridor(15);
 		WFCManager->SpawnEscapeObjectsOnRoom();
 		WFCManager->SpawnTreasureChestsOnTiles();
-	}
+	}*/
 
 	// 후처리 실행
 	//WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord, Tiles);

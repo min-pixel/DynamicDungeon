@@ -57,4 +57,25 @@ public:
 
     UPROPERTY(EditDefaultsOnly, Category = "WFC UI")
     TSubclassOf<UUserWidget> WFCDoneWidgetClass;
+
+    UPROPERTY(meta = (BindWidget))
+    UImage* HotkeyIcon_1;
+
+    UPROPERTY(meta = (BindWidget))
+    UImage* HotkeyIcon_2;
+
+    UPROPERTY(meta = (BindWidget))
+    UImage* HotkeyIcon_3;
+
+    UPROPERTY(meta = (BindWidget))
+    UImage* HotkeyIcon_4;
+
+    UPROPERTY(meta = (BindWidget))
+    UImage* HotkeyIcon_5;
+
+    UFUNCTION(BlueprintCallable)
+    void UpdateHotkeySlot(int32 Index, const FItemData& ItemData);
+
+
+    
 };

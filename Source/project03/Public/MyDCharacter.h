@@ -124,6 +124,8 @@ public:
 	void StartStaminaRegen();
 	void RegenerateStamina();
 
+
+
 	// 기본 이동 속도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed = 600.0f;
@@ -284,10 +286,14 @@ public:
 
 	void UpdateEscapeProgressBar();
 
+
+
 	// Escape 함수
 	void TriggerEscapeSequence();
 	void FadeAndEscape();
 	void ExecuteEscape();
+
+
 
 	void ApplyCharacterData(const FPlayerCharacterData& Data);
 

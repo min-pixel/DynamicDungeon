@@ -2,6 +2,7 @@
 
 
 #include "EquipmentWidget.h"
+#include "UCharacterHUDWidget.h"
 #include "MyDCharacter.h"
 
 
@@ -15,6 +16,23 @@ void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
     }
 
     EquipmentSlots[Index] = ItemData;
+
+    const int32 HotkeyStartIndex = 4;
+    const int32 HotkeyEndIndex = 8;
+
+    if (Index >= HotkeyStartIndex && Index <= HotkeyEndIndex)
+    {
+        APawn* OwnerPawn = GetOwningPlayerPawn();
+        if (AMyDCharacter* Char = Cast<AMyDCharacter>(OwnerPawn))
+        {
+            int32 HotkeyIndex = Index - HotkeyStartIndex;
+            if (Char->HUDWidget)
+            {
+                Char->HUDWidget->UpdateHotkeySlot(HotkeyIndex, ItemData);
+            }
+        }
+    }
+
 
    // 캐릭터가 있을 때만 무기 장착 시도
     APawn* OwnerPawn = GetOwningPlayerPawn();

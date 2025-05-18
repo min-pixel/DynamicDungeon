@@ -3,6 +3,7 @@
 
 #include "UCharacterHUDWidget.h"
 #include "Components/ProgressBar.h"
+#include "SlotWidget.h"
 #include "Components/Image.h"
 
 void UUCharacterHUDWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
@@ -91,3 +92,44 @@ void UUCharacterHUDWidget::FadeOutHitOverlay()
         Image_HitOverlay->SetVisibility(ESlateVisibility::Hidden);
     }
 }
+
+
+void UUCharacterHUDWidget::UpdateHotkeySlot(int32 Index, const FItemData& ItemData)
+{
+    UImage* TargetIcon = nullptr;
+
+    switch (Index)
+    {
+    case 0: TargetIcon = HotkeyIcon_1; break;
+    case 1: TargetIcon = HotkeyIcon_2; break;
+    case 2: TargetIcon = HotkeyIcon_3; break;
+    case 3: TargetIcon = HotkeyIcon_4; break;
+    case 4: TargetIcon = HotkeyIcon_5; break;
+    default: return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("UpdateHotkeySlot Index = %d"), Index);
+
+
+    if (!TargetIcon)
+    {
+        return;
+    }
+
+    if (TargetIcon)
+    {
+        if (ItemData.ItemIcon)
+        {
+            TargetIcon->SetBrushFromTexture(ItemData.ItemIcon);
+        }
+        else
+        {
+            FSlateBrush GrayBrush;
+            GrayBrush.TintColor = FSlateColor(FLinearColor::White); 
+            GrayBrush.DrawAs = ESlateBrushDrawType::Box;           
+
+            TargetIcon->SetBrush(GrayBrush);
+        }
+    }
+}
+

@@ -333,6 +333,8 @@ void AMyDCharacter::BeginPlay()
 		}
 	}
 
+	
+
 
 	/*if (InventoryComponent)
 	{
@@ -1410,8 +1412,10 @@ void AMyDCharacter::FadeAndRegenWFC()
 		UE_LOG(LogTemp, Error, TEXT("WFCDoneWidgetInstance is NULL in FadeAndRegenWFC"));
 	}
 
-	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 0.5f, false);
+	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 13.0f, false);
 }
+
+
 
 void AMyDCharacter::ExecuteWFCNow()
 {
@@ -1781,6 +1785,13 @@ void AMyDCharacter::UseHotkey(int32 Index)
 		}
 
 		EquipmentWidgetInstance->RefreshEquipmentSlots();
+
+		if (HUDWidget)
+		{
+			const int32 HotkeyVisualIndex = Index; // 0~4 그대로 전달
+			HUDWidget->UpdateHotkeySlot(HotkeyVisualIndex, EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]);
+		}
+
 	}
 }
 
@@ -1789,3 +1800,4 @@ void AMyDCharacter::UseHotkey2() { UseHotkey(1); }
 void AMyDCharacter::UseHotkey3() { UseHotkey(2); }
 void AMyDCharacter::UseHotkey4() { UseHotkey(3); }
 void AMyDCharacter::UseHotkey5() { UseHotkey(4); }
+

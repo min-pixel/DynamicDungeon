@@ -187,6 +187,8 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
                 SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
             }
 
+            
+
             UE_LOG(LogTemp, Log, TEXT("Moved item from Inventory to Hotkey Slot %d"), ToIndex);
         }
     }

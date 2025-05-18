@@ -2625,17 +2625,23 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRooms(TArray<FWaveFunction
 
 							FTransform SpawnTransform = FTransform(TileRotation, TilePosition, TileScale);
 							//비동기 실험
-							//AActor* SpawnedCorridorActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
 
-							/*if (SpawnedCorridorActor)
+							/*AsyncTask(ENamedThreads::GameThread, [this, SpawnTransform, PathIndex, TilePosition, RoomIndex]()
 							{
-								UE_LOG(LogWFC, Display, TEXT("sdsdsdsdsdsdsdsdsd %s for connecting isolated room at index %d"),
-									*TilePosition.ToString(), RoomIndex);
-							}
-							else
-							{
-								UE_LOG(LogWFC, Error, TEXT("Failed to spawn Corridor Actor at index %d"), PathIndex);
-							}*/
+									UWorld* World = GetWorld();
+									AActor* SpawnedCorridorActor = World->SpawnActor<AActor>(AActor::StaticClass(), SpawnTransform);
+
+									if (SpawnedCorridorActor)
+									{
+										UE_LOG(LogWFC, Display, TEXT("sdsdsdsdsdsdsdsdsd %s for connecting isolated room at index %d"),
+											*TilePosition.ToString(), RoomIndex);
+									}
+									else
+									{
+										UE_LOG(LogWFC, Error, TEXT("Failed to spawn Corridor Actor at index %d"), PathIndex);
+									}
+							});*/
+							
 						}
 					}
 				}
@@ -3554,22 +3560,73 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 {
 	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, TryCount, RandomSeed, OnCompleted]()
 		{
+			// 해상도 설정
+			Resolution = FIntVector(60, 60, 1);
+
+			if (!WFCModel)
+			{
+				UE_LOG(LogWFC, Error, TEXT("[Async] WFCModel is null."));
+				return;
+			}
+
+			// 기본 설정
+			int32 SeedToUse = (RandomSeed != 0) ? RandomSeed : FMath::RandRange(1, TNumericLimits<int32>::Max());
+			int32 AttemptCount = 0;
+			bool bSuccess = false;
+
 			TArray<FWaveFunctionCollapseTileCustom> Tiles;
 			TArray<int32> RemainingTiles;
 			TMap<int32, FWaveFunctionCollapseQueueElementCustom> ObservationQueue;
 
 			InitializeWFC(Tiles, RemainingTiles);
 
-			int32 SeedToUse = (RandomSeed != 0) ? RandomSeed : FMath::Rand();
-			bool bSuccess = ObservationPropagation(Tiles, RemainingTiles, ObservationQueue, SeedToUse);
+			// StarterOptions 적용
+			for (const auto& Entry : UserFixedOptions)
+			{
+				const FIntVector& Coord = Entry.Key;
+				const FWaveFunctionCollapseOptionCustom& FixedOption = Entry.Value;
+
+				int32 Index = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
+
+				if (Tiles.IsValidIndex(Index))
+				{
+					Tiles[Index].RemainingOptions.Empty();
+					Tiles[Index].RemainingOptions.Add(FixedOption);
+
+					Tiles[Index].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+						Tiles[Index].RemainingOptions, WFCModel);
+				}
+			}
+
+			// 백업
+			TArray<FWaveFunctionCollapseTileCustom> OriginalTiles = Tiles;
+			TArray<int32> OriginalRemaining = RemainingTiles;
+			FRandomStream RandomStream(SeedToUse);
+
+			// ObservationPropagation 재시도
+			while (!bSuccess && AttemptCount < TryCount)
+			{
+				AttemptCount++;
+				bSuccess = ObservationPropagation(Tiles, RemainingTiles, ObservationQueue, SeedToUse);
+
+				if (!bSuccess)
+				{
+					UE_LOG(LogWFC, Warning, TEXT("[Async] Failed with Seed: %d (Attempt %d/%d)"), SeedToUse, AttemptCount, TryCount);
+					SeedToUse = RandomStream.RandRange(1, TNumericLimits<int32>::Max());
+
+					Tiles = OriginalTiles;
+					RemainingTiles = OriginalRemaining;
+					ObservationQueue.Empty();
+				}
+			}
 
 			if (!bSuccess)
 			{
-				UE_LOG(LogWFC, Error, TEXT("[Async] ObservationPropagation failed."));
+				UE_LOG(LogWFC, Error, TEXT("[Async] ObservationPropagation failed after %d attempts."), TryCount);
 				return;
 			}
 
-			// 후처리 전용 버퍼
+			// 후처리
 			TArray<FVector> RoomTilePositions;
 			TArray<FVector> FixedRoomTilePositions;
 
@@ -3578,78 +3635,59 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 			for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
 			{
-				if (Tiles[TileIndex].RemainingOptions.Num() == 1)
+				if (Tiles[TileIndex].RemainingOptions.Num() != 1) continue;
+
+				FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+
+				if (Option.bIsRoomTile)
 				{
-					FWaveFunctionCollapseOptionCustom& SelectedOption = Tiles[TileIndex].RemainingOptions[0];
+					float TileSize = WFCModel->TileSize * 3.0f;
+					FVector RoomPos = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
 
-					if (SelectedOption.bIsRoomTile)
+					bool bOverlapsOtherRoom = RoomTilePositions.ContainsByPredicate([&](const FVector& P) {
+						return FVector::DistSquared(RoomPos, P) < FMath::Square(TileSize * 1.5f);
+						});
+
+					FIntVector GridCoord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+					bool bIsFixed = UserFixedOptions.Contains(GridCoord);
+					if (bIsFixed) FixedRoomTilePositions.Add(RoomPos);
+
+					bool bOverlapsFixed = FixedRoomTilePositions.ContainsByPredicate([&](const FVector& P) {
+						return FVector::DistSquared(RoomPos, P) < FMath::Square(TileSize * 1.5f);
+						});
+
+					if (bOverlapsOtherRoom && !bIsFixed)
 					{
-						float TileSize = WFCModel->TileSize * 3.0f;
-						FVector RoomTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
-
-						bool bOverlapsOtherRoomTile = false;
-						for (const FVector& Existing : RoomTilePositions)
-						{
-							if (FVector::DistSquared(RoomTilePosition, Existing) < FMath::Square(TileSize * 1.5f))
-							{
-								bOverlapsOtherRoomTile = true;
-								break;
-							}
-						}
-
-						FIntVector GridCoord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
-						bool bIsUserFixed = UserFixedOptions.Contains(GridCoord);
-						if (bIsUserFixed)
-						{
-							FixedRoomTilePositions.Add(RoomTilePosition);
-						}
-
-						bool bOverlapsFixedRoom = false;
-						for (const FVector& Fixed : FixedRoomTilePositions)
-						{
-							if (FVector::DistSquared(RoomTilePosition, Fixed) < FMath::Square(TileSize * 1.5f))
-							{
-								bOverlapsFixedRoom = true;
-								break;
-							}
-						}
-
-						if (bOverlapsOtherRoomTile && !bIsUserFixed)
-						{
-							FWaveFunctionCollapseOptionCustom Replacement(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"));
-							Tiles[TileIndex].RemainingOptions = { Replacement };
-							Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(Tiles[TileIndex].RemainingOptions, WFCModel);
-							continue;
-						}
-
-						RoomTilePositions.Add(RoomTilePosition);
-
-						FVector MinBound = RoomTilePosition - FVector(TileSize * 1.5f);
-						FVector MaxBound = RoomTilePosition + FVector(TileSize * 0.4f);
-
-						TArray<int32> AdjacentIndices = GetAdjacentIndices(TileIndex, Resolution);
-						for (int32 AdjacentIndex : AdjacentIndices)
-						{
-							FVector AdjacentPos = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(AdjacentIndex, Resolution)) * WFCModel->TileSize;
-							if (AdjacentPos.X >= MinBound.X && AdjacentPos.X <= MaxBound.X &&
-								AdjacentPos.Y >= MinBound.Y && AdjacentPos.Y <= MaxBound.Y &&
-								AdjacentPos.Z >= MinBound.Z && AdjacentPos.Z <= MaxBound.Z)
-							{
-								Tiles[AdjacentIndex].RemainingOptions.Empty();
-								Tiles[AdjacentIndex].ShannonEntropy = 0.0f;
-							}
-						}
-
-						SelectedOption.BaseScale3D = FVector(3.0f);
-
-						AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
-						ConnectIsolatedRooms(Tiles);
-						AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
-						PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
+						Option = FWaveFunctionCollapseOptionCustom(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"));
+						Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy({ Option }, WFCModel);
+						continue;
 					}
+
+					RoomTilePositions.Add(RoomPos);
+
+					FVector MinBound = RoomPos - FVector(TileSize * 1.5f);
+					FVector MaxBound = RoomPos + FVector(TileSize * 0.4f);
+					for (int32 AdjIdx : GetAdjacentIndices(TileIndex, Resolution))
+					{
+						FVector AdjPos = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(AdjIdx, Resolution)) * WFCModel->TileSize;
+						if (AdjPos.X >= MinBound.X && AdjPos.X <= MaxBound.X &&
+							AdjPos.Y >= MinBound.Y && AdjPos.Y <= MaxBound.Y &&
+							AdjPos.Z >= MinBound.Z && AdjPos.Z <= MaxBound.Z)
+						{
+							Tiles[AdjIdx].RemainingOptions.Empty();
+							Tiles[AdjIdx].ShannonEntropy = 0.0f;
+						}
+					}
+
+					Option.BaseScale3D = FVector(3.0f);
+					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
+					ConnectIsolatedRooms(Tiles);
+					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
+					PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
 				}
 			}
 
+			// 고정된 방 방향 정렬
 			for (const auto& Elem : UserFixedOptions)
 			{
 				const FIntVector& Coord = Elem.Key;
@@ -3662,18 +3700,17 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 				}
 			}
 
-			// 결과를 GameThread에서 저장하고 알림
-			AsyncTask(ENamedThreads::GameThread, [this, TilesCopy = MoveTemp(Tiles), OnCompleted]()
+			// 결과를 GameThread에서 처리
+			AsyncTask(ENamedThreads::GameThread, [this, FinalTiles = MoveTemp(Tiles), OnCompleted]()
 				{
-					LastCollapsedTiles = TilesCopy;
+					LastCollapsedTiles = FinalTiles;
 					bHasCachedTiles = true;
-					//여기서 직접 스폰 함수 호출!
-					
+
 					SpawnActorFromTiles(LastCollapsedTiles, GetWorld());
 
-					// 이후 추가적인 작업
 					if (OnCompleted) OnCompleted();
 				});
 		});
 }
 
+//재생성(비동기버전)시, 후처리가 잘안되는 문제 있음. 개선 필요.
