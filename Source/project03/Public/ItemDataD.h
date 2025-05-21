@@ -15,6 +15,17 @@ enum class EItemType : uint8
     Consumable
 };
 
+UENUM(BlueprintType)
+enum class EPotionEffectType : uint8
+{
+    None		UMETA(DisplayName = "None"),
+    Health		UMETA(DisplayName = "Health"),
+    Mana		UMETA(DisplayName = "Mana"),
+    Stamina		UMETA(DisplayName = "Stamina")
+};
+
+
+
 USTRUCT(BlueprintType)
 struct FItemData
 {
@@ -41,9 +52,13 @@ struct FItemData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EItemType ItemType;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    EPotionEffectType PotionEffect = EPotionEffectType::None;
+
+
     FItemData()
         : ItemName(TEXT("")), ItemIcon(nullptr), ItemClass(nullptr),
-        bIsStackable(false), MaxStack(1), Count(1)
+        bIsStackable(false), MaxStack(1), Count(1), PotionEffect(EPotionEffectType::None)
     {}
 };
 

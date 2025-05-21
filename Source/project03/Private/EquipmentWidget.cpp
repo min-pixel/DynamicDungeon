@@ -36,15 +36,17 @@ void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
 
    // 캐릭터가 있을 때만 무기 장착 시도
     APawn* OwnerPawn = GetOwningPlayerPawn();
-    if (OwnerPawn)
+    if (AMyDCharacter* Char = Cast<AMyDCharacter>(OwnerPawn))
     {
         if (Index == EQUIP_SLOT_WEAPON && ItemData.ItemType == EItemType::Weapon)
         {
-            if (AMyDCharacter* Char = Cast<AMyDCharacter>(OwnerPawn))
-            {
-                Char->EquipWeaponFromClass(ItemData.ItemClass);
-                UE_LOG(LogTemp, Log, TEXT("Weapon Equipped in Game"));
-            }
+            Char->EquipWeaponFromClass(ItemData.ItemClass);
+            UE_LOG(LogTemp, Log, TEXT("Weapon Equipped in Game"));
+        }
+        else if (ItemData.ItemType == EItemType::Armor)
+        {
+            Char->EquipArmorFromClass(Index, ItemData.ItemClass);
+            UE_LOG(LogTemp, Log, TEXT("Armor Equipped at slot %d"), Index);
         }
     }
     else
@@ -58,18 +60,22 @@ void UEquipmentWidget::ClearSlot(int32 Index)
 {
     if (EquipmentSlots.IsValidIndex(Index))
     {
-
-        // 무기슬롯이라면 무기 해제
-        if (Index == EQUIP_SLOT_WEAPON)
+        AMyDCharacter* Char = Cast<AMyDCharacter>(GetOwningPlayerPawn());
+        if (Char)
         {
-            if (AMyDCharacter* Char = Cast<AMyDCharacter>(GetOwningPlayerPawn()))
+            if (Index == EQUIP_SLOT_WEAPON)
             {
                 Char->UnequipWeapon();
             }
+            else if (EquipmentSlots[Index].ItemType == EItemType::Armor)
+            {
+                Char->UnequipArmorAtSlot(Index);
+                UE_LOG(LogTemp, Log, TEXT("Armor unequipped at slot %d"), Index);
+            }
         }
 
-
         EquipmentSlots[Index] = FItemData();
+
         if (EquipmentSlotContainer && EquipmentSlotContainer->GetChildrenCount() > Index)
         {
             USlotWidget* TargetSlot = Cast<USlotWidget>(EquipmentSlotContainer->GetChildAt(Index));
@@ -80,7 +86,6 @@ void UEquipmentWidget::ClearSlot(int32 Index)
         }
     }
 }
-
 void UEquipmentWidget::SwapSlots(int32 From, int32 To)
 {
     if (EquipmentSlots.IsValidIndex(From) && EquipmentSlots.IsValidIndex(To))

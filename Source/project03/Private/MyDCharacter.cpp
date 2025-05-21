@@ -16,6 +16,8 @@
 #include "UCharacterHUDWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
+#include "Armor.h"
+#include "ManaPotion.h"
 #include "InventoryWidget.h"
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
@@ -901,6 +903,9 @@ void AMyDCharacter::EquipWeaponFromClass(TSubclassOf<AItem> WeaponClass)
 	{
 		UE_LOG(LogTemp, Error, TEXT("CharacterMesh or hand_r socket missing"));
 	}
+
+	
+
 }
 
 void AMyDCharacter::UnequipWeapon()
@@ -912,6 +917,63 @@ void AMyDCharacter::UnequipWeapon()
 		UE_LOG(LogTemp, Log, TEXT("Weapon unequipped."));
 	}
 }
+
+void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass)
+{
+	if (!ArmorClass) return;
+
+	// 기존 장착 아이템 제거
+	UnequipArmorAtSlot(SlotIndex);
+
+	// 스폰
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+
+	AArmor* Armor = GetWorld()->SpawnActor<AArmor>(ArmorClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	if (!Armor) return;
+
+	FName SocketName;
+	switch (SlotIndex)
+	{
+	case EQUIP_SLOT_HELMET: SocketName = "head"; break;
+	case EQUIP_SLOT_CHEST: SocketName = "spine_03"; break;
+	case EQUIP_SLOT_LEG: SocketName = "pelvis"; break;
+	default: return;
+	}
+
+	// 부착
+	if (CharacterMesh->DoesSocketExist(SocketName))
+	{
+		FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
+		Armor->AttachToComponent(CharacterMesh, AttachRules, SocketName);
+		Armor->SetActorHiddenInGame(false);
+		Armor->SetActorEnableCollision(false);
+
+		EquippedArmors.Add(SlotIndex, Armor);
+		Armor->ApplyArmorStats(this);
+
+		UE_LOG(LogTemp, Log, TEXT("Equipped armor at slot %d to socket %s"), SlotIndex, *SocketName.ToString());
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("After Equip: MaxHealth = %f, Health = %f"), MaxHealth, Health);
+
+}
+
+void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
+{
+	if (EquippedArmors.Contains(SlotIndex))
+	{
+		AArmor* Armor = EquippedArmors[SlotIndex];
+		if (Armor)
+		{
+			Armor->RemoveArmorStats(this);
+			Armor->Destroy();
+		}
+		EquippedArmors.Remove(SlotIndex);
+	}
+}
+
+
 
 
 void AMyDCharacter::UpdateHUD()
@@ -1763,36 +1825,43 @@ void AMyDCharacter::UseHotkey(int32 Index)
 	if (Item.ItemType == EItemType::Potion && Item.ItemClass)
 	{
 		AItem* DefaultItem = Item.ItemClass->GetDefaultObject<AItem>();
-		APotion* DefaultPotion = Cast<APotion>(DefaultItem);
+		const EPotionEffectType EffectType = Item.PotionEffect;
 
-		UE_LOG(LogTemp, Warning, TEXT("ItemClass name: %s"), *Item.ItemClass->GetName());
-
-		if (DefaultPotion)
+		switch (EffectType)
 		{
-			int32 Heal = DefaultPotion->GetHealAmount();
-
-			HealPlayer(Heal);
-			UE_LOG(LogTemp, Log, TEXT("Healed %d from potion"), DefaultPotion->GetHealAmount());
+		case EPotionEffectType::Health:
+		{
+			APotion* Potion = Cast<APotion>(DefaultItem);
+			if (Potion) HealPlayer(Potion->GetHealAmount());
+			break;
 		}
-		else {
-			UE_LOG(LogTemp, Log, TEXT("Healedsssssssssssssssssssss"), DefaultPotion->GetHealAmount());
+		case EPotionEffectType::Mana:
+		{
+			AManaPotion* ManaPotion = Cast<AManaPotion>(DefaultItem);
+			if (ManaPotion)
+			{
+				Knowledge += ManaPotion->ManaAmount;
+				Knowledge = FMath::Clamp(Knowledge, 0.0f, MaxKnowledge);
+				UpdateHUD();
+			}
+			break;
+		}
+		default:
+			UE_LOG(LogTemp, Warning, TEXT("Unknown potion effect type."));
+			break;
 		}
 
+		// 공통 처리
 		Item.Count--;
 		if (Item.Count <= 0)
 		{
 			EquipmentWidgetInstance->ClearSlot(EquipSlotIndex);
 		}
-
 		EquipmentWidgetInstance->RefreshEquipmentSlots();
-
 		if (HUDWidget)
 		{
-			const int32 HotkeyVisualIndex = Index; // 0~4 그대로 전달
-			HUDWidget->UpdateHotkeySlot(HotkeyVisualIndex, EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]);
-		}
-
-	}
+			HUDWidget->UpdateHotkeySlot(Index, EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]);
+		}}
 }
 
 void AMyDCharacter::UseHotkey1() { UseHotkey(0); }

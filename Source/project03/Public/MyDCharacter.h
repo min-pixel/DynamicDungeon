@@ -228,6 +228,16 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void UnequipWeapon();
 
+	UFUNCTION(BlueprintCallable)
+	void EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass);
+
+	UFUNCTION(BlueprintCallable)
+	void UnequipArmorAtSlot(int32 SlotIndex);
+
+	UPROPERTY()
+	TMap<int32, class AArmor*> EquippedArmors;  // ΩΩ∑‘ ¿Œµ¶Ω∫ °Ê ¿Â¬¯µ» ∞©ø 
+
+
 	UPROPERTY()
 	AActor* OverlappedActor;
 

@@ -99,6 +99,9 @@ void USlotWidget::SetItemData(const FItemData& NewData)
 {
     StoredData = NewData;
 
+
+
+
     if (!ItemIcon) return;
 
     if (StoredData.ItemIcon)
