@@ -7,6 +7,9 @@
 AArmor::AArmor()
 {
     ItemType = EItemType::Armor;  // ¸ðµç °©¿Ê °øÅë
+
+	ArmorVisualMesh = nullptr;
+
 }
 
 void AArmor::ApplyArmorStats(AMyDCharacter* Character)

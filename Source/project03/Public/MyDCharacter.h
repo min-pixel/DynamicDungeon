@@ -261,6 +261,9 @@ public:
 	UFUNCTION()
 	void TeleportToEscapeObject();
 
+	UFUNCTION()
+	void TeleportToNearestChest();
+
 	void HealPlayer(int32 Amount);
 
 	// 인벤토리 컴포넌트 가져오기
@@ -333,6 +336,14 @@ public:
 	FRotator DefaultCameraRotation;
 
 	void ToggleMapView();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (AllowPrivateAccess = "true"))
+	USkeletalMeshComponent* ChestMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (AllowPrivateAccess = "true"))
+	USkeletalMeshComponent* LegsMesh;
+
+	void EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh);
 
 	ADirectionalLight* CachedDirectionalLight = nullptr;
 

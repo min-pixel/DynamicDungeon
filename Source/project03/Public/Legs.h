@@ -18,10 +18,7 @@ public:
 
 	virtual void BeginPlay() override;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	UStaticMeshComponent* MeshComponent;
-
 	UPROPERTY()
-	UStaticMesh* LoadedMesh;
+	USkeletalMesh* LoadedMesh;
 
 };

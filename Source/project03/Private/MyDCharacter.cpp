@@ -17,6 +17,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
 #include "Armor.h"
+
 #include "ManaPotion.h"
 #include "InventoryWidget.h"
 #include "PlayerCharacterData.h"
@@ -150,6 +151,19 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Roll Montage!"));
 	}
 
+	// 상의
+	ChestMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ChestMesh"));
+	ChestMesh->SetupAttachment(GetMesh());
+	ChestMesh->SetLeaderPoseComponent(GetMesh());
+	ChestMesh->SetVisibility(false);
+
+	// 하의
+	LegsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LegsMesh"));
+	LegsMesh->SetupAttachment(GetMesh());
+	LegsMesh->SetLeaderPoseComponent(GetMesh());
+	LegsMesh->SetVisibility(false);
+
+
 	//idle 포즈 추가 (상체)
 	/*static ConstructorHelpers::FObjectFinder<UAnimMontage> PoseMontageAsset(TEXT("/Game/BP/character/Retarget/RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage.RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage"));
 	if (PoseMontageAsset.Succeeded())
@@ -171,7 +185,7 @@ AMyDCharacter::AMyDCharacter()
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;  // 컨트롤러 회전 적용
 
 	//**카메라 위치 및 방향 유지**
-	FirstPersonCameraComponent->SetRelativeLocation(FVector(20.0f, 0.0f, 50.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
+	FirstPersonCameraComponent->SetRelativeLocation(FVector(-100.0f, 0.0f, 80.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
 	FirstPersonCameraComponent->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f)); // 정면 유지
 
 	//몸체 숨기기 (1인칭에서 보이지 않게)
@@ -465,6 +479,7 @@ void AMyDCharacter::BeginPlay()
 		}
 	}
 
+
 }
 
 // 매 프레임 호출
@@ -606,6 +621,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//n
 	PlayerInputComponent->BindAction("TeleportToEscape", IE_Pressed, this, &AMyDCharacter::TeleportToEscapeObject);
+
+	//b
+	PlayerInputComponent->BindAction("TeleportToChest", IE_Pressed, this, &AMyDCharacter::TeleportToNearestChest);
 
 	// 핫키 입력 바인딩 (예: 1~5 키)
 
@@ -918,6 +936,45 @@ void AMyDCharacter::UnequipWeapon()
 	}
 }
 
+
+void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh)
+{
+	if (!NewMesh) return;
+
+	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
+		SlotIndex, *NewMesh->GetName());
+
+	switch (SlotIndex)
+	{
+	case EQUIP_SLOT_CHEST:
+		if (ChestMesh)
+		{
+			ChestMesh->SetSkeletalMesh(NewMesh);
+			ChestMesh->SetVisibility(true);
+			// 필요 시 상대 위치 조정
+			ChestMesh->SetRelativeLocation(FVector::ZeroVector);
+			ChestMesh->SetRelativeRotation(FRotator::ZeroRotator);
+		}
+		break;
+
+	case EQUIP_SLOT_LEG:
+		if (LegsMesh)
+		{
+			LegsMesh->SetMasterPoseComponent(CharacterMesh);
+			LegsMesh->SetSkeletalMesh(NewMesh);
+			LegsMesh->SetVisibility(true);
+			// 하의 루트 위치가 캐릭터보다 너무 위에 있음 → 보정 필요
+			LegsMesh->SetRelativeLocation(FVector(0.f, 0.f, -80.f)); // 실험값: -85 ~ -100 정도 추천
+			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+			//LegsMesh->SetLeaderPoseComponent(CharacterMesh);
+			UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with2222 SlotIndex = %d, Mesh = %s"),
+				SlotIndex, *NewMesh->GetName());
+		}
+		break;
+	}
+}
+
+
 void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass)
 {
 	if (!ArmorClass) return;
@@ -925,38 +982,29 @@ void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> Armo
 	// 기존 장착 아이템 제거
 	UnequipArmorAtSlot(SlotIndex);
 
-	// 스폰
+	// 장비 액터 스폰
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.Owner = this;
 
 	AArmor* Armor = GetWorld()->SpawnActor<AArmor>(ArmorClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
-	if (!Armor) return;
+	if (!Armor || !Armor->ArmorVisualMesh) return; // ArmorVisualMesh로 수정
 
-	FName SocketName;
-	switch (SlotIndex)
+	// 메시만 캐릭터 컴포넌트에 설정
+	USkeletalMesh* EquippedMesh = Armor->ArmorVisualMesh;
+	if (EquippedMesh)
 	{
-	case EQUIP_SLOT_HELMET: SocketName = "head"; break;
-	case EQUIP_SLOT_CHEST: SocketName = "spine_03"; break;
-	case EQUIP_SLOT_LEG: SocketName = "pelvis"; break;
-	default: return;
+		EquipArmorMesh(SlotIndex, EquippedMesh);
 	}
 
-	// 부착
-	if (CharacterMesh->DoesSocketExist(SocketName))
-	{
-		FAttachmentTransformRules AttachRules(EAttachmentRule::SnapToTarget, true);
-		Armor->AttachToComponent(CharacterMesh, AttachRules, SocketName);
-		Armor->SetActorHiddenInGame(false);
-		Armor->SetActorEnableCollision(false);
+	// 스탯 반영 및 장비 목록 등록
+	EquippedArmors.Add(SlotIndex, Armor);
+	Armor->ApplyArmorStats(this);
 
-		EquippedArmors.Add(SlotIndex, Armor);
-		Armor->ApplyArmorStats(this);
+	// Armor 액터는 시각적으로 필요 없음
+	Armor->SetActorHiddenInGame(true);
+	Armor->SetActorEnableCollision(false);
 
-		UE_LOG(LogTemp, Log, TEXT("Equipped armor at slot %d to socket %s"), SlotIndex, *SocketName.ToString());
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("After Equip: MaxHealth = %f, Health = %f"), MaxHealth, Health);
-
+	UE_LOG(LogTemp, Log, TEXT("Equipped armor (slot %d) with mesh: %s"), SlotIndex, *EquippedMesh->GetName());
 }
 
 void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
@@ -1870,3 +1918,37 @@ void AMyDCharacter::UseHotkey3() { UseHotkey(2); }
 void AMyDCharacter::UseHotkey4() { UseHotkey(3); }
 void AMyDCharacter::UseHotkey5() { UseHotkey(4); }
 
+void AMyDCharacter::TeleportToNearestChest()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	TArray<AActor*> FoundChests;
+	UGameplayStatics::GetAllActorsWithTag(World, FName("Chest"), FoundChests);
+
+	if (FoundChests.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No treasure chests found!"));
+		return;
+	}
+
+	AActor* ClosestChest = nullptr;
+	float MinDistSq = FLT_MAX;
+	FVector MyLocation = GetActorLocation();
+
+	for (AActor* Chest : FoundChests)
+	{
+		float DistSq = FVector::DistSquared(MyLocation, Chest->GetActorLocation());
+		if (DistSq < MinDistSq)
+		{
+			MinDistSq = DistSq;
+			ClosestChest = Chest;
+		}
+	}
+
+	if (ClosestChest)
+	{
+		SetActorLocation(ClosestChest->GetActorLocation() + FVector(0, 0, 100)); // 살짝 위로 이동
+		UE_LOG(LogTemp, Log, TEXT("Teleported to chest: %s"), *ClosestChest->GetName());
+	}
+}

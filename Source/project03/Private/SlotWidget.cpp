@@ -100,6 +100,17 @@ void USlotWidget::SetItemData(const FItemData& NewData)
     StoredData = NewData;
 
 
+    if (StoredData.ItemClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SetItemData - Class: %s, Icon: %s, Name: %s"),
+            *StoredData.ItemClass->GetName(),
+            StoredData.ItemIcon ? *StoredData.ItemIcon->GetName() : TEXT("NULL"),
+            *StoredData.ItemName);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("SetItemData - ItemClass is NULL"));
+    }
 
 
     if (!ItemIcon) return;
@@ -108,6 +119,7 @@ void USlotWidget::SetItemData(const FItemData& NewData)
     {
         ItemIcon->SetBrushFromTexture(StoredData.ItemIcon);
         ItemIcon->SetColorAndOpacity(FLinearColor::White);
+
     }
     else
     {

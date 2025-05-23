@@ -20,7 +20,7 @@ enum class EArmorType : uint8
 /**
  * 
  */
-UCLASS()
+UCLASS(Abstract)
 class PROJECT03_API AArmor : public AItem
 {
 	GENERATED_BODY()
@@ -41,5 +41,8 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Armor")
     virtual void RemoveArmorStats(class AMyDCharacter* Character);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
+    USkeletalMesh* ArmorVisualMesh;
 
 };
