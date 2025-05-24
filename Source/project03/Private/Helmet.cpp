@@ -21,20 +21,14 @@ AHelmet::AHelmet()
 	SetRootComponent(MeshComponent);
 
 	//기본 박스 메쉬로 설정
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/BP/StaticMeshhelmet.StaticMeshhelmet"));
 	if (MeshAsset.Succeeded())
 	{
-		LoadedMesh = MeshAsset.Object;
+		HelmetStaticMesh = MeshAsset.Object;
 	}
 }
 
 void AHelmet::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (LoadedMesh && MeshComponent)
-	{
-		MeshComponent->SetStaticMesh(LoadedMesh);
-		MeshComponent->SetRelativeScale3D(FVector(0.5f));  // 크기 조정
-	}
 }

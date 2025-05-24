@@ -71,7 +71,7 @@ AMyDCharacter::AMyDCharacter()
 	
 
 	// 메쉬 로드 (ConstructorHelpers 사용)
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Script/Engine.SkeletalMesh'/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Script/Engine.SkeletalMesh'/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple'"));  //  ,,,,/Script/Engine.SkeletalMesh'/Game/Characters/Mannequins/Meshes/SKM_Manny.SKM_Manny'
 	if (MeshAsset.Succeeded())
 	{
 		CharacterMesh->SetSkeletalMesh(MeshAsset.Object);
@@ -154,14 +154,26 @@ AMyDCharacter::AMyDCharacter()
 	// 상의
 	ChestMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ChestMesh"));
 	ChestMesh->SetupAttachment(GetMesh());
-	ChestMesh->SetLeaderPoseComponent(GetMesh());
+	ChestMesh->SetLeaderPoseComponent(CharacterMesh);
+	ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
+	ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 	ChestMesh->SetVisibility(false);
 
 	// 하의
 	LegsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LegsMesh"));
 	LegsMesh->SetupAttachment(GetMesh());
-	LegsMesh->SetLeaderPoseComponent(GetMesh());
+	LegsMesh->SetLeaderPoseComponent(CharacterMesh);
+	LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
+	LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 	LegsMesh->SetVisibility(false);
+
+	// 투구
+	HelmetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HelmetMesh"));
+	HelmetMesh->SetupAttachment(CharacterMesh, TEXT("hellmet")); 
+	
+	HelmetMesh->SetVisibility(false);
 
 
 	//idle 포즈 추가 (상체)
@@ -949,11 +961,13 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh)
 	case EQUIP_SLOT_CHEST:
 		if (ChestMesh)
 		{
+			ChestMesh->SetMasterPoseComponent(CharacterMesh);
 			ChestMesh->SetSkeletalMesh(NewMesh);
 			ChestMesh->SetVisibility(true);
 			// 필요 시 상대 위치 조정
-			ChestMesh->SetRelativeLocation(FVector::ZeroVector);
-			ChestMesh->SetRelativeRotation(FRotator::ZeroRotator);
+			ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
+			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+			ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 		}
 		break;
 
@@ -964,8 +978,9 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh)
 			LegsMesh->SetSkeletalMesh(NewMesh);
 			LegsMesh->SetVisibility(true);
 			// 하의 루트 위치가 캐릭터보다 너무 위에 있음 → 보정 필요
-			LegsMesh->SetRelativeLocation(FVector(0.f, 0.f, -80.f)); // 실험값: -85 ~ -100 정도 추천
+			LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
 			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+			LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			//LegsMesh->SetLeaderPoseComponent(CharacterMesh);
 			UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with2222 SlotIndex = %d, Mesh = %s"),
 				SlotIndex, *NewMesh->GetName());
@@ -987,14 +1002,27 @@ void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> Armo
 	SpawnParams.Owner = this;
 
 	AArmor* Armor = GetWorld()->SpawnActor<AArmor>(ArmorClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
-	if (!Armor || !Armor->ArmorVisualMesh) return; // ArmorVisualMesh로 수정
+	if (!Armor) return;
 
 	// 메시만 캐릭터 컴포넌트에 설정
-	USkeletalMesh* EquippedMesh = Armor->ArmorVisualMesh;
-	if (EquippedMesh)
+
+	// 헬멧 슬롯은 StaticMesh 처리
+	if (SlotIndex == EQUIP_SLOT_HELMET)
 	{
-		EquipArmorMesh(SlotIndex, EquippedMesh);
+		UStaticMesh* HelmetMeshAsset = Armor->HelmetStaticMesh;
+		if (HelmetMeshAsset)
+		{
+			EquipHelmetMesh(HelmetMeshAsset);
+		}
 	}
+	else {
+		USkeletalMesh* EquippedMesh = Armor->ArmorVisualMesh;
+		if (EquippedMesh)
+		{
+			EquipArmorMesh(SlotIndex, EquippedMesh);
+		}
+	}
+	
 
 	// 스탯 반영 및 장비 목록 등록
 	EquippedArmors.Add(SlotIndex, Armor);
@@ -1003,9 +1031,21 @@ void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> Armo
 	// Armor 액터는 시각적으로 필요 없음
 	Armor->SetActorHiddenInGame(true);
 	Armor->SetActorEnableCollision(false);
-
-	UE_LOG(LogTemp, Log, TEXT("Equipped armor (slot %d) with mesh: %s"), SlotIndex, *EquippedMesh->GetName());
 }
+
+void AMyDCharacter::EquipHelmetMesh(UStaticMesh* NewMesh)
+{
+	if (!NewMesh || !HelmetMesh) return;
+
+	HelmetMesh->SetStaticMesh(NewMesh);
+	HelmetMesh->SetVisibility(true);
+
+	
+	HelmetMesh->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
+	HelmetMesh->SetRelativeRotation(FRotator(0.f, 0.f, 0.f));
+	HelmetMesh->SetRelativeScale3D(FVector(1.f));
+}
+
 
 void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
 {
@@ -1017,6 +1057,35 @@ void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
 			Armor->RemoveArmorStats(this);
 			Armor->Destroy();
 		}
+		// 시각적으로도 제거
+		switch (SlotIndex)
+		{
+		case EQUIP_SLOT_CHEST:
+			if (ChestMesh)
+			{
+				ChestMesh->SetSkeletalMesh(nullptr);
+				ChestMesh->SetVisibility(false);
+			}
+			break;
+
+		case EQUIP_SLOT_LEG:
+			if (LegsMesh)
+			{
+				LegsMesh->SetSkeletalMesh(nullptr);
+				LegsMesh->SetVisibility(false);
+			}
+			break;
+
+		case EQUIP_SLOT_HELMET:
+			if (HelmetMesh)
+			{
+				HelmetMesh->SetStaticMesh(nullptr);
+				HelmetMesh->SetVisibility(false);
+			}
+			break;
+		}
+
+
 		EquippedArmors.Remove(SlotIndex);
 	}
 }

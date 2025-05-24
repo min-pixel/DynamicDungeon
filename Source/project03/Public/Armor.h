@@ -45,4 +45,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
     USkeletalMesh* ArmorVisualMesh;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Armor")
+    UStaticMesh* HelmetStaticMesh;
+
 };

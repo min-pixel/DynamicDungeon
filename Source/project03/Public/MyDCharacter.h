@@ -234,6 +234,11 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void UnequipArmorAtSlot(int32 SlotIndex);
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Armor")
+	UStaticMeshComponent* HelmetMesh;
+
+	void EquipHelmetMesh(UStaticMesh* NewMesh);
+
 	UPROPERTY()
 	TMap<int32, class AArmor*> EquippedArmors;  // ΩΩ∑‘ ¿Œµ¶Ω∫ °Ê ¿Â¬¯µ» ∞©ø 
 
