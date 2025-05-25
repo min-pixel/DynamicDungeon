@@ -19,11 +19,14 @@ ALegs::ALegs()
 
 	
 
-	// SkeletalMesh 리소스 로딩
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/armour/Mesh/platemailpants.platemailpants"));
 	if (MeshAsset.Succeeded())
 	{
-		ArmorVisualMesh = MeshAsset.Object; // 부모 AArmor에 있는 SkeletalMesh* ArmorVisualMesh;
+		//ArmorVisualMesh는 컴포넌트니까, 여기서는 SkeletalMesh를 넣어야 함
+		if (ArmorVisualMesh)
+		{
+			ArmorVisualMesh->SetSkeletalMesh(MeshAsset.Object);
+		}
 	}
 
 }

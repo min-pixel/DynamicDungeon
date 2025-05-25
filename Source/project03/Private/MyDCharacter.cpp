@@ -949,12 +949,14 @@ void AMyDCharacter::UnequipWeapon()
 }
 
 
-void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh)
+void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat)
 {
 	if (!NewMesh) return;
 
 	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
 		SlotIndex, *NewMesh->GetName());
+
+	
 
 	switch (SlotIndex)
 	{
@@ -968,6 +970,17 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh)
 			ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
 			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 			ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+
+			// 머티리얼 적용
+			if (Grade == EArmorGrade::B && SilverMat)
+			{
+				ChestMesh->SetMaterial(0, SilverMat);
+			}
+			else if (Grade == EArmorGrade::A && GoldMat)
+			{
+				ChestMesh->SetMaterial(0, GoldMat);
+			}
+
 		}
 		break;
 
@@ -982,15 +995,32 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh)
 			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 			LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			//LegsMesh->SetLeaderPoseComponent(CharacterMesh);
+
+			// 머티리얼 적용
+			if (Grade == EArmorGrade::B && SilverMat)
+			{
+				LegsMesh->SetMaterial(0, SilverMat);
+			}
+			else if (Grade == EArmorGrade::A && GoldMat)
+			{
+				LegsMesh->SetMaterial(0, GoldMat);
+			}
+
+
 			UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with2222 SlotIndex = %d, Mesh = %s"),
 				SlotIndex, *NewMesh->GetName());
 		}
 		break;
 	}
+
+
+
+
+
 }
 
 
-void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass)
+void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass, uint8 Grade)
 {
 	if (!ArmorClass) return;
 
@@ -1004,6 +1034,8 @@ void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> Armo
 	AArmor* Armor = GetWorld()->SpawnActor<AArmor>(ArmorClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 	if (!Armor) return;
 
+	Armor->ArmorGrade = static_cast<EArmorGrade>(Grade);
+
 	// 메시만 캐릭터 컴포넌트에 설정
 
 	// 헬멧 슬롯은 StaticMesh 처리
@@ -1012,17 +1044,22 @@ void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> Armo
 		UStaticMesh* HelmetMeshAsset = Armor->HelmetStaticMesh;
 		if (HelmetMeshAsset)
 		{
-			EquipHelmetMesh(HelmetMeshAsset);
+			EquipHelmetMesh(HelmetMeshAsset, Armor->ArmorGrade, Armor->SilverMaterial, Armor->GoldMaterial);
 		}
 	}
 	else {
-		USkeletalMesh* EquippedMesh = Armor->ArmorVisualMesh;
+		USkeletalMesh* EquippedMesh = Armor->ArmorVisualMesh->GetSkeletalMeshAsset();
 		if (EquippedMesh)
 		{
-			EquipArmorMesh(SlotIndex, EquippedMesh);
+			EquipArmorMesh(SlotIndex, EquippedMesh, Armor->ArmorGrade, Armor->SilverMaterial, Armor->GoldMaterial);
 		}
 	}
 	
+
+	UE_LOG(LogTemp, Warning, TEXT("[ARMOR EQUIP] Slot %d → %s (Grade: %s)"),
+		SlotIndex,
+		*Armor->GetName(),
+		*UEnum::GetValueAsString(Armor->ArmorGrade));
 
 	// 스탯 반영 및 장비 목록 등록
 	EquippedArmors.Add(SlotIndex, Armor);
@@ -1033,17 +1070,45 @@ void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> Armo
 	Armor->SetActorEnableCollision(false);
 }
 
-void AMyDCharacter::EquipHelmetMesh(UStaticMesh* NewMesh)
+void AMyDCharacter::EquipHelmetMesh(UStaticMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat)
 {
 	if (!NewMesh || !HelmetMesh) return;
 
 	HelmetMesh->SetStaticMesh(NewMesh);
 	HelmetMesh->SetVisibility(true);
 
-	
+	// 머티리얼 직접 적용
+	switch (Grade)
+	{
+	case EArmorGrade::B:
+		if (SilverMat)
+		{
+			HelmetMesh->SetMaterial(0, SilverMat);
+			UE_LOG(LogTemp, Log, TEXT("Helmet: Silver Material applied"));
+		}
+		break;
+
+	case EArmorGrade::A:
+		if (GoldMat)
+		{
+			HelmetMesh->SetMaterial(0, GoldMat);
+			UE_LOG(LogTemp, Log, TEXT("Helmet: Gold Material applied"));
+		}
+		break;
+
+	default:
+		UE_LOG(LogTemp, Log, TEXT("Helmet: Default (C grade) Material retained"));
+		break;
+	}
+
+
 	HelmetMesh->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
 	HelmetMesh->SetRelativeRotation(FRotator(0.f, 0.f, 0.f));
 	HelmetMesh->SetRelativeScale3D(FVector(1.f));
+
+
+	
+
 }
 
 

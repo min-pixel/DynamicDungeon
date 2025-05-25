@@ -45,7 +45,7 @@ void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
         }
         else if (ItemData.ItemType == EItemType::Armor)
         {
-            Char->EquipArmorFromClass(Index, ItemData.ItemClass);
+            Char->EquipArmorFromClass(Index, ItemData.ItemClass, ItemData.Grade);
             UE_LOG(LogTemp, Log, TEXT("Armor Equipped at slot %d"), Index);
         }
     }

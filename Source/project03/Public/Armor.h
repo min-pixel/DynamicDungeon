@@ -16,6 +16,14 @@ enum class EArmorType : uint8
     Legs     UMETA(DisplayName = "Legs")
 };
 
+UENUM(BlueprintType)
+enum class EArmorGrade : uint8
+{
+    C UMETA(DisplayName = "C"),
+    B UMETA(DisplayName = "B"),
+    A UMETA(DisplayName = "A")
+};
+
 
 /**
  * 
@@ -43,9 +51,24 @@ public:
     virtual void RemoveArmorStats(class AMyDCharacter* Character);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visual")
-    USkeletalMesh* ArmorVisualMesh;
+    USkeletalMeshComponent* ArmorVisualMesh;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Armor")
     UStaticMesh* HelmetStaticMesh;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor")
+    EArmorGrade ArmorGrade;
+
+    // 실제 적용된 보너스를 기억해둠 (제거 시 사용)
+    int32 CachedAppliedBonus = 0;
+
+    // 등급별 머티리얼
+    UPROPERTY(EditDefaultsOnly, Category = "Armor|Material")
+    UMaterialInterface* SilverMaterial;
+
+    UPROPERTY(EditDefaultsOnly, Category = "Armor|Material")
+    UMaterialInterface* GoldMaterial;
+
+
 
 };

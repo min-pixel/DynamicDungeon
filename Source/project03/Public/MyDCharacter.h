@@ -11,7 +11,8 @@
 #include "DynamicDungeonInstance.h"
 #include "Weapon.h"
 #include "Animation/AnimSequence.h"
-#include "HitInterface.h"
+#include "HitInterface.h" 
+#include "Armor.h"
 #include "Engine/DirectionalLight.h"
 #include "EngineUtils.h"
 #include "USpellBase.h"
@@ -229,7 +230,7 @@ public:
 	void UnequipWeapon();
 
 	UFUNCTION(BlueprintCallable)
-	void EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass);
+	void EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass, uint8 Grade);
 
 	UFUNCTION(BlueprintCallable)
 	void UnequipArmorAtSlot(int32 SlotIndex);
@@ -237,7 +238,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Armor")
 	UStaticMeshComponent* HelmetMesh;
 
-	void EquipHelmetMesh(UStaticMesh* NewMesh);
+	void EquipHelmetMesh(UStaticMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat);
 
 	UPROPERTY()
 	TMap<int32, class AArmor*> EquippedArmors;  // ΩΩ∑‘ ¿Œµ¶Ω∫ °Ê ¿Â¬¯µ» ∞©ø 
@@ -348,7 +349,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* LegsMesh;
 
-	void EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh);
+	void EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat);
 
 	ADirectionalLight* CachedDirectionalLight = nullptr;
 

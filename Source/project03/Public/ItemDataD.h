@@ -55,6 +55,10 @@ struct FItemData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     EPotionEffectType PotionEffect = EPotionEffectType::None;
 
+    // 등급 (방어구 또는 무기일 경우)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    uint8 Grade = 0; // 0=C, 1=B, 2=A
+
 
     FItemData()
         : ItemName(TEXT("")), ItemIcon(nullptr), ItemClass(nullptr),

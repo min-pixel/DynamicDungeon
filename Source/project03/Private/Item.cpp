@@ -2,6 +2,9 @@
 
 
 #include "Item.h"
+#include "Armor.h"
+#include "Weapon.h"
+
 
 
 // Sets default values
@@ -47,5 +50,10 @@ FItemData AItem::ToItemData() const
     Data.MaxStack = MaxStack;
     Data.PotionEffect = PotionEffect;
     Data.Count = 1; // 기본 수량
+    if (const AArmor* Armor = Cast<AArmor>(this))
+    {
+        Data.Grade = static_cast<uint8>(Armor->ArmorGrade);
+    }
+   
     return Data;
 }

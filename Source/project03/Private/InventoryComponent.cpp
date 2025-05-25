@@ -94,3 +94,27 @@ bool UInventoryComponent::RemoveItemAtStruct(int32 Index)
     }
     return false;
 }
+
+bool UInventoryComponent::TryAddItemByClassWithGrade(TSubclassOf<AItem> ItemClass, uint8 GradeOverride)
+{
+    if (!ItemClass) return false;
+
+    AItem* DefaultItem = ItemClass->GetDefaultObject<AItem>();
+    if (!DefaultItem) return false;
+
+    FItemData NewData = DefaultItem->ToItemData();
+
+    //등급 덮어쓰기
+    NewData.Grade = GradeOverride;
+
+    for (int32 i = 0; i < InventoryItemsStruct.Num(); ++i)
+    {
+        if (InventoryItemsStruct[i].ItemClass == nullptr)
+        {
+            InventoryItemsStruct[i] = NewData;
+            return true;
+        }
+    }
+
+    return false;
+}

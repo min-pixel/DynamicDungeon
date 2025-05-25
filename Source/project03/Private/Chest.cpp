@@ -18,12 +18,15 @@ AChest::AChest()
 
 	
 
-	// SkeletalMesh 리소스 로딩
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/armour/Mesh/platemailchest.platemailchest")); 
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/armour/Mesh/platemailchest.platemailchest"));
 	if (MeshAsset.Succeeded())
 	{
-		ArmorVisualMesh = MeshAsset.Object; // 부모 AArmor에 있는 SkeletalMesh* ArmorVisualMesh;
+		if (ArmorVisualMesh)
+		{
+			ArmorVisualMesh->SetSkeletalMesh(MeshAsset.Object);
+		}
 	}
+
 }
 
 void AChest::BeginPlay()

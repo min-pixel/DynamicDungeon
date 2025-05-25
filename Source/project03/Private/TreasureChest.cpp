@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/BoxComponent.h"
 #include "MyDCharacter.h"
+#include "Weapon.h"
+#include "Armor.h"
 #include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
@@ -95,9 +97,35 @@ void ATreasureChest::GenerateRandomItems()
             AItem* DefaultItem = SelectedClass->GetDefaultObject<AItem>();
             NewItemData.ItemIcon = DefaultItem->ItemIcon;
             NewItemData.ItemName = DefaultItem->ItemName;
+
+            // 등급을 무작위로 설정
+            if (DefaultItem->IsA(AArmor::StaticClass()))
+            {
+                int32 GradeRoll = FMath::RandRange(0, 99);
+                if (GradeRoll < 5)
+                    NewItemData.Grade = static_cast<uint8>(EArmorGrade::C);
+                else if (GradeRoll < 50)
+                    NewItemData.Grade = static_cast<uint8>(EArmorGrade::B);
+                else
+                    NewItemData.Grade = static_cast<uint8>(EArmorGrade::A);
+            }
+            else if (DefaultItem->IsA(AWeapon::StaticClass()))
+            {
+                int32 GradeRoll = FMath::RandRange(0, 99);
+                if (GradeRoll < 60)
+                    NewItemData.Grade = static_cast<uint8>(EWeaponGrade::C);
+                else if (GradeRoll < 90)
+                    NewItemData.Grade = static_cast<uint8>(EWeaponGrade::B);
+                else
+                    NewItemData.Grade = static_cast<uint8>(EWeaponGrade::A);
+            }
+
+
         }
 
-        ChestInventory->TryAddItemByClass(PossibleItems[RandomIndex]); // 구조체 기반으로 추가
+       //ChestInventory->TryAddItemByClass(PossibleItems[RandomIndex]); // 구조체 기반으로 추가
+       ChestInventory->TryAddItemByClassWithGrade(SelectedClass, NewItemData.Grade);
+       //ChestInventory->TryAddItemStruct(NewItemData);
     }
 }
 

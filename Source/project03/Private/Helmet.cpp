@@ -20,12 +20,25 @@ AHelmet::AHelmet()
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	SetRootComponent(MeshComponent);
 
-	//기본 박스 메쉬로 설정
+	
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/BP/StaticMeshhelmet.StaticMeshhelmet"));
 	if (MeshAsset.Succeeded())
 	{
 		HelmetStaticMesh = MeshAsset.Object;
 	}
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SilverMat(TEXT("/Game/StarterContent/Materials/M_Metal_Steel.M_Metal_Steel"));
+	if (SilverMat.Succeeded())
+	{
+		SilverMaterial = SilverMat.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> GoldMat(TEXT("/Game/StarterContent/Materials/M_Metal_Gold.M_Metal_Gold"));
+	if (GoldMat.Succeeded())
+	{
+		GoldMaterial = GoldMat.Object;
+	}
+
 }
 
 void AHelmet::BeginPlay()

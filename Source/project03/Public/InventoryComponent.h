@@ -39,6 +39,8 @@ public:
 
 	bool RemoveItemAtStruct(int32 Index);
 
+	bool TryAddItemByClassWithGrade(TSubclassOf<AItem> ItemClass, uint8 GradeOverride);
+
 	// 특정 인덱스에서 아이템 제거
 	/*UFUNCTION(BlueprintCallable)
 	bool RemoveItemAt(int32 Index);*/
