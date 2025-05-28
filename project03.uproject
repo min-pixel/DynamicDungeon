@@ -29,6 +29,10 @@
 			"Enabled": false
 		},
 		{
+			"Name": "Niagara",
+ 			"Enabled": true
+		},
+		{
 			"Name": "ActorLayerUtilities",
 			"Enabled": true
 		},

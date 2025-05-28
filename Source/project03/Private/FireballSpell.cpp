@@ -10,11 +10,13 @@
 UFireballSpell::UFireballSpell()
 {
     // 기본 Projectile 클래스 지정 (BP 사용 시 블루프린트 경로로 초기화 가능)
-    static ConstructorHelpers::FClassFinder<AActor> FireballBP(TEXT("/Game/BP/Spell/BP_FireballProjectile.BP_FireballProjectile_C"));
+    /*static ConstructorHelpers::FClassFinder<ASpellProjectile> FireballBP(TEXT("/Game/BP/Spell/BP_FireballProjectile.BP_FireballProjectile_C"));
     if (FireballBP.Succeeded())
     {
         FireballProjectileClass = FireballBP.Class;
-    }
+    }*/
+
+    FireballProjectileClass = ASpellProjectile::StaticClass();
 
     ManaCost = 20.0f;
     StaminaCost = 10.0f;

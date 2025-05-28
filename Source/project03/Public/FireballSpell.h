@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "USpellBase.h"
+#include "SpellProjectile.h"
 #include "FireballSpell.generated.h"
 
 /**
@@ -21,7 +22,7 @@ public:
 	virtual void ActivateSpell(AMyDCharacter* Caster) override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Spell")
-	TSubclassOf<AActor> FireballProjectileClass;
+	TSubclassOf<ASpellProjectile> FireballProjectileClass;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Spell")
 	float FireballSpeed = 1000.0f;
