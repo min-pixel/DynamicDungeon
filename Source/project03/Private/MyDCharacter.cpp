@@ -17,8 +17,9 @@
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
 #include "Armor.h"
-
+#include "StaminaPotion.h"
 #include "ManaPotion.h"
+#include "HealSpell.h"
 #include "InventoryWidget.h"
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
@@ -474,7 +475,11 @@ void AMyDCharacter::BeginPlay()
 	if (PlayerClass == EPlayerClass::Mage)
 	{
 		UFireballSpell* Fireball = NewObject<UFireballSpell>(this);
-		SpellSet.Add(Fireball);
+		SpellSet.Add(Fireball); // 인덱스 0번: 파이어 볼
+
+		UHealSpell* Heal = NewObject<UHealSpell>(this);
+		SpellSet.Add(Heal); // 인덱스 1번: 힐 마법
+
 	}
 
 	if (!CachedDirectionalLight)
@@ -622,6 +627,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//스펠 사용 추가 (Q키)
 	PlayerInputComponent->BindAction("CastSpell1", IE_Pressed, this, &AMyDCharacter::CastSpell1);
+
+	//스펠 사용 추가 (E키)
+	PlayerInputComponent->BindAction("CastSpell2", IE_Pressed, this, &AMyDCharacter::CastSpell2);
 
 	PlayerInputComponent->BindAction("ToggleMapView", IE_Pressed, this, &AMyDCharacter::ToggleMapView);
 
@@ -1821,6 +1829,11 @@ void AMyDCharacter::CastSpell1()
 	TryCastSpell(0);
 }
 
+void AMyDCharacter::CastSpell2()
+{
+	TryCastSpell(1);
+}
+
 void AMyDCharacter::ToggleMapView()
 {
 
@@ -1997,6 +2010,30 @@ void AMyDCharacter::UseHotkey(int32 Index)
 
 	UE_LOG(LogTemp, Warning, TEXT("gpt bbbbbyu"));
 
+	if (!Item.ItemClass) return;
+
+	AItem* DefaultItem = Item.ItemClass->GetDefaultObject<AItem>();
+	if (!DefaultItem) return;
+
+	if (Item.ItemType == EItemType::Consumable)
+	{
+		DefaultItem->Use(this);  // AScrollItem이면 스킬 발동됨
+
+		// 공통 처리
+		Item.Count--;
+		if (Item.Count <= 0)
+		{
+			EquipmentWidgetInstance->ClearSlot(EquipSlotIndex);
+		}
+		EquipmentWidgetInstance->RefreshEquipmentSlots();
+
+		if (HUDWidget)
+		{
+			HUDWidget->UpdateHotkeySlot(Index, EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]);
+		}
+		return;
+	}
+
 
 	if (Item.ItemClass && Item.ItemType != EItemType::Potion)
 	{
@@ -2006,7 +2043,7 @@ void AMyDCharacter::UseHotkey(int32 Index)
 
 	if (Item.ItemType == EItemType::Potion && Item.ItemClass)
 	{
-		AItem* DefaultItem = Item.ItemClass->GetDefaultObject<AItem>();
+		//AItem* DefaultItem = Item.ItemClass->GetDefaultObject<AItem>();
 		const EPotionEffectType EffectType = Item.PotionEffect;
 
 		switch (EffectType)
@@ -2028,6 +2065,17 @@ void AMyDCharacter::UseHotkey(int32 Index)
 			}
 			break;
 		}
+		case EPotionEffectType::Stamina:
+		{
+			AStaminaPotion* StaminaPotion = Cast<AStaminaPotion>(DefaultItem);
+			if (StaminaPotion)
+			{
+				Stamina += StaminaPotion->StaminaAmount;
+				Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
+				UpdateHUD(); 
+			}
+			break;
+		}
 		default:
 			UE_LOG(LogTemp, Warning, TEXT("Unknown potion effect type."));
 			break;
@@ -2043,7 +2091,8 @@ void AMyDCharacter::UseHotkey(int32 Index)
 		if (HUDWidget)
 		{
 			HUDWidget->UpdateHotkeySlot(Index, EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]);
-		}}
+		}
+	}
 }
 
 void AMyDCharacter::UseHotkey1() { UseHotkey(0); }

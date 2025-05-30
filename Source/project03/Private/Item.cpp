@@ -3,6 +3,7 @@
 
 #include "Item.h"
 #include "Armor.h"
+#include "ScrollItem.h"
 #include "Weapon.h"
 
 
@@ -54,6 +55,18 @@ FItemData AItem::ToItemData() const
     {
         Data.Grade = static_cast<uint8>(Armor->ArmorGrade);
     }
+
+    // 스크롤일 경우 스킬 인덱스 복사
+    if (const AScrollItem* Scroll = Cast<AScrollItem>(this))
+    {
+        Data.SkillIndex = Scroll->SkillIndex;
+    }
    
     return Data;
+}
+
+void AItem::Use_Implementation(AMyDCharacter* Character)
+{
+    // 기본 아이템은 아무 행동도 안 함
+    UE_LOG(LogTemp, Log, TEXT("AItem::Use_Implementation() called, but no effect."));
 }

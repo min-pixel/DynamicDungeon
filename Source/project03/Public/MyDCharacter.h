@@ -326,6 +326,8 @@ public:
 
 	void CastSpell1();
 
+	void CastSpell2();
+
 	// 횃불 액터 포인터 저장
 	UPROPERTY()
 	AActor* AttachedTorch = nullptr;

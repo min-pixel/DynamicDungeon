@@ -59,6 +59,9 @@ struct FItemData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     uint8 Grade = 0; // 0=C, 1=B, 2=A
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 SkillIndex = -1;  // -1이면 유효하지 않음
+
 
     FItemData()
         : ItemName(TEXT("")), ItemIcon(nullptr), ItemClass(nullptr),
