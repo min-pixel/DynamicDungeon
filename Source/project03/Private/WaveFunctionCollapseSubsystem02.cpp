@@ -6,7 +6,7 @@
 #include "Engine/Texture.h"
 #include "WaveFunctionCollapseBPLibrary02.h"
 #include "Components/InstancedStaticMeshComponent.h"
-
+#include "Engine/StaticMeshActor.h"
 #include "Engine/StreamableManager.h"
 #include "Engine/AssetManager.h"
 #include "WaveFunctionCollapseModel02.h"
@@ -113,7 +113,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 	bool bSuccessfulSolve = false;
 
-
+	//PrepareTilePrefabPool(World);
 	//실행 시간 측정 시작1
 	double PropagationStart = FPlatformTime::Seconds();
 
@@ -405,6 +405,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		UE_LOG(LogTemp, Warning, TEXT("Post-processing + Spawning took: %.3f seconds"), PostProcessEnd - PostProcessStart);
 
 		
+		//PrepareTilePrefabPool(World);
+
 		return SpawnedActor;
 
 		
@@ -415,6 +417,9 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		UE_LOG(LogWFC, Error, TEXT("Failed after %d tries."), TryCount);
 		return nullptr;
 	}
+
+	
+
 }
 
 const TArray<FWaveFunctionCollapseTileCustom>& UWaveFunctionCollapseSubsystem02::GetLastCollapsedTiles() const
@@ -3559,7 +3564,7 @@ void UWaveFunctionCollapseSubsystem02::AdjustRoomTileFacingDirection(int32 TileI
 void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 RandomSeed, TFunction<void()> OnCompleted)
 {
 	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, TryCount, RandomSeed, OnCompleted]()
-		{
+	{
 			// 해상도 설정
 			Resolution = FIntVector(60, 60, 1);
 
@@ -3702,15 +3707,185 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 			// 결과를 GameThread에서 처리
 			AsyncTask(ENamedThreads::GameThread, [this, FinalTiles = MoveTemp(Tiles), OnCompleted]()
-				{
+			{
 					LastCollapsedTiles = FinalTiles;
 					bHasCachedTiles = true;
 
-					SpawnActorFromTiles(LastCollapsedTiles, GetWorld());
+					//SpawnActorFromTiles(LastCollapsedTiles, GetWorld());
+
+					// 새 풀링 기반 함수 호출
+					ReuseTilePrefabsFromPool(LastCollapsedTiles, GetWorld());
+
+					UE_LOG(LogWFC, Error, TEXT("fine pooling"));
 
 					if (OnCompleted) OnCompleted();
-				});
-		});
+			});
+	});
 }
 
 //재생성(비동기버전)시, 후처리가 잘안되는 문제 있음. 개선 필요.
+
+//void UWaveFunctionCollapseSubsystem02::PrepareTilePrefabPool(UWorld* World)
+//{
+//	if (!WFCModel) return;
+//
+//	for (const auto& Pair : WFCModel->Constraints)
+//	{
+//		const FWaveFunctionCollapseOptionCustom& Option = Pair.Key;
+//
+//		if (TilePrefabPool.Contains(Option)) continue;
+//
+//		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Option.BaseObject.ToString());
+//		if (!Mesh) continue;
+//
+//		AStaticMeshActor* PrefabActor = World->SpawnActor<AStaticMeshActor>();
+//
+//		UStaticMeshComponent* MeshComp = PrefabActor->GetStaticMeshComponent();
+//		if (!MeshComp) continue;
+//
+//		MeshComp->SetMobility(EComponentMobility::Movable);
+//
+//		PrefabActor->SetActorHiddenInGame(true);
+//		PrefabActor->SetActorEnableCollision(false);
+//		PrefabActor->SetActorLocation(FVector::ZeroVector);
+//		PrefabActor->GetStaticMeshComponent()->SetStaticMesh(Mesh);
+//		PrefabActor->SetActorScale3D(Option.BaseScale3D);
+//		PrefabActor->SetActorRotation(Option.BaseRotator);
+//
+//		TilePrefabPool.Add(Option, PrefabActor);
+//
+//		UE_LOG(LogWFC, Error, TEXT("pooling"));
+//	}
+//}
+
+void UWaveFunctionCollapseSubsystem02::PrepareTilePrefabPool(UWorld* World)
+{
+	if (!WFCModel) return;
+
+	for (const auto& Pair : WFCModel->Constraints)
+	{
+		const FWaveFunctionCollapseOptionCustom& Option = Pair.Key;
+
+		if (TilePrefabPool.Contains(Option)) continue;
+
+		// 1. Static Mesh 직접 로드 시도
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Option.BaseObject.ToString());
+		if (Mesh)
+		{
+			AStaticMeshActor* PrefabActor = World->SpawnActor<AStaticMeshActor>();
+			UStaticMeshComponent* MeshComp = PrefabActor->GetStaticMeshComponent();
+			if (!MeshComp)
+			{
+				PrefabActor->Destroy();
+				continue;
+			}
+
+			MeshComp->SetMobility(EComponentMobility::Movable);
+			MeshComp->SetStaticMesh(Mesh);
+			PrefabActor->SetActorHiddenInGame(true);
+			PrefabActor->SetActorEnableCollision(false);
+			PrefabActor->SetActorLocation(FVector::ZeroVector);
+			PrefabActor->SetActorScale3D(Option.BaseScale3D);
+			PrefabActor->SetActorRotation(Option.BaseRotator);
+
+			TilePrefabPool.Add(Option, PrefabActor);
+			UE_LOG(LogWFC, Log, TEXT("Pooling (StaticMesh): %s"), *Option.BaseObject.ToString());
+			continue;
+		}
+
+		// 2. StaticMesh가 아니라면 블루프린트 액터일 가능성 → 클래스 로드
+
+		FString ClassPath = Option.BaseObject.ToString();
+		if (!ClassPath.EndsWith(TEXT("_C")))
+		{
+			ClassPath += TEXT("_C"); //블루프린트 클래스 경로 보정
+		}
+
+
+		UClass* BPClass = LoadClass<AActor>(nullptr, *ClassPath);
+		if (!BPClass) continue;
+
+		AActor* PooledActor = World->SpawnActor<AActor>(BPClass);
+		if (!PooledActor) continue;
+
+		PooledActor->SetActorHiddenInGame(true);
+		PooledActor->SetActorEnableCollision(false);
+		PooledActor->SetActorLocation(FVector::ZeroVector);
+		PooledActor->SetActorScale3D(Option.BaseScale3D);
+		PooledActor->SetActorRotation(Option.BaseRotator);
+
+		TilePrefabPool.Add(Option, PooledActor);
+
+		UE_LOG(LogWFC, Log, TEXT("Pooling (BP Actor): %s"), *Option.BaseObject.ToString());
+	}
+}
+
+
+void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
+	const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* World)
+{
+	if (!World || !WFCModel) return;
+
+	for (int32 Index = 0; Index < Tiles.Num(); ++Index)
+	{
+		const FWaveFunctionCollapseTileCustom& Tile = Tiles[Index];
+
+		// 유효한 하나의 옵션만 있는 경우만 처리
+		if (Tile.RemainingOptions.Num() != 1) continue;
+
+		const FWaveFunctionCollapseOptionCustom& Option = Tile.RemainingOptions[0];
+
+		if (!Option.BaseObject.IsValid()) continue;
+
+		// 풀링된 프리팹 가져오기
+		AActor* Prefab = nullptr;
+		if (!TilePrefabPool.Contains(Option))
+		{
+			UE_LOG(LogWFC, Warning, TEXT("No prefab found for option: %s"), *Option.BaseObject.ToString());
+			continue;
+		}
+
+		Prefab = TilePrefabPool[Option];
+		if (!IsValid(Prefab)) continue;
+
+		AActor* NewTile = nullptr;
+
+		//Case 1: StaticMeshActor이면 메시 복사 방식
+		if (AStaticMeshActor* StaticMeshPrefab = Cast<AStaticMeshActor>(Prefab))
+		{
+			AStaticMeshActor* NewStaticMeshTile = World->SpawnActor<AStaticMeshActor>();
+			if (!NewStaticMeshTile) continue;
+
+			UStaticMeshComponent* MeshComp = NewStaticMeshTile->GetStaticMeshComponent();
+			if (!MeshComp) continue;
+
+			MeshComp->SetMobility(EComponentMobility::Movable);
+			MeshComp->SetStaticMesh(StaticMeshPrefab->GetStaticMeshComponent()->GetStaticMesh());
+			NewStaticMeshTile->SetActorScale3D(StaticMeshPrefab->GetActorScale3D());
+			NewStaticMeshTile->SetActorRotation(StaticMeshPrefab->GetActorRotation());
+			NewTile = NewStaticMeshTile;
+		}
+		else
+		{
+			//Case 2: 블루프린트 액터라면 동일한 클래스에서 복제
+			UClass* ActorClass = Prefab->GetClass();
+			NewTile = World->SpawnActor<AActor>(ActorClass);
+			if (!NewTile) continue;
+
+			NewTile->SetActorScale3D(Prefab->GetActorScale3D());
+			NewTile->SetActorRotation(Prefab->GetActorRotation());
+		}
+
+		if (!NewTile) continue;
+
+		// 위치 설정
+		FVector Location = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
+		NewTile->SetActorLocation(Location);
+
+		NewTile->SetActorHiddenInGame(false);
+		NewTile->SetActorEnableCollision(true);
+		NewTile->Tags.Add("WFCGenerated");
+
+		//SpawnedTileActors.Add(NewTile);
+	}
+}

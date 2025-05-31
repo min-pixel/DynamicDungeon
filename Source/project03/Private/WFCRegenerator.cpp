@@ -335,7 +335,7 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	double StartTime = FPlatformTime::Seconds();
 
 	WFCSubsystem->PrecomputeMapAsync(TryCount, RandomSeed, [this, StartTime]()
-		{
+	{
 
 			//타이머 끝
 			double EndTime = FPlatformTime::Seconds();
@@ -353,7 +353,7 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 
 			
 
-		});
+	});
 
 	
 

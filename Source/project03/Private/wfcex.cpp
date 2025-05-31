@@ -34,6 +34,15 @@ void Awfcex::BeginPlay()
 
 
 	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505, 767089153, 1948641409, 1358936321, 1964145409,  2078383361
+
+    //풀링
+    if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+    {
+        WFCSubsystem->PrepareTilePrefabPool(GetWorld());
+    }
+
+
+
     SpawnPlayerOnCorridor();
 
     SpawnEnemiesOnCorridor(15);

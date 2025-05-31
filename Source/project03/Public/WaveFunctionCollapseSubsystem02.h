@@ -24,6 +24,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFCSettings")
 	TObjectPtr<UWaveFunctionCollapseModel02> WFCModel;
 
+	// Tile 종류 → 원본 액터 20250531
+	TMap<FWaveFunctionCollapseOptionCustom, AActor*> TilePrefabPool;
+
+	void PrepareTilePrefabPool(UWorld* World);
+
+	void ReuseTilePrefabsFromPool(const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* World);
+
 	void SetExecutionContext(UObject* InContext) { ExecutionContext = InContext; }
 
 	// WFC 실행 함수
