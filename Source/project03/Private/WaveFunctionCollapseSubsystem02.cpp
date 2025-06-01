@@ -1532,7 +1532,7 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 {
 	if (!WFCModel)
 	{
-		WFCModel = LoadObject<UWaveFunctionCollapseModel02>(nullptr, TEXT("/Game/WFCCORE/zxzx34.zxzx34"));
+		WFCModel = LoadObject<UWaveFunctionCollapseModel02>(nullptr, TEXT("/Game/WFCCORE/zxzx39.zxzx39"));
 		if (!WFCModel)
 		{
 			//UE_LOG(LogTemp, Error, TEXT("WFCModel 로딩 실패! 경로를 확인하세요."));
@@ -1568,7 +1568,7 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 
 void UWaveFunctionCollapseSubsystem02::SetWFCModel()
 {
-	FSoftObjectPath ModelPath(TEXT("/Game/WFCCORE/zxzx34.zxzx34"));
+	FSoftObjectPath ModelPath(TEXT("/Game/WFCCORE/zxzx39.zxzx39"));
 	FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
 	UWaveFunctionCollapseModel02* LoadedModel = Cast<UWaveFunctionCollapseModel02>(Streamable.LoadSynchronous(ModelPath));
 
@@ -3705,6 +3705,88 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 				}
 			}
 
+			// ===== WFC 후처리 정식 버전 (CollapseCustom과 동일) =====
+
+			//TSet<FVector> RoomTilePositions;
+			//TSet<FVector> FixedRoomTilePositions;
+
+			// 먼저 고정된 방 타일 위치를 기억
+			for (const auto& Pair : UserFixedOptions)
+			{
+				int32 TileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Pair.Key, Resolution);
+				const auto& Tile = Tiles[TileIndex];
+				if (Tile.RemainingOptions.Num() == 1 && Tile.RemainingOptions[0].bIsRoomTile)
+				{
+					FVector RoomPos = FVector(Pair.Key) * WFCModel->TileSize;
+					FixedRoomTilePositions.Add(RoomPos);
+				}
+			}
+
+			// 1. 일반 방 타일 후처리
+			for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
+			{
+				if (Tiles[TileIndex].RemainingOptions.Num() != 1) continue;
+
+				FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+
+				if (Option.bIsRoomTile)
+				{
+					float TileSize = WFCModel->TileSize * 3.0f;
+					FVector RoomPos = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
+
+					bool bOverlapsOtherRoom = RoomTilePositions.ContainsByPredicate([&](const FVector& P) {
+						return FVector::DistSquared(RoomPos, P) < FMath::Square(TileSize * 1.5f);
+						});
+
+					FIntVector GridCoord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+					bool bIsFixed = UserFixedOptions.Contains(GridCoord);
+					if (bIsFixed) FixedRoomTilePositions.Add(RoomPos);
+
+					bool bOverlapsFixed = FixedRoomTilePositions.ContainsByPredicate([&](const FVector& P) {
+						return FVector::DistSquared(RoomPos, P) < FMath::Square(TileSize * 1.5f);
+						});
+
+					if (bOverlapsOtherRoom && !bIsFixed)
+					{
+						Option = FWaveFunctionCollapseOptionCustom(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"));
+						Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy({ Option }, WFCModel);
+						continue;
+					}
+
+					RoomTilePositions.Add(RoomPos);
+
+					// 주변 겹침 방지
+					FVector MinBound = RoomPos - FVector(TileSize * 1.5f);
+					FVector MaxBound = RoomPos + FVector(TileSize * 0.4f);
+					for (int32 AdjIdx : GetAdjacentIndices(TileIndex, Resolution))
+					{
+						FVector AdjPos = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(AdjIdx, Resolution)) * WFCModel->TileSize;
+						if (AdjPos.X >= MinBound.X && AdjPos.X <= MaxBound.X &&
+							AdjPos.Y >= MinBound.Y && AdjPos.Y <= MaxBound.Y &&
+							AdjPos.Z >= MinBound.Z && AdjPos.Z <= MaxBound.Z)
+						{
+							Tiles[AdjIdx].RemainingOptions.Empty();
+							Tiles[AdjIdx].ShannonEntropy = 0.0f;
+						}
+					}
+
+					// 방 크기 및 회전 보정
+					Option.BaseScale3D = FVector(3.0f);
+					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
+				}
+			}
+
+			// 2. 고정된 방 타일 전용 후처리 (최우선)
+			for (const auto& Pair : UserFixedOptions)
+			{
+				int32 TileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Pair.Key, Resolution);
+				PostProcessFixedRoomTileAt(Pair.Key, Tiles);
+			}
+
+			// 3. 고립된 방 → 복도 연결
+			ConnectIsolatedRooms(Tiles);
+
+
 			// 결과를 GameThread에서 처리
 			AsyncTask(ENamedThreads::GameThread, [this, FinalTiles = MoveTemp(Tiles), OnCompleted]()
 			{
@@ -3715,7 +3797,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 					// 새 풀링 기반 함수 호출
 					ReuseTilePrefabsFromPool(LastCollapsedTiles, GetWorld());
-
+					SpawnBorderBlueprints();
 					UE_LOG(LogWFC, Error, TEXT("fine pooling"));
 
 					if (OnCompleted) OnCompleted();
@@ -3818,6 +3900,45 @@ void UWaveFunctionCollapseSubsystem02::PrepareTilePrefabPool(UWorld* World)
 
 		UE_LOG(LogWFC, Log, TEXT("Pooling (BP Actor): %s"), *Option.BaseObject.ToString());
 	}
+
+	// --- goalt01 수동 풀링 처리 ---
+	{
+		const FString Path = TEXT("/Game/BP/goalt01.goalt01_C");
+		UClass* GoalClass = LoadClass<AActor>(nullptr, *Path);
+		if (GoalClass)
+		{
+			AActor* GoalPrefab = World->SpawnActor<AActor>(GoalClass);
+			if (GoalPrefab)
+			{
+				GoalPrefab->SetActorHiddenInGame(true);
+				GoalPrefab->SetActorEnableCollision(false);
+				GoalPrefab->SetActorLocation(FVector::ZeroVector);
+				GoalPrefab->Tags.Add("ManuallyPooled");
+
+				FWaveFunctionCollapseOptionCustom Option;
+				Option.BaseObject = GoalClass;
+				Option.BaseScale3D = GoalPrefab->GetActorScale3D();
+				Option.BaseRotator = GoalPrefab->GetActorRotation();
+
+				if (!TilePrefabPool.Contains(Option))
+				{
+					TilePrefabPool.Add(Option, GoalPrefab);
+					UE_LOG(LogWFC, Log, TEXT("Manually pooled goalt01 tile."));
+				}
+				else
+				{
+					GoalPrefab->Destroy();
+				}
+			}
+		}
+		else
+		{
+			UE_LOG(LogWFC, Warning, TEXT("Failed to load goalt01 class."));
+		}
+	}
+
+
+
 }
 
 
@@ -3837,15 +3958,28 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 
 		if (!Option.BaseObject.IsValid()) continue;
 
-		// 풀링된 프리팹 가져오기
-		AActor* Prefab = nullptr;
-		if (!TilePrefabPool.Contains(Option))
+		// Key로 사용할 CleanOption 생성 (회전, 스케일 무시)
+		FWaveFunctionCollapseOptionCustom CleanOption = Option;
+		CleanOption.BaseRotator = FRotator::ZeroRotator;
+		CleanOption.BaseScale3D = FVector(1.0f);
+
+		// 풀링에서 회전/스케일 무시한 키로 탐색
+		if (!TilePrefabPool.Contains(CleanOption))
 		{
 			UE_LOG(LogWFC, Warning, TEXT("No prefab found for option: %s"), *Option.BaseObject.ToString());
 			continue;
 		}
 
-		Prefab = TilePrefabPool[Option];
+
+		// 풀링된 프리팹 가져오기
+		AActor* Prefab = nullptr;
+		/*if (!TilePrefabPool.Contains(Option))
+		{
+			UE_LOG(LogWFC, Warning, TEXT("No prefab found for option: %s"), *Option.BaseObject.ToString());
+			continue;
+		}*/
+
+		Prefab = TilePrefabPool[CleanOption];
 		if (!IsValid(Prefab)) continue;
 
 		AActor* NewTile = nullptr;
@@ -3881,7 +4015,8 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 		// 위치 설정
 		FVector Location = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
 		NewTile->SetActorLocation(Location);
-
+		NewTile->SetActorScale3D(Option.BaseScale3D); 
+		NewTile->SetActorRotation(Option.BaseRotator); 
 		NewTile->SetActorHiddenInGame(false);
 		NewTile->SetActorEnableCollision(true);
 		NewTile->Tags.Add("WFCGenerated");
