@@ -1144,6 +1144,9 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 		return nullptr;
 	}
 
+	//시작 시간
+	const double StartTime = FPlatformTime::Seconds();
+
 	FActorSpawnParameters SpawnParams;
 	AActor* SpawnedActor = WorldContext->SpawnActor<AActor>(AActor::StaticClass(), OriginLocation, Orientation, SpawnParams);
 	if (!SpawnedActor)
@@ -1227,6 +1230,12 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 			UE_LOG(LogWFC, Warning, TEXT("Failed to load tile asset: %s"), *Option.BaseObject.ToString());
 		}
 	}
+
+	//종료 시간 및 출력
+	const double EndTime = FPlatformTime::Seconds();
+	const double ElapsedTime = EndTime - StartTime;
+	UE_LOG(LogWFC, Log, TEXT("[SpawnActorFromTiles] Tile spawning took %.4f seconds."), ElapsedTime);
+
 
 	return SpawnedActor;
 }
@@ -3565,6 +3574,9 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 {
 	AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, TryCount, RandomSeed, OnCompleted]()
 	{
+
+			const double StartTime = FPlatformTime::Seconds();
+
 			// 해상도 설정
 			Resolution = FIntVector(60, 60, 1);
 
@@ -3634,6 +3646,8 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 			// 후처리
 			TArray<FVector> RoomTilePositions;
 			TArray<FVector> FixedRoomTilePositions;
+
+
 
 			RemoveIsolatedCorridorTiles(Tiles);
 			RemoveDisconnectedCorridors(Tiles);
@@ -3709,6 +3723,8 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 			//TSet<FVector> RoomTilePositions;
 			//TSet<FVector> FixedRoomTilePositions;
+
+			
 
 			// 먼저 고정된 방 타일 위치를 기억
 			for (const auto& Pair : UserFixedOptions)
@@ -3795,13 +3811,24 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 					//SpawnActorFromTiles(LastCollapsedTiles, GetWorld());
 
+					
+
 					// 새 풀링 기반 함수 호출
 					ReuseTilePrefabsFromPool(LastCollapsedTiles, GetWorld());
+					
+
 					SpawnBorderBlueprints();
 					UE_LOG(LogWFC, Error, TEXT("fine pooling"));
 
 					if (OnCompleted) OnCompleted();
 			});
+
+			
+			const double EndTime = FPlatformTime::Seconds();
+			const double ElapsedTime = EndTime - StartTime;
+
+			UE_LOG(LogTemp, Warning, TEXT("[WFCGEN] maptime: %.3f sec"), ElapsedTime);
+
 	});
 }
 

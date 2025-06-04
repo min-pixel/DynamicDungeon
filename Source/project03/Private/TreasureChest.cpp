@@ -6,6 +6,7 @@
 #include "Components/BoxComponent.h"
 #include "MyDCharacter.h"
 #include "Weapon.h"
+#include "ScrollItem.h"
 #include "Armor.h"
 #include "Kismet/KismetMathLibrary.h"
 
@@ -97,6 +98,15 @@ void ATreasureChest::GenerateRandomItems()
             AItem* DefaultItem = SelectedClass->GetDefaultObject<AItem>();
             NewItemData.ItemIcon = DefaultItem->ItemIcon;
             NewItemData.ItemName = DefaultItem->ItemName;
+
+            // 스크롤이면 스킬 인덱스 랜덤 지정
+            if (DefaultItem->IsA(AScrollItem::StaticClass()))
+            {
+                NewItemData.SkillIndex = FMath::RandRange(0, 2);
+                //FString SpellName = (NewItemData.SkillIndex == 0) ? TEXT("Fireball") : TEXT("Heal");
+                //NewItemData.ItemName = FText::FromString(FString::Printf(TEXT("Scroll of %s"), *SpellName));
+            }
+
 
             // 등급을 무작위로 설정
             if (DefaultItem->IsA(AArmor::StaticClass()))

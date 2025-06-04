@@ -59,9 +59,10 @@ FItemData AItem::ToItemData() const
     // 스크롤일 경우 스킬 인덱스 복사
     if (const AScrollItem* Scroll = Cast<AScrollItem>(this))
     {
-        Data.SkillIndex = Scroll->SkillIndex;
+        Data.SkillIndex = FMath::RandRange(0, 2);
+
+        //Scroll->InitFromData(Data);
     }
-   
     return Data;
 }
 

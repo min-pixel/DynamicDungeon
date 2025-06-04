@@ -63,6 +63,8 @@ struct FItemData
     int32 SkillIndex = -1;  // -1이면 유효하지 않음
 
 
+
+
     FItemData()
         : ItemName(TEXT("")), ItemIcon(nullptr), ItemClass(nullptr),
         bIsStackable(false), MaxStack(1), Count(1), PotionEffect(EPotionEffectType::None)

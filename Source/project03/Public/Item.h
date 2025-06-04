@@ -48,6 +48,9 @@ public:
 	UPROPERTY(EditAnywhere) 
 	EPotionEffectType PotionEffect; 
 
+	
+
+
 	UFUNCTION(BlueprintNativeEvent, Category = "Item")
 	void Use(AMyDCharacter* Character);
 	virtual void Use_Implementation(AMyDCharacter* Character);

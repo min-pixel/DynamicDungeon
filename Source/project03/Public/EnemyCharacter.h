@@ -60,6 +60,8 @@ public:
 	// 피격 처리
 	virtual void GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage);
 
+	virtual void ApplyDebuff_Implementation(EDebuffType DebuffType, float Value, float Duration) override;
+
 	// 피격 후 경직 처리
 	void HandleStun();
 

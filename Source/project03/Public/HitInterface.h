@@ -6,6 +6,16 @@
 #include "UObject/Interface.h"
 #include "HitInterface.generated.h"
 
+
+
+
+UENUM(BlueprintType)
+enum class EDebuffType : uint8
+{
+	Slow UMETA(DisplayName = "Slow")
+};
+
+
 // This class does not need to be modified.
 UINTERFACE(MinimalAPI, Blueprintable)
 class UHitInterface : public UInterface
@@ -25,5 +35,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
 	void GetHit(const FHitResult& HitResult, AActor* InstigatorActor, float Damage);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent)
+	void ApplyDebuff(EDebuffType DebuffType, float Magnitude, float Duration);
 
 };

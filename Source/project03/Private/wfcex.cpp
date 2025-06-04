@@ -31,7 +31,7 @@ void Awfcex::BeginPlay()
 	Super::BeginPlay();
 
     
-
+    const double StartTime = FPlatformTime::Seconds();
 
 	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505, 767089153, 1948641409, 1358936321, 1964145409,  2078383361
 
@@ -41,6 +41,10 @@ void Awfcex::BeginPlay()
         WFCSubsystem->PrepareTilePrefabPool(GetWorld());
     }
 
+    const double EndTime = FPlatformTime::Seconds();  
+    const double ElapsedTime = EndTime - StartTime;
+
+    UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec"), ElapsedTime); 
 
 
     SpawnPlayerOnCorridor();

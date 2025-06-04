@@ -19,12 +19,13 @@ public:
     AScrollItem();
 
 protected:
-    virtual void BeginPlay() override;
+    //virtual void BeginPlay() override;
 
 
 
 public:
     virtual void Use_Implementation(class AMyDCharacter* Character) override;
+    void UseWithData(AMyDCharacter* Character, const FItemData& Data);
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     TSubclassOf<UUSpellBase> AssignedSpell;
@@ -33,4 +34,11 @@ public:
     int32 SkillIndex;
 
     TSubclassOf<UUSpellBase> GetSpellFromIndex(int32 Index) const;
+ 
+    void InitFromData(const FItemData& Data);
+
+    static TArray<TSubclassOf<UUSpellBase>> SharedSpellPool;
+    static void InitializeSpellPoolIfNeeded();
+
+
 };

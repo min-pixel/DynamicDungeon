@@ -28,6 +28,8 @@ void UFireballSpell::ActivateSpell(AMyDCharacter* Caster)
 {
     if (!Caster || !FireballProjectileClass) return;
 
+   
+
     if (!FireballProjectileClass) {
         UE_LOG(LogTemp, Error, TEXT("FireballProjectileClass is null"));
         return;

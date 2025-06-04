@@ -26,6 +26,8 @@ void UHealSpell::ActivateSpell(AMyDCharacter* Caster)
 {
 	if (!Caster) return;
 
+	
+
 	Caster->Knowledge -= ManaCost;
 	Caster->Stamina -= StaminaCost;
 	Caster->UpdateHUD();

@@ -20,6 +20,7 @@
 #include "StaminaPotion.h"
 #include "ManaPotion.h"
 #include "HealSpell.h"
+#include "CurseSpell.h"
 #include "InventoryWidget.h"
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
@@ -114,6 +115,13 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Weapon Attack Montage!"));
 	}
 
+
+	//마법 시전 몽타주 로드
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> MontageObj(TEXT("/Game/BP/character/Retarget/RTA_Magic_Heal_Anim_mixamo_com_Montage.RTA_Magic_Heal_Anim_mixamo_com_Montage"));
+	if (MontageObj.Succeeded())
+	{
+		SpellCastMontage = MontageObj.Object;
+	}
 
 	//  대형 무기 공격 콤보 몽타주 로드
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> GreatSwordMontage(TEXT("/Game/BP/character/Retarget/RTA_Great_Sword_Slash_Anim_mixamo_com_Montage.RTA_Great_Sword_Slash_Anim_mixamo_com_Montage"));
@@ -480,6 +488,9 @@ void AMyDCharacter::BeginPlay()
 		UHealSpell* Heal = NewObject<UHealSpell>(this);
 		SpellSet.Add(Heal); // 인덱스 1번: 힐 마법
 
+		UCurseSpell* Curse = NewObject<UCurseSpell>(this);
+		SpellSet.Add(Curse);
+
 	}
 
 	if (!CachedDirectionalLight)
@@ -644,6 +655,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//b
 	PlayerInputComponent->BindAction("TeleportToChest", IE_Pressed, this, &AMyDCharacter::TeleportToNearestChest);
+
+	//v
+	PlayerInputComponent->BindAction("TeleportToEnemy", IE_Pressed, this, &AMyDCharacter::TeleportToNearestEnemy);
 
 	// 핫키 입력 바인딩 (예: 1~5 키)
 
@@ -1187,6 +1201,20 @@ void AMyDCharacter::StartJump()
 void AMyDCharacter::StopJump()
 {
 	StopJumping();  // 점프 멈추는 함수 호출
+}
+
+void AMyDCharacter::PlayMagicMontage()
+{
+	if (!SpellCastMontage || !CharacterMesh || !CharacterMesh->GetAnimInstance())
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpellCastMontage or AnimInstance missing!"));
+		return;
+	}
+
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+
+	// 몽타주 재생
+	float Duration = AnimInstance->Montage_Play(SpellCastMontage, 1.0f);
 }
 
 void AMyDCharacter::PlayAttackAnimation()
@@ -1820,13 +1848,21 @@ void AMyDCharacter::TryCastSpell(int32 Index)
 
 	if (SpellSet.IsValidIndex(Index) && SpellSet[Index]->CanActivate(this))
 	{
+
+		// 마법 시전 몽타주 재생
+		if (SpellCastMontage)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Trying to play montage: %s"), *SpellCastMontage->GetName()); 
+			PlayMagicMontage();
+		}
+
 		SpellSet[Index]->ActivateSpell(this);
 	}
 }
 
 void AMyDCharacter::CastSpell1()
 {
-	TryCastSpell(0);
+	TryCastSpell(2);      // 0 - 파이어볼, 1 - 힐, 2 - 저주.
 }
 
 void AMyDCharacter::CastSpell2()
@@ -2133,5 +2169,63 @@ void AMyDCharacter::TeleportToNearestChest()
 	{
 		SetActorLocation(ClosestChest->GetActorLocation() + FVector(0, 0, 100)); // 살짝 위로 이동
 		UE_LOG(LogTemp, Log, TEXT("Teleported to chest: %s"), *ClosestChest->GetName());
+	}
+}
+
+
+void AMyDCharacter::ApplyDebuff_Implementation(EDebuffType DebuffType, float Magnitude, float Duration)
+{
+	if (DebuffType == EDebuffType::Slow)
+	{
+		UCharacterMovementComponent* Movement = GetCharacterMovement();
+		if (!Movement) return;
+
+		// 현재 이동 속도 저장
+		const float OriginalSpeed = Movement->MaxWalkSpeed;
+
+		// 속도 감소 적용 (예: Magnitude = 0.4f 이면 40% 감소)
+		const float SlowFactor = FMath::Clamp(1.0f - Magnitude, 0.1f, 1.0f); // 최소 10%까지 유지
+		Movement->MaxWalkSpeed = OriginalSpeed * SlowFactor;
+
+		// 디버프 해제용 타이머 설정
+		GetWorldTimerManager().ClearTimer(DebuffRecoveryTimerHandle);
+		GetWorldTimerManager().SetTimer(DebuffRecoveryTimerHandle, FTimerDelegate::CreateLambda([this, OriginalSpeed]()
+			{
+				if (UCharacterMovementComponent* MovementInner = GetCharacterMovement())
+				{
+					MovementInner->MaxWalkSpeed = OriginalSpeed;
+				}
+			}), Duration, false);
+	}
+}
+
+void AMyDCharacter::TeleportToNearestEnemy()
+{
+	FVector MyLocation = GetActorLocation();
+	float NearestDistance = TNumericLimits<float>::Max();
+	AEnemyCharacter* NearestEnemy = nullptr;
+
+	for (TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
+	{
+		AEnemyCharacter* Enemy = *It;
+		if (!Enemy) continue;
+
+		float Dist = FVector::Dist(MyLocation, Enemy->GetActorLocation());
+		if (Dist < NearestDistance)
+		{
+			NearestDistance = Dist;
+			NearestEnemy = Enemy;
+		}
+	}
+
+	if (NearestEnemy)
+	{
+		FVector TargetLocation = NearestEnemy->GetActorLocation() + FVector(0, 0, 200); // 살짝 위
+		SetActorLocation(TargetLocation);
+		UE_LOG(LogTemp, Warning, TEXT("Teleported to enemy: %s"), *NearestEnemy->GetName());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No enemies found to teleport to."));
 	}
 }

@@ -13,6 +13,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "TimerManager.h"
 
 // Sets default values
 AEnemyCharacter::AEnemyCharacter()
@@ -202,6 +203,37 @@ void AEnemyCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor*
         
     }
 }
+
+void AEnemyCharacter::ApplyDebuff_Implementation(EDebuffType DebuffType, float Value, float Duration)
+{
+    UE_LOG(LogTemp, Warning, TEXT("[EnemyCharacter] ApplyDebuff: %s, Value: %.2f, Duration: %.2f"),
+        *UEnum::GetValueAsString(DebuffType), Value, Duration);
+
+    switch (DebuffType)
+    {
+    case EDebuffType::Slow:
+        if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+        {
+            float OriginalSpeed = MoveComp->MaxWalkSpeed;
+            MoveComp->MaxWalkSpeed *= (1.f - Value); // 예: 0.3 이면 70% 속도
+            UE_LOG(LogTemp, Warning, TEXT("Enemy slowed to %.2f for %.2f seconds"), MoveComp->MaxWalkSpeed, Duration);
+
+            // 일정 시간 후 속도 복원
+            FTimerHandle TimerHandle;
+            GetWorldTimerManager().SetTimer(TimerHandle, [MoveComp, OriginalSpeed]()
+                {
+                    MoveComp->MaxWalkSpeed = OriginalSpeed;
+                    UE_LOG(LogTemp, Warning, TEXT("Enemy slow debuff ended. Speed restored to %.2f"), OriginalSpeed);
+                }, Duration, false);
+        }
+        break;
+
+    default:
+        UE_LOG(LogTemp, Warning, TEXT("Unknown debuff type."));
+        break;
+    }
+}
+
 
 void AEnemyCharacter::HandleStun()
 {

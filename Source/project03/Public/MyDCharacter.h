@@ -145,6 +145,10 @@ public:
 
 	virtual void GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage);
 
+	virtual void ApplyDebuff_Implementation(EDebuffType DebuffType, float Magnitude, float Duration);
+
+	FTimerHandle DebuffRecoveryTimerHandle;
+
 
 	/** 체력 & 마나 UI 업데이트 */
 	void UpdateHUD();
@@ -270,6 +274,9 @@ public:
 	UFUNCTION()
 	void TeleportToNearestChest();
 
+	UFUNCTION()
+	void TeleportToNearestEnemy();
+
 	void HealPlayer(int32 Amount);
 
 	// 인벤토리 컴포넌트 가져오기
@@ -364,6 +371,12 @@ public:
 	FTimerHandle TimerHandle_DelayedWFCFade;
 	FTimerHandle TimerHandle_DelayedWFCFinal;
 
+	/** 카메라 컴포넌트 */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	class UCameraComponent* FirstPersonCameraComponent;
+
+
+	void PlayMagicMontage();
 
 
 private:
@@ -371,9 +384,7 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	class USkeletalMeshComponent* CharacterMesh;
 
-	/** 카메라 컴포넌트 */
-	UPROPERTY(VisibleAnywhere, Category = "Components")
-	class UCameraComponent* FirstPersonCameraComponent;
+	
 
 	/** 스프링암 (카메라와 메쉬의 독립적인 배치를 위해 사용) */
 	UPROPERTY(VisibleAnywhere, Category = "Camera")
@@ -440,12 +451,15 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
 	UAnimMontage* GreatWeaponMontage;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
+	UAnimMontage* SpellCastMontage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation", meta = (AllowPrivateAccess = "true"))
 	UAnimMontage* DaggerWeaponMontage;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Animation")
 	UAnimMontage* PoseMontage;
+
 
 	// 공격 종료 및 초기화 함수
 	void ResetAttack();

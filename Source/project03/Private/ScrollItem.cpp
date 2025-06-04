@@ -5,13 +5,28 @@
 #include "MyDCharacter.h"
 #include "FireballSpell.h"
 #include "HealSpell.h"
+#include "CurseSpell.h"
+
+TArray<TSubclassOf<UUSpellBase>> AScrollItem::SharedSpellPool;
+
+void AScrollItem::InitializeSpellPoolIfNeeded()
+{
+    if (SharedSpellPool.Num() == 0)
+    {
+        SharedSpellPool.Add(UFireballSpell::StaticClass());
+        SharedSpellPool.Add(UHealSpell::StaticClass());
+        SharedSpellPool.Add(UCurseSpell::StaticClass());
+        // 새로운 마법 cng추가
+    }
+}
+
 
 AScrollItem::AScrollItem()
 {
     ItemType = EItemType::Consumable;
 
     // 랜덤 스킬 인덱스 선택
-    SkillIndex = FMath::RandRange(0, 1);
+    //SkillIndex = FMath::RandRange(0, 1);
 
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/scroll.scroll"));
     if (IconTexture.Succeeded())
@@ -21,34 +36,32 @@ AScrollItem::AScrollItem()
 
 }
 
-
-void AScrollItem::BeginPlay()
+// 기존 구조체 기반 사용
+void AScrollItem::UseWithData(AMyDCharacter* Character, const FItemData& Data)
 {
-    Super::BeginPlay();
-
-    TArray<TSubclassOf<UUSpellBase>> SpellPool;
-    SpellPool.Add(UFireballSpell::StaticClass());
-    SpellPool.Add(UHealSpell::StaticClass());
-
-    int32 RandIndex = FMath::RandRange(0, SpellPool.Num() - 1);
-    AssignedSpell = SpellPool[RandIndex];
-
-    ItemName = TEXT("Scroll of ") + AssignedSpell->GetDefaultObject<UUSpellBase>()->SpellName.ToString();
-
-}
-
-void AScrollItem::Use_Implementation(AMyDCharacter* Character)
-{
-    TSubclassOf<UUSpellBase> SpellClass = GetSpellFromIndex(SkillIndex);
+    TSubclassOf<UUSpellBase> SpellClass = GetSpellFromIndex(Data.SkillIndex);
     if (!Character || !SpellClass) return;
 
     UUSpellBase* Spell = NewObject<UUSpellBase>(Character, SpellClass);
     if (Spell && Spell->CanActivate(Character))
     {
+
+        // 마법 시전 몽타주 재생
+        if (Character)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Trying to play montage"));
+            Character->PlayMagicMontage();
+        }
+
         Spell->ActivateSpell(Character);
         Character->Knowledge = Character->MaxKnowledge;
-        //Character->UpdateHUD();
     }
+}
+
+
+void AScrollItem::Use_Implementation(AMyDCharacter* Character)
+{
+    UseWithData(Character, ToItemData());
 }
 
 
@@ -60,8 +73,14 @@ TSubclassOf<UUSpellBase> AScrollItem::GetSpellFromIndex(int32 Index) const
         return UFireballSpell::StaticClass();
     case 1:
         return UHealSpell::StaticClass();
-        // case 2: return UCurseSpell::StaticClass();
+    case 2:
+        return UCurseSpell::StaticClass();
     default:
         return nullptr;
     }
+}
+
+void AScrollItem::InitFromData(const FItemData& Data)
+{
+    SkillIndex = Data.SkillIndex;
 }
