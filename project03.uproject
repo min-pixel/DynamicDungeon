@@ -30,7 +30,7 @@
 		},
 		{
 			"Name": "Niagara",
- 			"Enabled": true
+			"Enabled": true
 		},
 		{
 			"Name": "ActorLayerUtilities",
@@ -78,6 +78,14 @@
 		},
 		{
 			"Name": "RigVM",
+			"Enabled": true
+		},
+		{
+			"Name": "SkeletalMeshModelingTools",
+			"Enabled": true
+		},
+		{
+			"Name": "ChaosClothEditor",
 			"Enabled": true
 		}
 	],

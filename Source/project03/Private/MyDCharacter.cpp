@@ -17,6 +17,9 @@
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
 #include "Armor.h"
+#include "Hat.h"
+#include "RobeTop.h"
+#include "RobeBottom.h"
 #include "StaminaPotion.h"
 #include "ManaPotion.h"
 #include "HealSpell.h"
@@ -167,7 +170,10 @@ AMyDCharacter::AMyDCharacter()
 	ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
 	ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 	ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-	ChestMesh->SetVisibility(false);
+	//ChestMesh->SetRelativeLocation(FVector(12.5f, 0.f, -95.f));  // 원하는 위치로 조절
+	//ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	//ChestMesh->SetRelativeScale3D(FVector(1.1f, 1.5f, 1.0f));
+	ChestMesh->SetVisibility(true);
 
 	// 하의
 	LegsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LegsMesh"));
@@ -184,6 +190,14 @@ AMyDCharacter::AMyDCharacter()
 	
 	HelmetMesh->SetVisibility(false);
 
+	// 모자 (Hat)
+	HatMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("HatMesh"));
+	HatMesh->SetupAttachment(GetMesh());  // 혹은 CharacterMesh
+	HatMesh->SetLeaderPoseComponent(CharacterMesh);  // 애니메이션 연동
+	HatMesh->SetRelativeLocation(FVector(2.5f, 0.f, -95.f));  // 원하는 위치로 조절
+	HatMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	HatMesh->SetRelativeScale3D(FVector(1.1f, 1.5f, 1.0f));
+	HatMesh->SetVisibility(true);
 
 	//idle 포즈 추가 (상체)
 	/*static ConstructorHelpers::FObjectFinder<UAnimMontage> PoseMontageAsset(TEXT("/Game/BP/character/Retarget/RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage.RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage"));
@@ -971,7 +985,7 @@ void AMyDCharacter::UnequipWeapon()
 }
 
 
-void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat)
+void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor)
 {
 	if (!NewMesh) return;
 
@@ -983,6 +997,10 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 	switch (SlotIndex)
 	{
 	case EQUIP_SLOT_CHEST:
+
+
+
+
 		if (ChestMesh)
 		{
 			ChestMesh->SetMasterPoseComponent(CharacterMesh);
@@ -991,7 +1009,14 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 			// 필요 시 상대 위치 조정
 			ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
 			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-			ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+			if (Armor && Armor->IsA(ARobeTop::StaticClass()))
+			{
+				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.25f, 1.0f));
+			}
+			else
+			{
+				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+			}
 
 			// 머티리얼 적용
 			if (Grade == EArmorGrade::B && SilverMat)
@@ -1015,7 +1040,14 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 			// 하의 루트 위치가 캐릭터보다 너무 위에 있음 → 보정 필요
 			LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
 			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-			LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+			if (Armor && Armor->IsA(ARobeBottom::StaticClass()))
+			{
+				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.25f, 1.0f));
+			}
+			else
+			{
+				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+			}
 			//LegsMesh->SetLeaderPoseComponent(CharacterMesh);
 
 			// 머티리얼 적용
@@ -1063,17 +1095,54 @@ void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> Armo
 	// 헬멧 슬롯은 StaticMesh 처리
 	if (SlotIndex == EQUIP_SLOT_HELMET)
 	{
-		UStaticMesh* HelmetMeshAsset = Armor->HelmetStaticMesh;
-		if (HelmetMeshAsset)
+		if (Armor->IsA(AHat::StaticClass()))
 		{
-			EquipHelmetMesh(HelmetMeshAsset, Armor->ArmorGrade, Armor->SilverMaterial, Armor->GoldMaterial);
+			USkeletalMesh* NewHatMesh = Armor->ArmorVisualMesh->GetSkeletalMeshAsset();
+			if (NewHatMesh && HatMesh)
+			{
+				HatMesh->SetMasterPoseComponent(CharacterMesh);
+				HatMesh->SetSkeletalMesh(NewHatMesh);
+				HatMesh->SetVisibility(true);
+
+				// 등급 머티리얼 적용
+				if (Armor->ArmorGrade == EArmorGrade::B && Armor->SilverMaterial)
+				{
+					HatMesh->SetMaterial(0, Armor->SilverMaterial);
+				}
+				else if (Armor->ArmorGrade == EArmorGrade::A && Armor->GoldMaterial)
+				{
+					HatMesh->SetMaterial(0, Armor->GoldMaterial);
+				}
+
+				// Helmet 숨김 처리
+				if (HelmetMesh)
+				{
+					HelmetMesh->SetVisibility(false);
+				}
+			}
+		}
+		else
+		{
+			// 일반 헬멧(StaticMesh) 처리
+			UStaticMesh* HelmetMeshAsset = Armor->HelmetStaticMesh;
+			if (HelmetMeshAsset)
+			{
+				EquipHelmetMesh(HelmetMeshAsset, Armor->ArmorGrade, Armor->SilverMaterial, Armor->GoldMaterial);
+
+				// 모자(HatMesh)는 숨김 처리
+				if (HatMesh)
+				{
+					HatMesh->SetVisibility(false);
+					HatMesh->SetSkeletalMesh(nullptr); // 메시 제거도 선택적으로 가능
+				}
+			}
 		}
 	}
 	else {
 		USkeletalMesh* EquippedMesh = Armor->ArmorVisualMesh->GetSkeletalMeshAsset();
 		if (EquippedMesh)
 		{
-			EquipArmorMesh(SlotIndex, EquippedMesh, Armor->ArmorGrade, Armor->SilverMaterial, Armor->GoldMaterial);
+			EquipArmorMesh(SlotIndex, EquippedMesh, Armor->ArmorGrade, Armor->SilverMaterial, Armor->GoldMaterial, Armor);
 		}
 	}
 	
@@ -1164,6 +1233,11 @@ void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
 			break;
 
 		case EQUIP_SLOT_HELMET:
+			if (HatMesh)
+			{
+				HatMesh->SetSkeletalMesh(nullptr);
+				HatMesh->SetVisibility(false);
+			}
 			if (HelmetMesh)
 			{
 				HelmetMesh->SetStaticMesh(nullptr);

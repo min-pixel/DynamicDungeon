@@ -17,8 +17,8 @@ AChest::AChest()
 	}
 
 	
-
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/armour/Mesh/platemailchest.platemailchest"));
+	///Game/BP/armour/Mesh/platemailchest.platemailchest
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/clothes/mesh/SKM_Medieval_Hooded_Cloak_Mesh.SKM_Medieval_Hooded_Cloak_Mesh"));  ///Script/Engine.SkeletalMesh''
 	if (MeshAsset.Succeeded())
 	{
 		if (ArmorVisualMesh)

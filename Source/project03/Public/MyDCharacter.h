@@ -248,6 +248,7 @@ public:
 	TMap<int32, class AArmor*> EquippedArmors;  // ΩΩ∑‘ ¿Œµ¶Ω∫ °Ê ¿Â¬¯µ» ∞©ø 
 
 
+
 	UPROPERTY()
 	AActor* OverlappedActor;
 
@@ -358,7 +359,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* LegsMesh;
 
-	void EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat);
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (AllowPrivateAccess = "true"))
+	USkeletalMeshComponent* HatMesh;
+
+	void EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor);
 
 	ADirectionalLight* CachedDirectionalLight = nullptr;
 
