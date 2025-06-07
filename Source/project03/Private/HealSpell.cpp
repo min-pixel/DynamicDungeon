@@ -5,6 +5,7 @@
 #include "MyDCharacter.h"
 #include "NiagaraSystem.h"
 #include "NiagaraFunctionLibrary.h"
+#include "OrbitEffectActor.h"
 #include "Kismet/GameplayStatics.h"
 
 UHealSpell::UHealSpell()
@@ -13,12 +14,11 @@ UHealSpell::UHealSpell()
 	StaminaCost = 5.0f;
 	HealAmount = 50.0f;
 
-	// 힐 이펙트 로드 - 현재 아직 찾지 못함.
-	/*static ConstructorHelpers::FObjectFinder<UNiagaraSystem> HealEffectAsset(TEXT("/Game/Effects/NS_HealEffect.NS_HealEffect"));
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> HealEffectAsset(TEXT("/Game/PixieDustTrail/FX/NS_PixieDustTrail.NS_PixieDustTrail"));
 	if (HealEffectAsset.Succeeded())
 	{
 		HealEffect = HealEffectAsset.Object;
-	}*/
+	}
 
 }
 
@@ -34,16 +34,13 @@ void UHealSpell::ActivateSpell(AMyDCharacter* Caster)
 
 	Caster->HealPlayer(HealAmount); // 체력 회복 함수 사용
 
-	//// 나이아가라 이펙트가 있다면 이 위치에 추가
-	//if (HealEffect)
-	//{
-	//	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-	//		Caster->GetWorld(),
-	//		HealEffect,
-	//		Caster->GetActorLocation(),
-	//		FRotator::ZeroRotator
-	//	);
-	//}
+	// 궤도 이펙트 액터 스폰
+	FActorSpawnParameters SpawnParams;
+	AOrbitEffectActor* OrbitActor = Caster->GetWorld()->SpawnActor<AOrbitEffectActor>(AOrbitEffectActor::StaticClass(), Caster->GetActorLocation(), FRotator::ZeroRotator, SpawnParams);
+	if (OrbitActor)
+	{
+		OrbitActor->InitOrbit(Caster, HealEffect, 100.f, 2.f, 1080.f, FLinearColor(0.4f, 1.f, 0.2f), 5.f); // 반지름 100, 5초간 초당 180도 회전
+	}
 
 	// 사운드 추가 필요
 }

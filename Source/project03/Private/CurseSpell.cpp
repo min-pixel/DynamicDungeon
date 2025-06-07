@@ -6,6 +6,7 @@
 #include "HitInterface.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/Actor.h"
+#include "OrbitEffectActor.h"
 #include "DrawDebugHelpers.h" 
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -16,6 +17,13 @@ UCurseSpell::UCurseSpell()
     SpellName = TEXT("Curse");
     ManaCost = 20.f;
     StaminaCost = 10.f;
+
+    static ConstructorHelpers::FObjectFinder<UNiagaraSystem> EffectAsset(TEXT("/Game/PixieDustTrail/FX/NS_PixieDustTrail.NS_PixieDustTrail"));
+    if (EffectAsset.Succeeded())
+    {
+        CurseEffect = EffectAsset.Object;
+    }
+
 }
 
 void UCurseSpell::ActivateSpell(AMyDCharacter* Caster)
@@ -42,10 +50,12 @@ void UCurseSpell::ActivateSpell(AMyDCharacter* Caster)
 
     bool bHit = Caster->GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Pawn, Params);
 
+    AActor* HitActor = nullptr;
+
     if (bHit)
     {
 
-        AActor* HitActor = Hit.GetActor();
+        HitActor = Hit.GetActor();
 
         UE_LOG(LogTemp, Warning, TEXT("[CurseSpell] linehitwho?: %s"), *HitActor->GetName());
 
@@ -58,5 +68,15 @@ void UCurseSpell::ActivateSpell(AMyDCharacter* Caster)
         }
     }
 
-    // 여기서 나이아가라 이펙트나 사운드 추가
+    if (HitActor && CurseEffect)
+    {
+        FActorSpawnParameters SpawnParams;
+        AOrbitEffectActor* OrbitActor = Caster->GetWorld()->SpawnActor<AOrbitEffectActor>(AOrbitEffectActor::StaticClass(),HitActor->GetActorLocation(),FRotator::ZeroRotator,SpawnParams);
+
+        if (OrbitActor)
+        {
+            OrbitActor->InitOrbit(HitActor,CurseEffect,100.f, 10.f, 1080.f, FLinearColor(0.8f, 0.5f, 1.0f), 3.f);
+        }
+    }
+    
 }

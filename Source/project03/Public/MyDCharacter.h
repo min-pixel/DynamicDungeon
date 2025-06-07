@@ -242,7 +242,7 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Armor")
 	UStaticMeshComponent* HelmetMesh;
 
-	void EquipHelmetMesh(UStaticMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat);
+	void EquipHelmetMesh(UStaticMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor);
 
 	UPROPERTY()
 	TMap<int32, class AArmor*> EquippedArmors;  // ΩΩ∑‘ ¿Œµ¶Ω∫ °Ê ¿Â¬¯µ» ∞©ø 
@@ -335,6 +335,8 @@ public:
 	void CastSpell1();
 
 	void CastSpell2();
+
+
 
 	// »∂∫“ æ◊≈Õ ∆˜¿Œ≈Õ ¿˙¿Â
 	UPROPERTY()

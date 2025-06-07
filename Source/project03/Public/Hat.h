@@ -16,5 +16,9 @@ class PROJECT03_API AHat : public AArmor
 public:
 	AHat();
 
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UStaticMeshComponent* HatMeshComponent;
+
 	virtual void BeginPlay() override;
 };

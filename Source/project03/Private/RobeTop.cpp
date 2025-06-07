@@ -15,7 +15,7 @@ ARobeTop::ARobeTop()
         ItemIcon = IconTexture.Object;
     }
 
-    static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/clothes/mesh/SKM_BodyA_Casual_01_Top_a.SKM_BodyA_Casual_01_Top_a"));
+    static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/MedievalGambeson/Meshes/SKM_Manny_Gambeson.SKM_Manny_Gambeson"));
     if (MeshAsset.Succeeded() && ArmorVisualMesh)
     {
         ArmorVisualMesh->SetSkeletalMesh(MeshAsset.Object);

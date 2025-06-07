@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "USpellBase.h"
+#include "NiagaraSystem.h"
 #include "CurseSpell.generated.h"
 
 /**
@@ -23,8 +24,11 @@ public:
     float SlowAmount = 0.5f; // 이동속도 감소 계수 (0.5 = 50%)
 
     UPROPERTY(EditDefaultsOnly, Category = "Curse")
-    float Duration = 50.0f;    // 지속 시간 (초) 원래는 10초
+    float Duration = 10.0f;    // 지속 시간 (초) 원래는 10초
 
     UPROPERTY(EditDefaultsOnly, Category = "Curse")
     float MaxDistance = 1000.f; // 라인트레이스 최대 거리
+
+    UPROPERTY(EditDefaultsOnly, Category = "Spell|Curse")
+    UNiagaraSystem* CurseEffect;
 };

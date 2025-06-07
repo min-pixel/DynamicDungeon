@@ -10,17 +10,19 @@ AHat::AHat()
     ArmorType = EArmorType::Helmet;
     BonusHealth = 0;
 
-    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/cloak.cloak"));
+
+    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/wizard-hat.wizard-hat"));
     if (IconTexture.Succeeded())
     {
         ItemIcon = IconTexture.Object;
     }
 
-    /*static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/clothes/mesh/SKM_Medieval_Hooded_Cloak_Mesh.SKM_Medieval_Hooded_Cloak_Mesh"));
-    if (MeshAsset.Succeeded() && ArmorVisualMesh)
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/BP/clothes/mesh/witch_hatID.witch_hatID"));
+    if (MeshAsset.Succeeded())
     {
-        ArmorVisualMesh->SetSkeletalMesh(MeshAsset.Object);
-    }*/
+        HelmetStaticMesh = MeshAsset.Object;
+    }
+
 }
 
 void AHat::BeginPlay()
