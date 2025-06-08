@@ -1,24 +1,24 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Hat.h"
+#include "Mask.h"
 #include "Components/StaticMeshComponent.h"
 
-AHat::AHat()
+AMask::AMask()
 {
-    ItemName = TEXT("magic Hat");
+    ItemName = TEXT("Rogue Mask");
     ArmorType = EArmorType::Helmet;
     BonusHealth = 0;
-    BonusMana = 30;
+    BonusStamina = 30;
 
 
-    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/wizard-hat.wizard-hat"));
+    static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/plague-doctor.plague-doctor"));
     if (IconTexture.Succeeded())
     {
         ItemIcon = IconTexture.Object;
     }
 
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/BP/clothes/mesh/witch_hatID.witch_hatID"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/BP/clothes/mesh/Mask.Mask"));
     if (MeshAsset.Succeeded())
     {
         HelmetStaticMesh = MeshAsset.Object;
@@ -26,7 +26,7 @@ AHat::AHat()
 
 }
 
-void AHat::BeginPlay()
+void AMask::BeginPlay()
 {
     Super::BeginPlay();
 }

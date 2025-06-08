@@ -9,6 +9,8 @@ AArmor::AArmor()
     ItemType = EItemType::Armor;  // ¸ðµç °©¿Ê °øÅë
     ArmorGrade = EArmorGrade::A;
     BonusHealth = 0;
+    BonusMana = 0;
+    BonusStamina = 0;
     ArmorVisualMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmorVisualMesh"));
     SetRootComponent(ArmorVisualMesh);
 
@@ -65,6 +67,20 @@ void AArmor::ApplyArmorStats(AMyDCharacter* Character)
 
     Character->MaxHealth += CachedAppliedBonus;
     Character->Health = FMath::Clamp(Character->Health + CachedAppliedBonus, 0.0f, Character->MaxHealth);
+
+
+    StaminaBonus = FMath::RoundToInt(BonusStamina * Multiplier);
+    Character->MaxStamina += StaminaBonus;
+    Character->Stamina = FMath::Clamp(Character->Stamina + StaminaBonus, 0.0f, Character->MaxStamina);
+
+    ManaBonus = FMath::RoundToInt(BonusMana * Multiplier);
+    Character->MaxKnowledge += ManaBonus;
+    Character->Knowledge = FMath::Clamp(Character->Knowledge + ManaBonus, 0.0f, Character->MaxKnowledge);
+    
+
+
+
+
 }
 
 void AArmor::RemoveArmorStats(AMyDCharacter* Character)
@@ -73,5 +89,12 @@ void AArmor::RemoveArmorStats(AMyDCharacter* Character)
 
     Character->MaxHealth -= CachedAppliedBonus;
     Character->Health = FMath::Clamp(Character->Health, 0.0f, Character->MaxHealth);
+
+
+    Character->MaxStamina -= StaminaBonus;
+    Character->Stamina = FMath::Clamp(Character->Stamina, 0.0f, Character->MaxStamina);
+
+    Character->MaxKnowledge -= ManaBonus;
+    Character->Knowledge = FMath::Clamp(Character->Knowledge, 0.0f, Character->MaxKnowledge);
 }
 

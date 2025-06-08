@@ -36,7 +36,7 @@ void UDynamicDungeonInstance::InitializeCharacterData(EPlayerClass SelectedClass
         break;
 
     case EPlayerClass::Mage:
-        CurrentCharacterData.MaxHealth = 10.f;
+        CurrentCharacterData.MaxHealth = 100.f;
         CurrentCharacterData.MaxStamina = 10.f;
         CurrentCharacterData.MaxKnowledge = 200.f;
         break;

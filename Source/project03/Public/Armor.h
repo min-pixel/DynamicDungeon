@@ -44,6 +44,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor")
     int32 BonusHealth;
 
+    // 추가 마나
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor")
+    int32 BonusMana;
+
+    // 추가 스테니마
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Armor")
+    int32 BonusStamina;
+
     UFUNCTION(BlueprintCallable, Category = "Armor")
     virtual void ApplyArmorStats(class AMyDCharacter* Character);
 
@@ -61,6 +69,9 @@ public:
 
     // 실제 적용된 보너스를 기억해둠 (제거 시 사용)
     int32 CachedAppliedBonus = 0;
+
+    int32 StaminaBonus = 0;
+    int32 ManaBonus = 0;
 
     // 등급별 머티리얼
     UPROPERTY(EditDefaultsOnly, Category = "Armor|Material")

@@ -8,7 +8,8 @@ ARobeBottom::ARobeBottom()
 {
     ItemName = TEXT("Silken Robe (Bottom)");
     ArmorType = EArmorType::Legs;
-    BonusHealth = 10;
+    BonusHealth = 15;
+    BonusStamina = 15;
 
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/trousers.trousers"));
     if (IconTexture.Succeeded())

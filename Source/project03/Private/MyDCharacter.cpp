@@ -18,6 +18,7 @@
 #include "Item.h"
 #include "Armor.h"
 #include "Hat.h"
+#include "Mask.h"
 #include "RobeTop.h"
 #include "RobeBottom.h"
 #include "StaminaPotion.h"
@@ -211,7 +212,7 @@ AMyDCharacter::AMyDCharacter()
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;  // 컨트롤러 회전 적용
 
 	//**카메라 위치 및 방향 유지**
-	FirstPersonCameraComponent->SetRelativeLocation(FVector(-100.0f, 0.0f, 80.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
+	FirstPersonCameraComponent->SetRelativeLocation(FVector(20.0f, 0.0f, 50.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
 	FirstPersonCameraComponent->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f)); // 정면 유지
 
 	//몸체 숨기기 (1인칭에서 보이지 않게)
@@ -1148,7 +1149,7 @@ void AMyDCharacter::EquipHelmetMesh(UStaticMesh* NewMesh, EArmorGrade Grade, UMa
 	FVector DesiredScale = FVector(1.f);
 
 	// 모자면 크기 줄이기
-	if (Armor && Armor->IsA<AHat>())
+	if (Armor && Armor->IsA<AHat>() || Armor->IsA<AMask>())
 	{
 		DesiredScale = FVector(0.1f); // 원하는 크기로 조절
 		UE_LOG(LogTemp, Log, TEXT("Helmet: AHat detected, scaled down"));

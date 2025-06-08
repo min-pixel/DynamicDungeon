@@ -7,7 +7,8 @@ ARobeTop::ARobeTop()
 {
     ItemName = TEXT("Silken Robe (Top)");
     ArmorType = EArmorType::Chest;
-    BonusHealth = 10;
+    BonusHealth = 25;
+    BonusStamina = 25;
 
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/casual-t-shirt-.casual-t-shirt-"));
     if (IconTexture.Succeeded())
