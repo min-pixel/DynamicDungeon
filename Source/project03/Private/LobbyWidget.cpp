@@ -5,7 +5,9 @@
 #include "Components/Button.h"
 #include "MyDCharacter.h"
 #include "Kismet/GameplayStatics.h"
-
+#include "UObject/UObjectIterator.h"
+#include "ShopWidget.h"
+#include "GameFramework/HUD.h"
 
 
 void ULobbyWidget::NativeConstruct()
@@ -32,6 +34,11 @@ void ULobbyWidget::NativeConstruct()
     if (RightArrowButton)
     {
         RightArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRightArrowClicked);
+    }
+
+    if (CloseShopButton)
+    {
+        CloseShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnCloseShopButtonClicked);
     }
     
 }
@@ -241,7 +248,47 @@ void ULobbyWidget::OnGoToShopClicked()
 {
     UE_LOG(LogTemp, Warning, TEXT("Go to Shop button clicked"));
 
-    // 상점 UI 열기 등의 처리
+   
+
+    // 기존 창 숨김
+    if (InventoryWidgetInstance) InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+    if (EquipmentWidgetInstance) EquipmentWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+
+    if (!ShopWidgetInstance && ShopWidgetClass)
+    {
+        ShopWidgetInstance = CreateWidget<UShopWidget>(GetWorld(), ShopWidgetClass);
+
+         
+        if (ShopWidgetInstance)
+        {
+            // 상점 아이템 세팅
+            TArray<FItemData> Items;
+
+            for (TObjectIterator<UClass> It; It; ++It)
+            {
+                if (It->IsChildOf(AItem::StaticClass()) &&
+                    !It->HasAnyClassFlags(CLASS_Abstract) &&
+                    *It != AItem::StaticClass())
+                {
+                    AItem* DefaultItem = (*It)->GetDefaultObject<AItem>();
+                    if (DefaultItem)
+                    {
+                        FItemData Data = DefaultItem->ToItemData();
+                        Items.Add(Data);
+                    }
+                }
+            }
+
+            ShopWidgetInstance->ShopItemList = Items;
+            ShopWidgetInstance->TargetInventory = InventoryComponentRef;
+            ShopWidgetInstance->SlotWidgetClass = InventoryWidgetInstance->SlotWidgetClass;
+
+            ShopWidgetInstance->PopulateShopItems();
+            ShopWidgetInstance->AddToViewport(2);
+
+
+        }
+    }
 }
 
 void ULobbyWidget::OnLeftArrowClicked()
@@ -267,4 +314,21 @@ void ULobbyWidget::UpdateClassDisplay()
     }
 
     ClassText->SetText(FText::FromString(ClassName));
+}
+
+void ULobbyWidget::OnCloseShopButtonClicked()
+{
+    if (ShopWidgetInstance)
+    {
+        ShopWidgetInstance->RemoveFromParent();
+        ShopWidgetInstance = nullptr;
+    }
+
+    if (InventoryWidgetInstance)
+        InventoryWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+    if (EquipmentWidgetInstance)
+        EquipmentWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+    UE_LOG(LogTemp, Warning, TEXT("Shop closed via LobbyWidget"));
 }

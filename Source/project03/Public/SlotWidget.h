@@ -66,6 +66,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ExposeOnSpawn))
     bool bIsChestInventory = false;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ExposeOnSpawn))
+    bool bIsShopSlot = false;
+
 
 protected:
     AItem* StoredItem;

@@ -24,7 +24,6 @@ public:
     UFUNCTION(BlueprintCallable)
     void InitializeLobby(class AMyDCharacter* PlayerRef);
 
-protected:
     virtual void NativeConstruct() override;
 
     UPROPERTY(meta = (BindWidget))
@@ -69,6 +68,12 @@ protected:
     UPROPERTY(meta = (BindWidget))
     UButton* RightArrowButton;
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+    TSubclassOf<class UShopWidget> ShopWidgetClass;
+
+    UPROPERTY()
+    class UShopWidget* ShopWidgetInstance;
+
     UPROPERTY(meta = (BindWidget))
     class UTextBlock* ClassText;
 
@@ -91,6 +96,15 @@ protected:
 
     UPROPERTY(meta = (BindWidget))
     UButton* GoToShopButton;*/
+
+    UInventoryWidget* GetInventoryWidget() const { return InventoryWidgetInstance; }
+    UEquipmentWidget* GetEquipmentWidget() const { return EquipmentWidgetInstance; }
+
+    UFUNCTION(BlueprintCallable)
+    void OnCloseShopButtonClicked();
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* CloseShopButton;
 
     UPROPERTY()
     AMyDCharacter* PlayerCharacter;

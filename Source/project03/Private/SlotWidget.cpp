@@ -10,6 +10,7 @@
 #include "EquipmentWidget.h"
 #include "Item.h"
 
+
 //void USlotWidget::SetItem(AItem* InItem)
 //{
 //    StoredItem = InItem;
@@ -37,6 +38,17 @@ FReply USlotWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const F
         return UWidgetBlueprintLibrary::DetectDragIfPressed(InMouseEvent, this, EKeys::LeftMouseButton).NativeReply;
 
     }
+
+    /*if (bIsShopSlot && InMouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+    {
+        if (InventoryOwner && InventoryOwner->InventoryRef)
+        {
+            InventoryOwner->InventoryRef->TryAddItemByClassWithGrade(StoredData.ItemClass, StoredData.Grade);
+            UE_LOG(LogTemp, Log, TEXT("Shop: Purchased %s"), *StoredData.ItemName);
+        }
+        return FReply::Handled();
+    }*/
+
     return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
@@ -233,6 +245,17 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
             }
         }
     }
+
+    else if (SourceSlot->bIsShopSlot && !this->bIsShopSlot)
+    {
+        if (InventoryOwner && InventoryOwner->InventoryRef)
+        {
+            InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+            UE_LOG(LogTemp, Log, TEXT("Moved item from Shop to Player Inventory"));
+        }
+    }
+
+
     // 같은 그룹 간 스왑
     else
     {
