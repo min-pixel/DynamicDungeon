@@ -25,6 +25,7 @@
 #include "ManaPotion.h"
 #include "HealSpell.h"
 #include "CurseSpell.h"
+#include "GoldWidget.h"
 #include "InventoryWidget.h"
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
@@ -483,6 +484,13 @@ void AMyDCharacter::BeginPlay()
 		{
 			EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
 		}
+
+		/*if (GameInstance)
+		{
+			Gold = GameInstance->LobbyGold;
+		}
+		GoldWidgetInstance->UpdateGoldAmount(Gold);*/
+
 
 	}
 
@@ -2289,3 +2297,4 @@ void AMyDCharacter::TeleportToNearestEnemy()
 		UE_LOG(LogTemp, Warning, TEXT("No enemies found to teleport to."));
 	}
 }
+

@@ -43,6 +43,9 @@ struct FPlayerCharacterData
     UPROPERTY(BlueprintReadWrite)
     float MaxKnowledge;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Currency")
+    int32 Gold = 1000;
+
     UPROPERTY(BlueprintReadWrite)
     TArray<FItemData> InventoryItems;
 

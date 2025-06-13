@@ -94,7 +94,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float StaminaRegenRate = 10.0f;
 
-	
+	// 재화 (골드)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Currency")
+	int32 Gold;
+
+	UPROPERTY()
+	UGoldWidget* GoldWidgetInstance;
+
 	//핫키 인덱스 기반 호출 함수
 	void UseHotkey(int32 Index);
 

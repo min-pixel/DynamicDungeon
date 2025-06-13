@@ -48,7 +48,8 @@ public:
 	UPROPERTY(EditAnywhere) 
 	EPotionEffectType PotionEffect; 
 
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	int32 Price = 0;
 
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Item")

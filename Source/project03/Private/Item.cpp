@@ -51,6 +51,7 @@ FItemData AItem::ToItemData() const
     Data.MaxStack = MaxStack;
     Data.PotionEffect = PotionEffect;
     Data.Count = 1; // 기본 수량
+    Data.Price = Price;
     if (const AArmor* Armor = Cast<AArmor>(this))
     {
         Data.Grade = static_cast<uint8>(Armor->ArmorGrade);

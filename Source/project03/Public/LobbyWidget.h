@@ -41,6 +41,12 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
     TSubclassOf<UEquipmentWidget> EquipmentWidgetClass;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    TSubclassOf<class UGoldWidget> GoldWidgetClass;
+
+    UPROPERTY(meta = (BindWidget))
+    UGoldWidget* GoldWidgetInstance;
+
     UPROPERTY(meta = (BindWidget))
     UInventoryWidget* InventoryWidgetInstance;
 

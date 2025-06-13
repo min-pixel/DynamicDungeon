@@ -7,6 +7,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "UObject/UObjectIterator.h"
 #include "ShopWidget.h"
+#include "GoldWidget.h"
 #include "GameFramework/HUD.h"
 
 
@@ -41,6 +42,8 @@ void ULobbyWidget::NativeConstruct()
         CloseShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnCloseShopButtonClicked);
     }
     
+    
+
 }
 
 void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
@@ -139,6 +142,13 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
         EquipmentWidgetInstance->AddToViewport(1);
         EquipmentWidgetInstance->RefreshEquipmentSlots();
     }
+
+
+    if (GoldWidgetInstance && GameInstance)
+    {
+        GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+    }
+
 
     UE_LOG(LogTemp, Warning, TEXT("Lobby Initialized (Dummy Safe Mode)"));
 }

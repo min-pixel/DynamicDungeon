@@ -9,6 +9,8 @@ AChest::AChest()
 	ItemName = TEXT("Steel Chestplate");
 	ArmorType = EArmorType::Chest;
 	BonusHealth = 50;
+	Price = 10;
+
 
 	static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/armor.armor"));
 	if (IconTexture.Succeeded())

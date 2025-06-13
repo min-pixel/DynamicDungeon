@@ -62,7 +62,8 @@ struct FItemData
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 SkillIndex = -1;  // -1이면 유효하지 않음
 
-
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 Price = 0;
 
 
     FItemData()

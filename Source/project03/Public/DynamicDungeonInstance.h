@@ -51,8 +51,14 @@ public:
     UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "SaveData")
     TArray<FItemData> SavedStorageItems;
 
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    int32 LobbyGold = 10340;
+
     FPlayerCharacterData CurrentCharacterData;
 
     void InitializeCharacterData(EPlayerClass SelectedClass);
+
+    UFUNCTION(BlueprintCallable, Category = "Gold")
+    int32 GetLobbyGold() const { return LobbyGold; }
 
 };

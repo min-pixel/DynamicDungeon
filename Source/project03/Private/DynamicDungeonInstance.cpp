@@ -3,11 +3,13 @@
 
 #include "DynamicDungeonInstance.h"
 
+
 UDynamicDungeonInstance ::UDynamicDungeonInstance
 ()
 {
     // 기본값 설정
     bCanInteract = false;
+    LobbyGold = 1000;
 }
 
 void UDynamicDungeonInstance::SetCanInteract(bool NewState)
@@ -46,3 +48,4 @@ void UDynamicDungeonInstance::InitializeCharacterData(EPlayerClass SelectedClass
     CurrentCharacterData.InventoryItems.Empty();
     CurrentCharacterData.EquippedItems.Empty();
 }
+
