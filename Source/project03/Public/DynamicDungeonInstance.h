@@ -61,4 +61,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Gold")
     int32 GetLobbyGold() const { return LobbyGold; }
 
+    UPROPERTY()
+    class ULobbyWidget* LobbyWidgetInstance;
+
 };

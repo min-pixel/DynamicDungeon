@@ -316,6 +316,53 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         }
     }
 
+    // 창고창 → 상점창
+    else if (!SourceSlot->bIsShopSlot && this->bIsShopSlot)
+    {
+        if (SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
+        {
+            const int32 ItemPrice = SourceSlot->StoredData.Price;
+            const int32 SellPrice = FMath::FloorToInt(ItemPrice * 0.6f);
+
+            // 플레이어 확인
+            AMyDCharacter* Player = Cast<AMyDCharacter>(GetOwningPlayerPawn());
+            if (!Player)
+            {
+                // 로비 상황
+                UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+                if (GameInstance)
+                {
+                    GameInstance->LobbyGold += SellPrice;
+
+                    if (GameInstance->LobbyWidgetInstance && GameInstance->LobbyWidgetInstance->GoldWidgetInstance)
+                    {
+                        GameInstance->LobbyWidgetInstance->GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+                    }
+
+
+                    //UE_LOG(LogTemp, Log, TEXT("아이템 판매 (로비): %s - %d골드 획득"), *SourceSlot->StoredData.ItemName, SellPrice);
+                }
+            }
+            //else
+            //{
+            //    // 메인 게임 상황 (필요 시)
+            //    Player->Gold += SellPrice;
+
+            //    if (UGoldWidget* GoldUI = Player->GetGoldWidget())
+            //    {
+            //        GoldUI->UpdateGoldAmount(Player->Gold);
+            //    }
+
+            //    UE_LOG(LogTemp, Log, TEXT("아이템 판매: %s - %d골드 획득"), *SourceSlot->StoredData.ItemName, SellPrice);
+            //}
+
+            // 아이템 제거 (창고에서만 제거)
+            SourceSlot->SetItemData(FItemData());
+
+            return true;
+        }
+     }
+
 
     // 같은 그룹 간 스왑
     else

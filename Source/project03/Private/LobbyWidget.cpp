@@ -42,7 +42,11 @@ void ULobbyWidget::NativeConstruct()
         CloseShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnCloseShopButtonClicked);
     }
     
-    
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance)
+    {
+        GameInstance->LobbyWidgetInstance = this;
+    }
 
 }
 

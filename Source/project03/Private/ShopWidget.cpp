@@ -10,17 +10,25 @@
 
 void UShopWidget::PopulateShopItems()
 {
-    if (!ShopItemContainer) return;
+    if (!ShopItemContainer || !SlotWidgetClass) return;
 
     ShopItemContainer->ClearChildren();
 
-    for (int32 i = 0; i < ShopItemList.Num(); ++i)
+    const int32 NumDefaultItems = ShopItemList.Num();
+    const int32 NumExtraSlots = 10; // ¿©À¯ ½½·Ô ¼ö
+    const int32 TotalSlots = NumDefaultItems + NumExtraSlots;
+
+    for (int32 i = 0; i < TotalSlots; ++i)
     {
         USlotWidget* NewSlot = CreateWidget<USlotWidget>(this, SlotWidgetClass);
         if (NewSlot)
         {
-            NewSlot->SetItemData(ShopItemList[i]);
-            NewSlot->bIsShopSlot = true; 
+            if (i < NumDefaultItems)
+                NewSlot->SetItemData(ShopItemList[i]);
+            else
+                NewSlot->SetItemData(FItemData()); // ºó ½½·Ô
+
+            NewSlot->bIsShopSlot = true;
             NewSlot->bIsChestInventory = true;
             NewSlot->InventoryOwner = nullptr;
             NewSlot->SlotIndex = i;
