@@ -16,6 +16,7 @@
 #include "Engine/DirectionalLight.h"
 #include "EngineUtils.h"
 #include "USpellBase.h"
+#include "GoldWidget.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h" 
 #include "MyDCharacter.generated.h"
@@ -100,6 +101,9 @@ public:
 
 	UPROPERTY()
 	UGoldWidget* GoldWidgetInstance;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UGoldWidget> GoldWidgetClass;
 
 	//핫키 인덱스 기반 호출 함수
 	void UseHotkey(int32 Index);

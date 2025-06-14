@@ -310,6 +310,17 @@ AMyDCharacter::AMyDCharacter()
 		EscapeDoneWidgetClass = EscapeDoneBP.Class;
 	}
 
+	static ConstructorHelpers::FClassFinder<UGoldWidget> GoldWidgetBPClass(TEXT("/Game/BP/UI/goldWidget_BP.goldWidget_BP_C"));
+	if (GoldWidgetBPClass.Succeeded())
+	{
+		GoldWidgetClass = GoldWidgetBPClass.Class;
+		UE_LOG(LogTemp, Log, TEXT("Successfully loaded GoldWidget_BP."));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to load GoldWidget_BP! Check the path."));
+	}
+
 }
 
 // 게임 시작 시 호출
@@ -468,6 +479,19 @@ void AMyDCharacter::BeginPlay()
 		EscapeDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 	}
 
+	if (GoldWidgetClass)
+	{
+		GoldWidgetInstance = CreateWidget<UGoldWidget>(GetWorld(), GoldWidgetClass);
+		if (GoldWidgetInstance)
+		{
+			GoldWidgetInstance->AddToViewport();
+			GoldWidgetInstance->UpdateGoldAmount(Gold);
+			//GoldWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+		}
+	}
+
+
+
 	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
 	if (GameInstance)
 	{
@@ -485,12 +509,12 @@ void AMyDCharacter::BeginPlay()
 			EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
 		}
 
-		/*if (GameInstance)
+		//골드 복원
+		if (GameInstance)
 		{
 			Gold = GameInstance->LobbyGold;
+			GoldWidgetInstance->UpdateGoldAmount(Gold);
 		}
-		GoldWidgetInstance->UpdateGoldAmount(Gold);*/
-
 
 	}
 

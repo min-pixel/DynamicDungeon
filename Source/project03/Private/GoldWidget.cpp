@@ -15,6 +15,8 @@ void UGoldWidget::NativeConstruct()
 
 void UGoldWidget::UpdateGoldAmount(int32 NewGold)
 {
+
+
     if (GoldText)
     {
         GoldText->SetText(FText::FromString(FString::Printf(TEXT("GOLD: %dG"), NewGold)));

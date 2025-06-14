@@ -10,7 +10,7 @@ AManaPotion::AManaPotion()
 	PotionEffect = EPotionEffectType::Mana;
 	ItemData.PotionEffect = EPotionEffectType::Mana;
 	ItemData.Count = 1;
-	ItemData.Price = 30;
+	Price = 30;
 	ManaAmount = 40;
 
 	static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/flask.flask"));

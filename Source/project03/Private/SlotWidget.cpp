@@ -292,27 +292,27 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
                 UE_LOG(LogTemp, Log, TEXT("Lobby purchase: %s for %d gold. Remaining: %d"),
                     *SourceSlot->StoredData.ItemName, ItemPrice, GameInstance->LobbyGold);
             }
-            else
-            {
-                // 인게임 상황에서는 원래 로직 사용
-                const int32 ItemPrice = SourceSlot->StoredData.Price;
-                if (Player->Gold < ItemPrice)
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("Not enough gold: %d needed, %d owned"), ItemPrice, Player->Gold);
-                    return false;
-                }
+            //else
+            //{
+            //    // 인게임 상황에서는 원래 로직 사용
+            //    const int32 ItemPrice = SourceSlot->StoredData.Price;
+            //    if (Player->Gold < ItemPrice)
+            //    {
+            //        UE_LOG(LogTemp, Warning, TEXT("Not enough gold: %d needed, %d owned"), ItemPrice, Player->Gold);
+            //        return false;
+            //    }
 
-                Player->Gold -= ItemPrice;
-                InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+            //    Player->Gold -= ItemPrice;
+            //    InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
 
-                if (UGoldWidget* GoldUI = Player->GetGoldWidget())
-                {
-                    GoldUI->UpdateGoldAmount(Player->Gold);
-                }
+            //    if (UGoldWidget* GoldUI = Player->GetGoldWidget())
+            //    {
+            //        GoldUI->UpdateGoldAmount(Player->Gold);
+            //    }
 
-                UE_LOG(LogTemp, Log, TEXT("Purchased item: %s for %d gold. Remaining: %d"),
-                    *SourceSlot->StoredData.ItemName, ItemPrice, Player->Gold);
-            }
+            //    UE_LOG(LogTemp, Log, TEXT("Purchased item: %s for %d gold. Remaining: %d"),
+            //        *SourceSlot->StoredData.ItemName, ItemPrice, Player->Gold);
+            //}
         }
     }
 
