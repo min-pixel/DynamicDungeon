@@ -358,9 +358,11 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 					// ========== ConnectIsolatedRooms ==========   병목의 주 원인, 해결책: ...
 					double ConnectStart = FPlatformTime::Seconds();
-					ConnectIsolatedRooms(Tiles);
+					//ConnectIsolatedRooms(Tiles);
+
+					ConnectIsolatedRoomsDijkstra(Tiles);
 					double ConnectEnd = FPlatformTime::Seconds();
-					UE_LOG(LogTemp, Warning, TEXT("[WFC] ConnectIsolatedRooms time: %.6f sec"), ConnectEnd - ConnectStart);
+					UE_LOG(LogTemp, Warning, TEXT("[WFC] ConnectIsolatedRoomsDij time: %.6f sec"), ConnectEnd - ConnectStart);
 
 					// ========== AdjustRoomTileBasedOnCorridors #2 ==========
 					double AdjustStart2 = FPlatformTime::Seconds();
@@ -4304,4 +4306,235 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 			const double ElapsedTime = EndTime - StartTime;
 			UE_LOG(LogTemp, Warning, TEXT("[WFCGEN] Total async map generation time: %.3f sec"), ElapsedTime);
 		});
+
+}
+
+void UWaveFunctionCollapseSubsystem02::FindPathDijkstra(
+    const TArray<FWaveFunctionCollapseTileCustom>& Tiles,
+    const TSet<int32>& StartIndices,
+    TMap<int32, int32>& OutPrevious,
+    TMap<int32, int32>& OutDistance)
+{
+    // 초기화
+    TSet<int32> Visited;
+    TMap<int32, int32> Distance;
+    TMap<int32, int32> Previous;
+	//const FIntVector LocalResolution = this->Resolution;
+
+	auto IsValidPosition = [](const FIntVector& Pos, const FIntVector& Res) -> bool
+		{
+			return Pos.X >= 0 && Pos.X < Res.X &&
+				Pos.Y >= 0 && Pos.Y < Res.Y &&
+				Pos.Z >= 0 && Pos.Z < Res.Z;
+		};
+
+	const TArray<FIntVector> NeighbourDirections = {
+	FIntVector(1, 0, 0),   // +X
+	FIntVector(-1, 0, 0),  // -X
+	FIntVector(0, 1, 0),   // +Y
+	FIntVector(0, -1, 0)   // -Y
+	};
+
+    struct FNode
+    {
+        int32 Index;
+        int32 Cost;
+
+        bool operator<(const FNode& Other) const
+        {
+            return Cost > Other.Cost; // Min Heap용
+        }
+    };
+
+    TArray<FNode> OpenSet;
+
+	
+
+    for (int32 StartIndex : StartIndices)
+    {
+        Distance.Add(StartIndex, 0);
+        Previous.Add(StartIndex, -1);
+        OpenSet.Add({ StartIndex, 0 });
+    }
+
+    while (OpenSet.Num() > 0)
+    {
+        // 최소 비용 노드 선택
+        OpenSet.Sort();  // 작은 Cost 먼저
+        FNode Current = OpenSet[0];
+        OpenSet.RemoveAt(0);
+
+        if (Visited.Contains(Current.Index))
+            continue;
+
+        Visited.Add(Current.Index);
+
+        FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Current.Index, this->Resolution);
+
+        // 4방향 이웃
+        for (FIntVector Dir : NeighbourDirections)
+        {
+            FIntVector NeighborPos = Pos + Dir;
+            if (!IsValidPosition(NeighborPos, this->Resolution)) continue;
+
+            int32 NeighborIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPos, this->Resolution);
+            if (Visited.Contains(NeighborIndex)) continue;
+
+            int32 NewCost = Distance[Current.Index] + 1; // 전부 비용 1로
+
+            if (!Distance.Contains(NeighborIndex) || NewCost < Distance[NeighborIndex])
+            {
+                Distance.Add(NeighborIndex, NewCost);
+                Previous.Add(NeighborIndex, Current.Index);
+                OpenSet.Add({ NeighborIndex, NewCost });
+            }
+        }
+    }
+
+    OutDistance = Distance;
+    OutPrevious = Previous;
+}
+
+TArray<int32> UWaveFunctionCollapseSubsystem02::BuildPathFromDijkstra(
+	int32 TargetIndex,
+	const TMap<int32, int32>& Previous)
+{
+	TArray<int32> Path;
+	int32 Current = TargetIndex;
+
+	while (Previous.Contains(Current) && Current != -1)
+	{
+		Path.Add(Current);
+		Current = Previous[Current];
+	}
+
+	Algo::Reverse(Path);
+	return Path;
+}
+
+bool UWaveFunctionCollapseSubsystem02::IsCorridorTile(const FWaveFunctionCollapseTileCustom& Tile)
+{
+	if (Tile.RemainingOptions.Num() == 1)
+	{
+		return Tile.RemainingOptions[0].bIsCorridorTile;
+	}
+	return false;
+}
+
+void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+{
+	TSet<int32> CorridorIndices;
+	TSet<int32> RoomIndices;
+	
+
+	// 1. 모든 타일 중 복도와 방을 분류
+	for (int32 i = 0; i < Tiles.Num(); ++i)
+	{
+		const FWaveFunctionCollapseTileCustom& Tile = Tiles[i];
+
+		if (Tile.RemainingOptions.Num() == 1)
+		{
+			const FWaveFunctionCollapseOptionCustom& Option = Tile.RemainingOptions[0];
+			if (Option.bIsCorridorTile)
+			{
+				CorridorIndices.Add(i);
+			}
+			else if (Option.bIsRoomTile)
+			{
+				RoomIndices.Add(i);
+			}
+		}
+	}
+
+	// 2. 고립된 방 인덱스들 추출 (이건 FindDisconnectedRoomIndices 직접 구현해야 함)
+	TSet<int32> DisconnectedRooms = FindDisconnectedRoomIndices(RoomIndices, CorridorIndices, Tiles, this->Resolution);
+
+	// 3. 다익스트라 경로 탐색
+	TMap<int32, int32> Previous;
+	TMap<int32, int32> Distance;
+	FindPathDijkstra(Tiles, CorridorIndices, Previous, Distance);
+	const float TileSize = 500.f;
+	// 4. 각 고립된 방에서 가장 가까운 복도까지의 경로 생성 및 복도 채우기
+	for (int32 RoomIndex : DisconnectedRooms)
+	{
+		if (!Previous.Contains(RoomIndex)) continue;
+
+		TArray<int32> Path = BuildPathFromDijkstra(RoomIndex, Previous);
+
+		if (Path.Num() > 1)
+		{
+			// 마지막 타일(RoomIndex) 제거
+			Path.Pop();  // Path.RemoveAt(Path.Num() - 1); 도 가능
+			FillEmptyTilesAlongPath(Path, Tiles);
+
+#if WITH_EDITOR
+			for (int32 i = 0; i < Path.Num() - 1; ++i)
+			{
+				const int32 IndexA = Path[i];
+				const int32 IndexB = Path[i + 1];
+
+				// Index를 Position으로, 다시 월드 좌표로 변환
+				const FIntVector PosA = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexA, this->Resolution);
+				const FIntVector PosB = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexB, this->Resolution);
+
+				const FVector WorldA = FVector(PosA.X * TileSize, PosA.Y * TileSize, PosA.Z * TileSize) + FVector(0, 0, 50);
+				const FVector WorldB = FVector(PosB.X * TileSize, PosB.Y * TileSize, PosB.Z * TileSize) + FVector(0, 0, 50);
+
+				// 디버그 라인 그리기
+				DrawDebugLine(
+					GetWorld(),
+					WorldA,
+					WorldB,
+					FColor::Blue,
+					true,
+					10.0f,
+					0,
+					5.0f
+				);
+			}
+#endif
+
+		}
+	}
+}
+
+TSet<int32> UWaveFunctionCollapseSubsystem02::FindDisconnectedRoomIndices(
+	const TSet<int32>& RoomIndices,
+	const TSet<int32>& CorridorIndices,
+	const TArray<FWaveFunctionCollapseTileCustom>& Tiles,
+	const FIntVector& LocalResolution)
+{
+	TSet<int32> Result;
+
+	auto IsValidPosition = [](const FIntVector& Pos, const FIntVector& Res) -> bool {
+		return Pos.X >= 0 && Pos.X < Res.X &&
+			Pos.Y >= 0 && Pos.Y < Res.Y &&
+			Pos.Z >= 0 && Pos.Z < Res.Z;
+		};
+
+	for (int32 RoomIndex : RoomIndices)
+	{
+		FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(RoomIndex, LocalResolution);
+		bool bConnected = false;
+
+		for (const FIntVector& Dir : { FIntVector(2,0,0), FIntVector(-2,0,0), FIntVector(0,2,0), FIntVector(0,-2,0) })
+		{
+			FIntVector NeighborPos = Pos + Dir;
+			if (!IsValidPosition(NeighborPos, LocalResolution)) continue;
+
+			int32 NeighborIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPos, LocalResolution);
+			if (CorridorIndices.Contains(NeighborIndex))
+			{
+				bConnected = true;
+				break;
+			}
+		}
+
+		if (!bConnected)
+		{
+			Result.Add(RoomIndex);
+		}
+	}
+
+	return Result;
 }

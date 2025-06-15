@@ -117,6 +117,31 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WFCFunctions")
 	float GetTileSize() const;
 
+	//다익스트라
+	void FindPathDijkstra(
+		const TArray<FWaveFunctionCollapseTileCustom>& Tiles,
+		const TSet<int32>& StartIndices, // 복도 타일들
+		TMap<int32, int32>& OutPrevious, // 역추적용 prev[]
+		TMap<int32, int32>& OutDistance  // 거리 정보 dist[]
+	);
+
+	TArray<int32> BuildPathFromDijkstra(
+		int32 TargetIndex,
+		const TMap<int32, int32>& Previous
+	);
+
+	void ConnectIsolatedRoomsDijkstra(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
+	bool IsCorridorTile(const FWaveFunctionCollapseTileCustom& Tile);
+
+	TSet<int32> FindDisconnectedRoomIndices(
+		const TSet<int32>& RoomIndices,
+		const TSet<int32>& CorridorIndices,
+		const TArray<FWaveFunctionCollapseTileCustom>& Tiles,
+		const FIntVector& Resolution);
+
+
+
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.
 	* @param TryCount Amount of times to attempt a successful solve
