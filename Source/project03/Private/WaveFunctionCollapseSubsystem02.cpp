@@ -2925,6 +2925,9 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 		return;
 	}
 
+
+
+
 	// 방 타일 리스트 저장
 	TSet<int32> RoomTiles;
 	for (int32 i = 0; i < Tiles.Num(); i++)
@@ -2934,7 +2937,7 @@ void UWaveFunctionCollapseSubsystem02::FillEmptyTilesAlongPath(
 			RoomTiles.Add(i);
 		}
 	}
-	
+
 
 	// 방 내부 확장 (대각선 포함)
 	TSet<int32> ExtendedRoomTiles = RoomTiles;
@@ -4427,6 +4430,7 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWave
 	TSet<int32> RoomIndices;
 	
 
+
 	// 1. 모든 타일 중 복도와 방을 분류
 	for (int32 i = 0; i < Tiles.Num(); ++i)
 	{
@@ -4439,33 +4443,86 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWave
 			{
 				CorridorIndices.Add(i);
 			}
-			else if (Option.bIsRoomTile)
+			else if (Option.bIsRoomTile &&
+				!Option.bIsCorridorTile &&                    // 복도 플래그가 켜져 있지 않고
+				!Option.BaseObject.IsNull() &&                // 실체 오브젝트 있고
+				!Option.BaseObject.ToString().Contains("goalt01") && !Option.BaseObject.ToString().Contains("Option_Empty")&& Option.BaseObject.IsValid()) // 특정 이름 제외)
 			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("[WFC] RoomCandidate  Idx=%d  Obj=%s"),
+					i, *Option.BaseObject.ToString());
+
 				RoomIndices.Add(i);
 			}
 		}
 	}
 
-	// 2. 고립된 방 인덱스들 추출 (이건 FindDisconnectedRoomIndices 직접 구현해야 함)
+	
+
+	
+	UE_LOG(LogTemp, Warning, TEXT("[WFC] Room=%d  Corridor=%d"),
+		RoomIndices.Num(), CorridorIndices.Num());
+
 	TSet<int32> DisconnectedRooms = FindDisconnectedRoomIndices(RoomIndices, CorridorIndices, Tiles, this->Resolution);
+
+	UE_LOG(LogTemp, Warning, TEXT("[WFC] DisconnectedRooms=%d"), DisconnectedRooms.Num());
 
 	// 3. 다익스트라 경로 탐색
 	TMap<int32, int32> Previous;
 	TMap<int32, int32> Distance;
-	FindPathDijkstra(Tiles, CorridorIndices, Previous, Distance);
+	//FindPathDijkstra(Tiles, CorridorIndices, Previous, Distance);
 	const float TileSize = 500.f;
 	// 4. 각 고립된 방에서 가장 가까운 복도까지의 경로 생성 및 복도 채우기
+
+	
+
 	for (int32 RoomIndex : DisconnectedRooms)
 	{
-		if (!Previous.Contains(RoomIndex)) continue;
 
-		TArray<int32> Path = BuildPathFromDijkstra(RoomIndex, Previous);
+		
 
-		if (Path.Num() > 1)
+		// 1) 이 방 하나만을 출발점으로 다익스트라
+		TSet<int32> Start;
+		Start.Add(RoomIndex);
+
+		if (Tiles.IsValidIndex(RoomIndex) && Tiles[RoomIndex].RemainingOptions.Num() > 0)
 		{
-			// 마지막 타일(RoomIndex) 제거
-			Path.Pop();  // Path.RemoveAt(Path.Num() - 1); 도 가능
-			FillEmptyTilesAlongPath(Path, Tiles);
+			const FString ObjectName = Tiles[RoomIndex].RemainingOptions[0].BaseObject.ToString();
+			UE_LOG(LogTemp, Warning, TEXT("  DisconnectedRoom  Idx=%d  Obj=%s"), RoomIndex, *ObjectName);
+		}
+
+		TMap<int32, int32> Prev, Dist;
+		FindPathDijkstra(Tiles, Start, Prev, Dist);     // 시작점 = RoomIndex
+
+		// 2) 가장 가까운 복도 찾기
+		int32 BestCorridor = -1;
+		int32 BestDist = TNumericLimits<int32>::Max();
+
+		for (int32 CorridorIdx : CorridorIndices)
+		{
+			if (Dist.Contains(CorridorIdx) && Dist[CorridorIdx] < BestDist)
+			{
+				BestDist = Dist[CorridorIdx];
+				BestCorridor = CorridorIdx;
+			}
+		}
+
+		// 3) 경로 추적 & 복도 배치
+		if (BestCorridor != -1)
+		{
+			TArray<int32> Path = BuildPathFromDijkstra(BestCorridor, Prev); // 복도→…→Room
+
+			int32 RoomIdx = Path[0];
+			if (!Tiles[RoomIdx].RemainingOptions.IsEmpty() &&
+				Tiles[RoomIdx].RemainingOptions[0].bIsRoomTile)
+			{
+				Path.RemoveAt(0);                    // Room 제외
+				if (Path.Num() > 0)
+					FillEmptyTilesAlongPath(Path, Tiles);
+
+			}
+		
+		
 
 #if WITH_EDITOR
 			for (int32 i = 0; i < Path.Num() - 1; ++i)
@@ -4514,6 +4571,7 @@ TSet<int32> UWaveFunctionCollapseSubsystem02::FindDisconnectedRoomIndices(
 
 	for (int32 RoomIndex : RoomIndices)
 	{
+
 		FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(RoomIndex, LocalResolution);
 		bool bConnected = false;
 
