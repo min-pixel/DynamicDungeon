@@ -223,9 +223,12 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 						// 대체 타일 설정
 						FWaveFunctionCollapseOptionCustom AlternativeTileOption(TEXT("/Game/BP/goalt01.goalt01")); // 대체 타일 경로
-						//AlternativeTileOption.bIsCorridorTile = true;
+						AlternativeTileOption.bIsRoomTile = false;
 						Tiles[TileIndex].RemainingOptions.Empty();
 						Tiles[TileIndex].RemainingOptions.Add(AlternativeTileOption);
+						
+
+						
 
 
 
@@ -246,6 +249,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 							 // 다른 타일로 대체할 경우 (예: /Game/WFCCORE/wfc/SpecialOption/Option_Empty 타일)
 							FWaveFunctionCollapseOptionCustom ReplacementTile(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty"));
+							ReplacementTile.bIsRoomTile = false;
 							Tiles[TileIndex].RemainingOptions.Empty();
 							Tiles[TileIndex].RemainingOptions.Add(ReplacementTile);
 
@@ -329,6 +333,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 							AdjacentTilePosition.Z >= MinBound.Z && AdjacentTilePosition.Z <= MaxBound.Z)
 						{
 							// 경계 내부에 있는 타일만 삭제
+							
 							Tiles[AdjacentIndex].RemainingOptions.Empty();
 							Tiles[AdjacentIndex].ShannonEntropy = 0.0f;
 
@@ -356,25 +361,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 					//TArray<FWaveFunctionCollapseTileCustom> TilesCopy = Tiles;
 
-					// ========== ConnectIsolatedRooms ==========   병목의 주 원인, 해결책: ...
-					double ConnectStart = FPlatformTime::Seconds();
-					//ConnectIsolatedRooms(Tiles);
-
-					ConnectIsolatedRoomsDijkstra(Tiles);
-					double ConnectEnd = FPlatformTime::Seconds();
-					UE_LOG(LogTemp, Warning, TEXT("[WFC] ConnectIsolatedRoomsDij time: %.6f sec"), ConnectEnd - ConnectStart);
-
-					// ========== AdjustRoomTileBasedOnCorridors #2 ==========
-					double AdjustStart2 = FPlatformTime::Seconds();
-					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
-					double AdjustEnd2 = FPlatformTime::Seconds();
-					UE_LOG(LogTemp, Warning, TEXT("[WFC] AdjustRoomTileBasedOnCorridors (2) time: %.6f sec"), AdjustEnd2 - AdjustStart2);
-
-					// ========== PlaceGoalTileInFrontOfRoom ==========
-					double PlaceGoalStart = FPlatformTime::Seconds();
-					PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
-					double PlaceGoalEnd = FPlatformTime::Seconds();
-					UE_LOG(LogTemp, Warning, TEXT("[WFC] PlaceGoalTileInFrontOfRoom time: %.6f sec"), PlaceGoalEnd - PlaceGoalStart);
+					
 
 					
 
@@ -388,6 +375,26 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 			UE_LOG(LogTemp, Warning, TEXT("[WFC] Room Tile timer end (1.5): %.3f SESESE"), TileLoopEnd - TileLoopStart);
 
 		}
+
+		// ========== ConnectIsolatedRooms ==========   병목의 주 원인, 해결책: ...
+		double ConnectStart = FPlatformTime::Seconds();
+		//ConnectIsolatedRooms(Tiles);
+
+		ConnectIsolatedRoomsDijkstra(Tiles);
+		double ConnectEnd = FPlatformTime::Seconds();
+		UE_LOG(LogTemp, Warning, TEXT("[WFC] ConnectIsolatedRoomsDij time: %.6f sec"), ConnectEnd - ConnectStart);
+
+		// ========== AdjustRoomTileBasedOnCorridors #2 ==========
+		double AdjustStart2 = FPlatformTime::Seconds();
+		//AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
+		double AdjustEnd2 = FPlatformTime::Seconds();
+		UE_LOG(LogTemp, Warning, TEXT("[WFC] AdjustRoomTileBasedOnCorridors (2) time: %.6f sec"), AdjustEnd2 - AdjustStart2);
+
+		// ========== PlaceGoalTileInFrontOfRoom ==========
+		double PlaceGoalStart = FPlatformTime::Seconds();
+		//PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
+		double PlaceGoalEnd = FPlatformTime::Seconds();
+		UE_LOG(LogTemp, Warning, TEXT("[WFC] PlaceGoalTileInFrontOfRoom time: %.6f sec"), PlaceGoalEnd - PlaceGoalStart);
 		
 
 		// 성공한 타일 데이터를 저장
@@ -1202,11 +1209,13 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 		// "_C"가 없는 경우 자동으로 보정
 		FSoftObjectPath FixedPath = Option.BaseObject;
 		FString PathStr = FixedPath.ToString();
-		if (!PathStr.EndsWith(TEXT("_C")))
+		if (!PathStr.EndsWith(TEXT("_C")) && !PathStr.EndsWith(TEXT("_Empty")))
 		{
 			PathStr += TEXT("_C");
 			FixedPath = FSoftObjectPath(PathStr);
 		}
+
+
 
 		UObject* LoadedObject = FixedPath.TryLoad();
 		FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
@@ -1707,6 +1716,7 @@ void UWaveFunctionCollapseSubsystem02::RemoveIsolatedCorridorTiles(TArray<FWaveF
 		// 인접 타일이 모두 복도 타일이 아닌 경우 현재 타일 삭제
 		if (bAllAdjacentAreNotCorridor)
 		{
+
 			Tiles[TileIndex].RemainingOptions.Empty();
 			Tiles[TileIndex].ShannonEntropy = 0.0f;
 
@@ -4436,28 +4446,73 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWave
 	{
 		const FWaveFunctionCollapseTileCustom& Tile = Tiles[i];
 
+
+		if (Tiles[i].RemainingOptions.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Tile[%d] is EMPTY"), i);
+			continue;
+		}
+		const auto& Options = Tiles[i].RemainingOptions[0];
+		UE_LOG(LogTemp, Warning, TEXT("Tile[%d] Option=%s RoomFlag=%d"),
+			i, *Options.BaseObject.ToString(), Options.bIsRoomTile);
+
+
+
 		if (Tile.RemainingOptions.Num() == 1)
 		{
-			const FWaveFunctionCollapseOptionCustom& Option = Tile.RemainingOptions[0];
-			if (Option.bIsCorridorTile)
+
+			
+
+
+			
+			
+			const FString PathStr = Options.BaseObject.ToString();
+
+			const bool bInvalidTile =
+				PathStr.Contains("Option_Empty") ||
+				PathStr.Contains("VoidOption") ||  // 있는 경우
+				WFCModel->SpawnExclusion.Contains(Options.BaseObject);
+
+			if (bInvalidTile)
+			{
+				continue; // 완전 필터링
+			}
+
+			
+			if (Options.bIsCorridorTile)
 			{
 				CorridorIndices.Add(i);
 			}
-			else if (Option.bIsRoomTile &&
-				!Option.bIsCorridorTile &&                    // 복도 플래그가 켜져 있지 않고
-				!Option.BaseObject.IsNull() &&                // 실체 오브젝트 있고
-				!Option.BaseObject.ToString().Contains("goalt01") && !Option.BaseObject.ToString().Contains("Option_Empty")&& Option.BaseObject.IsValid()) // 특정 이름 제외)
-			{
-				UE_LOG(LogTemp, Warning,
-					TEXT("[WFC] RoomCandidate  Idx=%d  Obj=%s"),
-					i, *Option.BaseObject.ToString());
+			
+			
 
-				RoomIndices.Add(i);
+
+			
+			const bool bLooksLikeRoom =
+				Options.bIsRoomTile &&
+				!Options.bIsCorridorTile &&
+				!Options.BaseObject.IsNull() &&
+				Options.BaseObject.ToString().Contains("romm") &&     // 방 이름 규칙이 있다면
+				!Options.BaseObject.ToString().Contains("goalt01") &&
+				!Options.BaseObject.ToString().Contains("Option_Empty");
+
+				
+
+			if (bLooksLikeRoom)
+			{
+				// 현재 타일이 실제로 방 타일인지 다시 한번 확인
+				if (Tiles[i].RemainingOptions.Num() == 1 &&
+					Tiles[i].RemainingOptions[0].bIsRoomTile)
+				{
+					RoomIndices.Add(i);
+				}
 			}
 		}
 	}
 
 	
+
+
 
 	
 	UE_LOG(LogTemp, Warning, TEXT("[WFC] Room=%d  Corridor=%d"),
@@ -4466,6 +4521,12 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWave
 	TSet<int32> DisconnectedRooms = FindDisconnectedRoomIndices(RoomIndices, CorridorIndices, Tiles, this->Resolution);
 
 	UE_LOG(LogTemp, Warning, TEXT("[WFC] DisconnectedRooms=%d"), DisconnectedRooms.Num());
+
+
+
+
+
+
 
 	// 3. 다익스트라 경로 탐색
 	TMap<int32, int32> Previous;
@@ -4491,7 +4552,8 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWave
 			UE_LOG(LogTemp, Warning, TEXT("  DisconnectedRoom  Idx=%d  Obj=%s"), RoomIndex, *ObjectName);
 		}
 
-		TMap<int32, int32> Prev, Dist;
+		TMap<int32, int32> Prev;
+		TMap<int32, int32> Dist;
 		FindPathDijkstra(Tiles, Start, Prev, Dist);     // 시작점 = RoomIndex
 
 		// 2) 가장 가까운 복도 찾기
@@ -4507,50 +4569,59 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWave
 			}
 		}
 
-		// 3) 경로 추적 & 복도 배치
 		if (BestCorridor != -1)
 		{
 			TArray<int32> Path = BuildPathFromDijkstra(BestCorridor, Prev); // 복도→…→Room
-
-			int32 RoomIdx = Path[0];
-			if (!Tiles[RoomIdx].RemainingOptions.IsEmpty() &&
-				Tiles[RoomIdx].RemainingOptions[0].bIsRoomTile)
+			if (Path.Num() > 0)
 			{
-				Path.RemoveAt(0);                    // Room 제외
-				if (Path.Num() > 0)
-					FillEmptyTilesAlongPath(Path, Tiles);
+				int32 RoomIdx = Path[0];
 
-			}
-		
-		
+				if (!Tiles[RoomIdx].RemainingOptions.IsEmpty())
+				{
+					const FWaveFunctionCollapseOptionCustom& Option = Tiles[RoomIdx].RemainingOptions[0];
+
+					const bool bRealRoom =
+						Option.bIsRoomTile &&
+						!Option.BaseObject.ToString().Contains("goalt01") &&
+						!Option.BaseObject.ToString().Contains("Option_Empty");
+
+
+
+					if (bRealRoom)
+					{
+
+						UE_LOG(LogWFC, Warning, TEXT("Roomghghgh : Index=%d, Asset=%s, IsRoom=%d, IsCorridor=%d"),
+							RoomIdx,
+							*Option.BaseObject.ToString(),
+							Option.bIsRoomTile,
+							Option.bIsCorridorTile);
+
+
+						//Path.RemoveAt(0); // 진짜 방일 때만 제외
+						if (Path.Num() > 0)
+							FillEmptyTilesAlongPath(Path, Tiles);
 
 #if WITH_EDITOR
-			for (int32 i = 0; i < Path.Num() - 1; ++i)
-			{
-				const int32 IndexA = Path[i];
-				const int32 IndexB = Path[i + 1];
-
-				// Index를 Position으로, 다시 월드 좌표로 변환
-				const FIntVector PosA = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexA, this->Resolution);
-				const FIntVector PosB = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexB, this->Resolution);
-
-				const FVector WorldA = FVector(PosA.X * TileSize, PosA.Y * TileSize, PosA.Z * TileSize) + FVector(0, 0, 50);
-				const FVector WorldB = FVector(PosB.X * TileSize, PosB.Y * TileSize, PosB.Z * TileSize) + FVector(0, 0, 50);
-
-				// 디버그 라인 그리기
-				DrawDebugLine(
-					GetWorld(),
-					WorldA,
-					WorldB,
-					FColor::Blue,
-					true,
-					10.0f,
-					0,
-					5.0f
-				);
-			}
+						// 디버그 라인 (선택)
+						for (int32 i = 0; i < Path.Num() - 1; ++i)
+						{
+							const int32 IndexA = Path[i];
+							const int32 IndexB = Path[i + 1];
+							const FIntVector PosA = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexA, this->Resolution);
+							const FIntVector PosB = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexB, this->Resolution);
+							const FVector WorldA = FVector(PosA) * TileSize + FVector(0, 0, 50);
+							const FVector WorldB = FVector(PosB) * TileSize + FVector(0, 0, 50);
+							DrawDebugLine(GetWorld(), WorldA, WorldB, FColor::Blue, true, 10.0f, 0, 5.0f);
+						}
 #endif
-
+					}
+					else
+					{
+						// 방이 아닌 경우는 경로 무시
+						UE_LOG(LogWFC, Warning, TEXT("[Dijkstra] Rejected path: Start is not a real room. Index: %d, Asset: %s"), RoomIdx, *Option.BaseObject.ToString());
+					}
+				}
+			}
 		}
 	}
 }
