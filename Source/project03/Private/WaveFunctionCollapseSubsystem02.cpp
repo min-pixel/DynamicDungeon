@@ -49,6 +49,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	Tiles.Reserve(ArrayReserveValue); 
 	RemainingTiles.Reserve(ArrayReserveValue); 
 	TArray<FVector> FixedRoomTilePositions; 
+	TArray<int32> RoomTileIndices;
 
 	InitializeWFC(Tiles, RemainingTiles);
 
@@ -179,6 +180,10 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 				// 방 타일 처리
 				if (SelectedOption.bIsRoomTile)
 				{
+
+					// 방 타일 인덱스 저장
+					RoomTileIndices.Add(TileIndex);
+
 					double RoomPostStart = FPlatformTime::Seconds();
 
 					float TileSize = WFCModel->TileSize * 3.0f; // 방 타일 크기
@@ -384,18 +389,21 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		double ConnectEnd = FPlatformTime::Seconds();
 		UE_LOG(LogTemp, Warning, TEXT("[WFC] ConnectIsolatedRoomsDij time: %.6f sec"), ConnectEnd - ConnectStart);
 
-		// ========== AdjustRoomTileBasedOnCorridors #2 ==========
-		double AdjustStart2 = FPlatformTime::Seconds();
-		//AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
-		double AdjustEnd2 = FPlatformTime::Seconds();
-		UE_LOG(LogTemp, Warning, TEXT("[WFC] AdjustRoomTileBasedOnCorridors (2) time: %.6f sec"), AdjustEnd2 - AdjustStart2);
+		for (int32 RoomTileIndex : RoomTileIndices)
+		{
 
-		// ========== PlaceGoalTileInFrontOfRoom ==========
-		double PlaceGoalStart = FPlatformTime::Seconds();
-		//PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
-		double PlaceGoalEnd = FPlatformTime::Seconds();
-		UE_LOG(LogTemp, Warning, TEXT("[WFC] PlaceGoalTileInFrontOfRoom time: %.6f sec"), PlaceGoalEnd - PlaceGoalStart);
-		
+			// ========== AdjustRoomTileBasedOnCorridors #2 ==========
+			double AdjustStart2 = FPlatformTime::Seconds();
+			AdjustRoomTileBasedOnCorridors(RoomTileIndex, Tiles);
+			double AdjustEnd2 = FPlatformTime::Seconds();
+			UE_LOG(LogTemp, Warning, TEXT("[WFC] AdjustRoomTileBasedOnCorridors (2) time: %.6f sec"), AdjustEnd2 - AdjustStart2);
+
+			// ========== PlaceGoalTileInFrontOfRoom ==========
+			double PlaceGoalStart = FPlatformTime::Seconds();
+			PlaceGoalTileInFrontOfRoom(RoomTileIndex, Tiles);
+			double PlaceGoalEnd = FPlatformTime::Seconds();
+			UE_LOG(LogTemp, Warning, TEXT("[WFC] PlaceGoalTileInFrontOfRoom time: %.6f sec"), PlaceGoalEnd - PlaceGoalStart);
+		}
 
 		// 성공한 타일 데이터를 저장
 		LastCollapsedTiles = Tiles;
@@ -4120,6 +4128,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 			TArray<FWaveFunctionCollapseTileCustom> Tiles;
 			TArray<int32> RemainingTiles;
 			TMap<int32, FWaveFunctionCollapseQueueElementCustom> ObservationQueue;
+			TArray<int32> RoomTileIndices;
 
 			InitializeWFC(Tiles, RemainingTiles);
 
@@ -4206,6 +4215,9 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 				if (SelectedOption.bIsRoomTile)
 				{
+
+					RoomTileIndices.Add(TileIndex);
+
 					float TileSize = WFCModel->TileSize * 3.0f;
 					FVector RoomTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
 
@@ -4278,11 +4290,18 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 					// 방 타일 후처리 순서 (CollapseCustom과 동일)
 					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
-					ConnectIsolatedRooms(Tiles);
-					AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
-					PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
+					//ConnectIsolatedRooms(Tiles);
+					//AdjustRoomTileBasedOnCorridors(TileIndex, Tiles);
+					//PlaceGoalTileInFrontOfRoom(TileIndex, Tiles);
 				}
 			}
+
+			RemoveIsolatedCorridorTiles(Tiles);
+			RemoveDisconnectedCorridors(Tiles);
+
+			ConnectIsolatedRoomsDijkstra(Tiles);
+
+		
 
 			// 5. 고정된 방 타일 전용 후처리 (CollapseCustom과 동일)
 			for (const auto& Entry : UserFixedOptions)
@@ -4296,6 +4315,14 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 					AdjustRoomTileFacingDirection(FixedTileIndex, Tiles, CorridorDirection.GetValue());
 				}
 			}
+
+			for (int32 RoomTileIndex : RoomTileIndices)
+			{
+				AdjustRoomTileBasedOnCorridors(RoomTileIndex, Tiles);
+				PlaceGoalTileInFrontOfRoom(RoomTileIndex, Tiles);
+			}
+
+
 
 			double PostProcessEnd = FPlatformTime::Seconds();
 			UE_LOG(LogTemp, Warning, TEXT("[Async] Post-processing took: %.3f seconds"), PostProcessEnd - PostProcessStart);
@@ -4348,18 +4375,23 @@ void UWaveFunctionCollapseSubsystem02::FindPathDijkstra(
 	FIntVector(0, -1, 0)   // -Y
 	};
 
-    struct FNode
+    struct FDirectionalNode
     {
         int32 Index;
         int32 Cost;
+		FIntVector LastDirection; // 이전 이동 방향
+		int32 SameDirectionCount; // 같은 방향으로 연속 이동한 횟수
 
-        bool operator<(const FNode& Other) const
+        bool operator<(const FDirectionalNode& Other) const
         {
             return Cost > Other.Cost; // Min Heap용
         }
     };
 
-    TArray<FNode> OpenSet;
+    TArray<FDirectionalNode> OpenSet;
+
+	// 방향별 방문 체크 (Index + Direction 조합)
+	TSet<FString> DirectionalVisited;
 
 	
 
@@ -4367,20 +4399,34 @@ void UWaveFunctionCollapseSubsystem02::FindPathDijkstra(
     {
         Distance.Add(StartIndex, 0);
         Previous.Add(StartIndex, -1);
-        OpenSet.Add({ StartIndex, 0 });
+		// 각 방향으로 시작할 수 있도록 추가
+		for (const FIntVector& Dir : NeighbourDirections)
+		{
+			OpenSet.Add({
+				StartIndex,
+				0,
+				Dir,  // 첫 번째 이동 방향
+				0     // 아직 이동하지 않음
+				});
+		}
     }
 
     while (OpenSet.Num() > 0)
     {
         // 최소 비용 노드 선택
         OpenSet.Sort();  // 작은 Cost 먼저
-        FNode Current = OpenSet[0];
+		FDirectionalNode Current = OpenSet[0];
         OpenSet.RemoveAt(0);
 
-        if (Visited.Contains(Current.Index))
-            continue;
+		// 방향을 포함한 고유 키 생성
+		FString DirectionalKey = FString::Printf(TEXT("%d_%d_%d_%d"),
+			Current.Index, Current.LastDirection.X, Current.LastDirection.Y, Current.LastDirection.Z);
 
-        Visited.Add(Current.Index);
+		if (DirectionalVisited.Contains(DirectionalKey))
+			continue;
+
+		DirectionalVisited.Add(DirectionalKey);
+
 
         FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Current.Index, this->Resolution);
 
@@ -4391,7 +4437,37 @@ void UWaveFunctionCollapseSubsystem02::FindPathDijkstra(
             if (!IsValidPosition(NeighborPos, this->Resolution)) continue;
 
             int32 NeighborIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(NeighborPos, this->Resolution);
-            if (Visited.Contains(NeighborIndex)) continue;
+            
+
+			// 방향 제약 조건 검사
+			bool bCanMove = true;
+			int32 NewSameDirectionCount = 0;
+
+			if (Current.SameDirectionCount == 0)
+			{
+				// 첫 번째 이동: 어떤 방향이든 가능
+				NewSameDirectionCount = 1;
+			}
+			else if (Current.SameDirectionCount == 1)
+			{
+				// 두 번째 이동: 같은 방향으로만 가능
+				if (Dir != Current.LastDirection)
+				{
+					bCanMove = false; // 다른 방향으로는 이동 불가
+				}
+				else
+				{
+					NewSameDirectionCount = 2;
+				}
+			}
+			else
+			{
+				// 세 번째 이동부터: 자유롭게 이동 가능
+				NewSameDirectionCount = (Dir == Current.LastDirection) ? Current.SameDirectionCount + 1 : 1;
+			}
+
+			if (!bCanMove)
+				continue;
 
             int32 NewCost = Distance[Current.Index] + 1; // 전부 비용 1로
 
@@ -4399,7 +4475,12 @@ void UWaveFunctionCollapseSubsystem02::FindPathDijkstra(
             {
                 Distance.Add(NeighborIndex, NewCost);
                 Previous.Add(NeighborIndex, Current.Index);
-                OpenSet.Add({ NeighborIndex, NewCost });
+				OpenSet.Add({
+					NeighborIndex,
+					NewCost,
+					Dir,  // 현재 이동 방향
+					NewSameDirectionCount
+					});
             }
         }
     }
@@ -4407,6 +4488,7 @@ void UWaveFunctionCollapseSubsystem02::FindPathDijkstra(
     OutDistance = Distance;
     OutPrevious = Previous;
 }
+
 
 TArray<int32> UWaveFunctionCollapseSubsystem02::BuildPathFromDijkstra(
 	int32 TargetIndex,
