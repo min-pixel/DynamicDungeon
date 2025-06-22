@@ -1784,7 +1784,20 @@ void AMyDCharacter::FadeAndRegenWFC()
 		UE_LOG(LogTemp, Error, TEXT("WFCDoneWidgetInstance is NULL in FadeAndRegenWFC"));
 	}
 
-	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 13.0f, false);
+	// 0.1초 후에 재생성 시작 (연출이 먼저 보이도록)
+	GetWorldTimerManager().SetTimer(TimerHandle_StartWFC, this, &AMyDCharacter::ExecuteWFCNow, 0.1f, false);
+
+	// 5초 후 위젯 숨기기 (람다 사용)
+	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, [this]()
+		{
+			if (WFCDoneWidgetInstance)
+			{
+				WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+			}
+		}, 3.0f, false);
+
+
+	//GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 5.0f, false);
 }
 
 
@@ -1793,21 +1806,70 @@ void AMyDCharacter::ExecuteWFCNow()
 {
 	if (PendingRegenActor)
 	{
+
+		// 재생성 전에 플레이어가 고정된 방타일 근처에 있는지 확인
+		bool bPlayerInFixedRoom = IsPlayerInFixedRoomTile();
+
+		if (bPlayerInFixedRoom)
+		{
+			// 플레이어 중력 비활성화
+			if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+			{
+				GetCharacterMovement()->GravityScale = 0.0f;
+			}
+		}
+
+
 		if (AWFCRegenerator* Regen = Cast<AWFCRegenerator>(PendingRegenActor))
 		{
 			Regen->GenerateWFCAtLocation();
 		}
+
+
+		
+
 	}
 
-	if (WFCDoneWidgetInstance)
+	/*if (WFCDoneWidgetInstance)
 	{
 		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
-	}
+	}*/
 
 	bIsWFCCountdownActive = false;
 	PendingRegenActor = nullptr;
 
 }
+
+
+bool AMyDCharacter ::IsPlayerInFixedRoomTile()
+{
+	// 검색 반경 설정
+	float SearchRadius = 1500.0f;
+
+	// 플레이어 주변에서 WFCRegen 태그가 있는 재생성 오브젝트 검색
+	TArray<AActor*> AllRegenObjects;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("WFCRegen"), AllRegenObjects);
+
+	FVector PlayerLocation = GetActorLocation();
+
+	for (AActor* RegenActor : AllRegenObjects)
+	{
+		if (IsValid(RegenActor))
+		{
+			float DistanceSquared = FVector::DistSquared(PlayerLocation, RegenActor->GetActorLocation());
+			if (DistanceSquared <= FMath::Square(SearchRadius))
+			{
+				float Distance = FMath::Sqrt(DistanceSquared);
+				UE_LOG(LogTemp, Warning, TEXT("Player is near WFCRegen object at distance: %.2f"), Distance);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+
 
 
 void AMyDCharacter::TriggerEscapeSequence()

@@ -257,11 +257,13 @@ public:
 	UPROPERTY()
 	TMap<int32, class AArmor*> EquippedArmors;  // ΩΩ∑‘ ¿Œµ¶Ω∫ °Ê ¿Â¬¯µ» ∞©ø 
 
+	bool IsPlayerInFixedRoomTile();
+
 
 
 	UPROPERTY()
 	AActor* OverlappedActor;
-
+	FTimerHandle TimerHandle_StartWFC;
 	FTimerHandle TimerHandle_DelayedWFC;
 	AActor* PendingRegenActor = nullptr;
 	bool bIsWFCCountdownActive = false;

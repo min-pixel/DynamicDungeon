@@ -9,6 +9,7 @@
 #include "WaveFunctionCollapseBPLibrary02.h"
 #include "MyDCharacter.h"
 #include "wfcex.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "EnemyCharacter.h"
 #include "Async/Async.h"
 
@@ -355,7 +356,13 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 
 	});
 
-	
+	// 맵 생성이 끝난 후, 캐릭터 중력 복구
+	AMyDCharacter* Player = Cast<AMyDCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
+	if (Player)
+	{
+		Player->GetCharacterMovement()->GravityScale = 1.0f;
+	}
+
 
 	//WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);
 	UE_LOG(LogTemp, Warning, TEXT("ExecuteWFC called"));

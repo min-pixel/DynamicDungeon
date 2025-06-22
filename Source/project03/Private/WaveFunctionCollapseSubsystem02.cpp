@@ -4202,11 +4202,59 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 					{
 						FVector RoomPos = FVector(Coord) * WFCModel->TileSize;
 						FixedRoomTilePositions.Add(RoomPos);
+						RoomTilePositions.Add(RoomPos);
 					}
 				}
 			}
 
-			// 4. 방 타일 후처리 (CollapseCustom과 동일한 로직)
+			// 4. 고정된 방 타일 주변 정리 (새로 추가)
+			for (const auto& Entry : UserFixedOptions)
+			{
+				const FIntVector& Coord = Entry.Key;
+				int32 TileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
+
+				if (Tiles.IsValidIndex(TileIndex) && Tiles[TileIndex].RemainingOptions.Num() == 1)
+				{
+					const auto& Option = Tiles[TileIndex].RemainingOptions[0];
+					if (Option.bIsRoomTile)
+					{
+						// 8방향으로 2칸 떨어진 타일들 처리
+						for (int32 X = -2; X <= 2; ++X)
+						{
+							for (int32 Y = -2; Y <= 2; ++Y)
+							{
+								if (X == 0 && Y == 0) continue; // 자기 자신은 제외
+
+								FIntVector TargetCoord = Coord + FIntVector(X, Y, 0);
+								int32 TargetIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(TargetCoord, Resolution);
+
+								if (Tiles.IsValidIndex(TargetIndex) && Tiles[TargetIndex].RemainingOptions.Num() == 1)
+								{
+									const auto& TargetOption = Tiles[TargetIndex].RemainingOptions[0];
+
+									// Empty 타일이나 Option_Empty는 건드리지 않음
+									FString AssetPath = TargetOption.BaseObject.GetAssetPathString();
+									if (AssetPath.Contains(TEXT("Option_Empty")))
+									{
+										continue;
+									}
+
+									// goalt01로 교체
+									FWaveFunctionCollapseOptionCustom GoalTileOption(TEXT("/Game/BP/goalt01.goalt01"));
+									GoalTileOption.bIsRoomTile = false;
+									Tiles[TargetIndex].RemainingOptions.Empty();
+									Tiles[TargetIndex].RemainingOptions.Add(GoalTileOption);
+
+									Tiles[TargetIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+										Tiles[TargetIndex].RemainingOptions, WFCModel);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// 5. 방 타일 후처리 (CollapseCustom과 동일한 로직)
 			for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
 			{
 				if (Tiles[TileIndex].RemainingOptions.Num() != 1) continue;
@@ -4268,9 +4316,10 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 					RoomTilePositions.Add(RoomTilePosition);
 
 					// 방 타일 주변 영역 정리
-					FVector MinBound = RoomTilePosition - FVector(TileSize * 1.5f);
-					FVector MaxBound = RoomTilePosition + FVector(TileSize * 0.4f);
-
+					//FVector MinBound = RoomTilePosition - FVector(TileSize * 1.5f);
+					//FVector MaxBound = RoomTilePosition + FVector(TileSize * 0.4f);
+					FVector MinBound = RoomTilePosition - FVector(TileSize * 1.5f, TileSize * 1.5f, TileSize * 1.5f);
+					FVector MaxBound = RoomTilePosition + FVector(TileSize * 0.4f, TileSize * 0.4f, TileSize * 0.4f);
 					TArray<int32> AdjacentIndices = GetAdjacentIndices(TileIndex, Resolution);
 					for (int32 AdjacentIndex : AdjacentIndices)
 					{
@@ -4303,8 +4352,8 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 		
 
-			// 5. 고정된 방 타일 전용 후처리 (CollapseCustom과 동일)
-			for (const auto& Entry : UserFixedOptions)
+			// 6. 고정된 방 타일 전용 후처리 (CollapseCustom과 동일)
+			/*for (const auto& Entry : UserFixedOptions)
 			{
 				const FIntVector& Coord = Entry.Key;
 				TOptional<FIntVector> CorridorDirection = PostProcessFixedRoomTileAt(Coord, Tiles);
@@ -4314,7 +4363,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 				{
 					AdjustRoomTileFacingDirection(FixedTileIndex, Tiles, CorridorDirection.GetValue());
 				}
-			}
+			}*/
 
 			for (int32 RoomTileIndex : RoomTileIndices)
 			{
@@ -4328,16 +4377,33 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 			UE_LOG(LogTemp, Warning, TEXT("[Async] Post-processing took: %.3f seconds"), PostProcessEnd - PostProcessStart);
 
 			// 결과를 GameThread에서 처리
-			AsyncTask(ENamedThreads::GameThread, [this, FinalTiles = MoveTemp(Tiles), OnCompleted]()
+			AsyncTask(ENamedThreads::GameThread, [this, FinalTiles = MoveTemp(Tiles), RoomTilePositions, OnCompleted]()
 				{
 					LastCollapsedTiles = FinalTiles;
 					bHasCachedTiles = true;
+
+					for (const auto& Entry : UserFixedOptions)
+					{
+						const FIntVector& Coord = Entry.Key;
+						TOptional<FIntVector> CorridorDirection = PostProcessFixedRoomTileAt(Coord, LastCollapsedTiles);
+
+						int32 FixedTileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
+						if (LastCollapsedTiles.IsValidIndex(FixedTileIndex) && CorridorDirection.IsSet())
+						{
+							AdjustRoomTileFacingDirection(FixedTileIndex, LastCollapsedTiles, CorridorDirection.GetValue());
+						}
+					}
+
+
+					this->RoomTilePositions = RoomTilePositions;
 
 					// 새 풀링 기반 함수 호출
 					ReuseTilePrefabsFromPool(LastCollapsedTiles, GetWorld());
 
 					SpawnBorderBlueprints();
 					UE_LOG(LogWFC, Log, TEXT("[Async] Pooling completed successfully"));
+
+					this->RoomTilePositions.Empty();
 
 					if (OnCompleted) OnCompleted();
 				});
