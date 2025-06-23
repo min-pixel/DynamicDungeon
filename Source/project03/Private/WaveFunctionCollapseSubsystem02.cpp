@@ -4350,7 +4350,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 			ConnectIsolatedRoomsDijkstra(Tiles);
 
-		
+			//ConnectIsolatedRooms(Tiles);
 
 			// 6. 고정된 방 타일 전용 후처리 (CollapseCustom과 동일)
 			/*for (const auto& Entry : UserFixedOptions)
@@ -4365,6 +4365,25 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 				}
 			}*/
 
+			// 6. 고정된 방 타일도 RoomTileIndices에 추가하여 동일한 후처리 적용
+			for (const auto& Entry : UserFixedOptions)
+			{
+				const FIntVector& Coord = Entry.Key;
+				const FWaveFunctionCollapseOptionCustom& FixedOption = Entry.Value;
+
+				// 고정된 방 타일인지 확인
+				if (FixedOption.bIsRoomTile)
+				{
+					int32 FixedRoomIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
+					if (Tiles.IsValidIndex(FixedRoomIndex))
+					{
+						// RoomTileIndices에 추가 (중복 방지)
+						RoomTileIndices.AddUnique(FixedRoomIndex);
+						UE_LOG(LogWFC, Display, TEXT("Added fixed room tile at %s to post-processing queue"), *Coord.ToString());
+					}
+				}
+			}
+
 			for (int32 RoomTileIndex : RoomTileIndices)
 			{
 				AdjustRoomTileBasedOnCorridors(RoomTileIndex, Tiles);
@@ -4377,25 +4396,13 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 			UE_LOG(LogTemp, Warning, TEXT("[Async] Post-processing took: %.3f seconds"), PostProcessEnd - PostProcessStart);
 
 			// 결과를 GameThread에서 처리
-			AsyncTask(ENamedThreads::GameThread, [this, FinalTiles = MoveTemp(Tiles), RoomTilePositions, OnCompleted]()
+			AsyncTask(ENamedThreads::GameThread, [this, FinalTiles = MoveTemp(Tiles), RoomTilePositions, RoomTileIndices, OnCompleted]()
 				{
 					LastCollapsedTiles = FinalTiles;
 					bHasCachedTiles = true;
-
-					for (const auto& Entry : UserFixedOptions)
-					{
-						const FIntVector& Coord = Entry.Key;
-						TOptional<FIntVector> CorridorDirection = PostProcessFixedRoomTileAt(Coord, LastCollapsedTiles);
-
-						int32 FixedTileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(Coord, Resolution);
-						if (LastCollapsedTiles.IsValidIndex(FixedTileIndex) && CorridorDirection.IsSet())
-						{
-							AdjustRoomTileFacingDirection(FixedTileIndex, LastCollapsedTiles, CorridorDirection.GetValue());
-						}
-					}
-
-
 					this->RoomTilePositions = RoomTilePositions;
+
+					
 
 					// 새 풀링 기반 함수 호출
 					ReuseTilePrefabsFromPool(LastCollapsedTiles, GetWorld());
@@ -4410,7 +4417,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 			const double EndTime = FPlatformTime::Seconds();
 			const double ElapsedTime = EndTime - StartTime;
-			UE_LOG(LogTemp, Warning, TEXT("[WFCGEN] Total async map generation time: %.3f sec"), ElapsedTime);
+			UE_LOG(LogTemp, Warning, TEXT("[WFCGEN] Dij Total async map generation time: %.3f sec"), ElapsedTime);
 		});
 
 }

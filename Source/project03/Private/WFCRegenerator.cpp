@@ -352,16 +352,26 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 				WFCManager->SpawnTreasureChestsOnTiles();
 			}
 
+			// 맵 생성이 끝난 후, 캐릭터 중력 복구
+			
+			if (AMyDCharacter* Player = Cast<AMyDCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
+			{
+				UCharacterMovementComponent* MovementComp = Player->GetCharacterMovement();
+				if (MovementComp)
+				{
+					MovementComp->GravityScale = 1.0f;
+					//MovementComp->SetMovementMode(EMovementMode::MOVE_Walking); // Flying이 아닌 Walking으로
+
+					// Velocity 초기화
+					//MovementComp->Velocity = FVector::ZeroVector;
+				}
+
+			}
 			
 
 	});
 
-	// 맵 생성이 끝난 후, 캐릭터 중력 복구
-	AMyDCharacter* Player = Cast<AMyDCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
-	if (Player)
-	{
-		Player->GetCharacterMovement()->GravityScale = 1.0f;
-	}
+	
 
 
 	//WFCSubsystem->ExecuteWFC(TryCount, RandomSeed, World);

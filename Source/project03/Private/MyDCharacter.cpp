@@ -1784,8 +1784,31 @@ void AMyDCharacter::FadeAndRegenWFC()
 		UE_LOG(LogTemp, Error, TEXT("WFCDoneWidgetInstance is NULL in FadeAndRegenWFC"));
 	}
 
-	// 0.1초 후에 재생성 시작 (연출이 먼저 보이도록)
-	GetWorldTimerManager().SetTimer(TimerHandle_StartWFC, this, &AMyDCharacter::ExecuteWFCNow, 0.1f, false);
+	// 재생성 전에 플레이어가 고정된 방타일 근처에 있는지 확인
+	bool bPlayerInFixedRoom = IsPlayerInFixedRoomTile();
+
+	if (bPlayerInFixedRoom)
+	{
+		// 플레이어 중력 비활성화
+		if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+		{
+			MovementComp->GravityScale = 0.0f;
+			// 이동 모드를 Flying으로 변경
+			//MovementComp->SetMovementMode(EMovementMode::MOVE_Flying);
+
+			// Velocity 초기화
+			//MovementComp->Velocity = FVector::ZeroVector;
+		}
+	}
+
+
+	// 0.5초 후에 재생성 시작 (연출이 먼저 보이도록)
+	GetWorldTimerManager().SetTimer(TimerHandle_StartWFC, [this]() {
+		// UI 상태 확인 후 실행
+		if (WFCDoneWidgetInstance && WFCDoneWidgetInstance->IsVisible()) {
+			ExecuteWFCNow();
+		}
+		}, 0.5f, false);
 
 	// 5초 후 위젯 숨기기 (람다 사용)
 	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, [this]()
@@ -1794,7 +1817,7 @@ void AMyDCharacter::FadeAndRegenWFC()
 			{
 				WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 			}
-		}, 3.0f, false);
+		}, 4.0f, false);
 
 
 	//GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 5.0f, false);
@@ -1804,31 +1827,12 @@ void AMyDCharacter::FadeAndRegenWFC()
 
 void AMyDCharacter::ExecuteWFCNow()
 {
-	if (PendingRegenActor)
-	{
-
-		// 재생성 전에 플레이어가 고정된 방타일 근처에 있는지 확인
-		bool bPlayerInFixedRoom = IsPlayerInFixedRoomTile();
-
-		if (bPlayerInFixedRoom)
-		{
-			// 플레이어 중력 비활성화
-			if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
-			{
-				GetCharacterMovement()->GravityScale = 0.0f;
-			}
-		}
-
-
+	
 		if (AWFCRegenerator* Regen = Cast<AWFCRegenerator>(PendingRegenActor))
 		{
 			Regen->GenerateWFCAtLocation();
-		}
-
-
-		
-
-	}
+		}	
+	
 
 	/*if (WFCDoneWidgetInstance)
 	{
@@ -1844,7 +1848,20 @@ void AMyDCharacter::ExecuteWFCNow()
 bool AMyDCharacter ::IsPlayerInFixedRoomTile()
 {
 	// 검색 반경 설정
-	float SearchRadius = 1500.0f;
+	float SearchRadius = 690.0f;
+
+	// 디버그 시각화: 플레이어 주변에 구체 그리기
+	DrawDebugSphere(
+		GetWorld(),
+		GetActorLocation(),
+		SearchRadius,
+		32,                    // 세그먼트 (부드러운 정도)
+		FColor::Green,         // 색상
+		true,                 // 지속 여부 (true면 무한)
+		5.0f,                  // 지속 시간 (초)
+		0,                     // 깊이 우선 순위
+		1.0f                   // 두께
+	);
 
 	// 플레이어 주변에서 WFCRegen 태그가 있는 재생성 오브젝트 검색
 	TArray<AActor*> AllRegenObjects;
