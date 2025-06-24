@@ -7,6 +7,7 @@
 #include "WaveFunctionCollapseSubsystem02.h"
 #include "MyDCharacter.h"
 #include "EnemyCharacter.h"
+#include "RageEnemyCharacter.h"
 #include "WFCRegenerator.h"
 #include "TreasureChest.h"
 #include "EscapeObject.h"
@@ -54,6 +55,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Spawning")
 	TSubclassOf<AEnemyCharacter> EnemyClass;
+
+	UPROPERTY(EditAnywhere, Category = "Spawning")
+	TSubclassOf<ARageEnemyCharacter> RageEnemyClass;
 
 	UFUNCTION(BlueprintCallable, Category = "Spawning")
 	void SpawnEnemiesOnCorridor(int32 EnemyCount);

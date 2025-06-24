@@ -4121,7 +4121,8 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 			}
 
 			// 기본 설정
-			int32 SeedToUse = (RandomSeed != 0) ? RandomSeed : FMath::RandRange(1, TNumericLimits<int32>::Max());
+			//int32 SeedToUse = (RandomSeed != 0) ? RandomSeed : FMath::RandRange(1, TNumericLimits<int32>::Max());
+			int32 SeedToUse = static_cast<int32>(FDateTime::Now().GetTicks() % INT32_MAX);
 			int32 AttemptCount = 0;
 			bool bSuccess = false;
 
@@ -4390,7 +4391,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 				PlaceGoalTileInFrontOfRoom(RoomTileIndex, Tiles);
 			}
 
-
+			
 
 			double PostProcessEnd = FPlatformTime::Seconds();
 			UE_LOG(LogTemp, Warning, TEXT("[Async] Post-processing took: %.3f seconds"), PostProcessEnd - PostProcessStart);
@@ -4412,11 +4413,16 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 					this->RoomTilePositions.Empty();
 
+
+
 					if (OnCompleted) OnCompleted();
 				});
 
 			const double EndTime = FPlatformTime::Seconds();
 			const double ElapsedTime = EndTime - StartTime;
+
+			SeedToUse = 0;
+
 			UE_LOG(LogTemp, Warning, TEXT("[WFCGEN] Dij Total async map generation time: %.3f sec"), ElapsedTime);
 		});
 
@@ -4756,19 +4762,19 @@ void UWaveFunctionCollapseSubsystem02::ConnectIsolatedRoomsDijkstra(TArray<FWave
 						if (Path.Num() > 0)
 							FillEmptyTilesAlongPath(Path, Tiles);
 
-#if WITH_EDITOR
-						// 디버그 라인 (선택)
-						for (int32 i = 0; i < Path.Num() - 1; ++i)
-						{
-							const int32 IndexA = Path[i];
-							const int32 IndexB = Path[i + 1];
-							const FIntVector PosA = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexA, this->Resolution);
-							const FIntVector PosB = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexB, this->Resolution);
-							const FVector WorldA = FVector(PosA) * TileSize + FVector(0, 0, 50);
-							const FVector WorldB = FVector(PosB) * TileSize + FVector(0, 0, 50);
-							DrawDebugLine(GetWorld(), WorldA, WorldB, FColor::Blue, true, 10.0f, 0, 5.0f);
-						}
-#endif
+//#if WITH_EDITOR
+//						// 디버그 라인 (선택)
+//						for (int32 i = 0; i < Path.Num() - 1; ++i)
+//						{
+//							const int32 IndexA = Path[i];
+//							const int32 IndexB = Path[i + 1];
+//							const FIntVector PosA = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexA, this->Resolution);
+//							const FIntVector PosB = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(IndexB, this->Resolution);
+//							const FVector WorldA = FVector(PosA) * TileSize + FVector(0, 0, 50);
+//							const FVector WorldB = FVector(PosB) * TileSize + FVector(0, 0, 50);
+//							DrawDebugLine(GetWorld(), WorldA, WorldB, FColor::Blue, true, 10.0f, 0, 5.0f);
+//						}
+//#endif
 					}
 					else
 					{

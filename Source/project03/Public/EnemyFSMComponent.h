@@ -48,7 +48,8 @@ public:
 	class AMyDCharacter* target;
 
 	UPROPERTY(VisibleAnywhere, Category = "FSM")
-	class AEnemyCharacter* me;
+	class AActor* me;
+
 
 	UPROPERTY(EditDefaultsOnly, Category = "FSM")
 	float moveDelayTime = 1;
@@ -83,5 +84,9 @@ private:
 	void HandleAttackingState();
 	//void HandleDeadState();
 
-
+	// 헬퍼 함수들 추가
+	void CallPlayAttackMontage();
+	bool IsEnemyStunned() const;
+	AController* GetEnemyController() const;
+	APawn* GetEnemyPawn() const;
 };

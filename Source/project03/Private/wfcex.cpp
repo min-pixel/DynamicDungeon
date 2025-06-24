@@ -18,7 +18,7 @@ Awfcex::Awfcex()
     EscapeObjectClass = AEscapeObject::StaticClass();
     TreasureChestClass = ATreasureChest::StaticClass();
 
-    
+    RageEnemyClass = ARageEnemyCharacter::StaticClass();
 
 }
 
@@ -34,6 +34,12 @@ void Awfcex::BeginPlay()
     const double StartTime = FPlatformTime::Seconds();
 
 	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505--1, 767089153, 1948641409, 1358936321, 1964145409,  2078383361, 1231524609, 46204289
+    
+    const double EndTime = FPlatformTime::Seconds();
+    const double ElapsedTime = EndTime - StartTime;
+   
+   
+    UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec"), ElapsedTime);
 
     //풀링
     if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
@@ -41,10 +47,7 @@ void Awfcex::BeginPlay()
         WFCSubsystem->PrepareTilePrefabPool(GetWorld());
     }
 
-    const double EndTime = FPlatformTime::Seconds();  
-    const double ElapsedTime = EndTime - StartTime;
-
-    UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec"), ElapsedTime); 
+    
 
 
     SpawnPlayerOnCorridor();
@@ -270,7 +273,9 @@ void Awfcex::SpawnEnemiesOnCorridor(int32 EnemyCount)
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-        AEnemyCharacter* SpawnedEnemy = World->SpawnActor<AEnemyCharacter>(EnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+        //AEnemyCharacter* SpawnedEnemy = World->SpawnActor<AEnemyCharacter>(EnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+
+        ARageEnemyCharacter* SpawnedEnemy = World->SpawnActor<ARageEnemyCharacter>(RageEnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 
         if (SpawnedEnemy)
         {

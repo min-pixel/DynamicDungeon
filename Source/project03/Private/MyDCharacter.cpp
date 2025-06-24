@@ -30,6 +30,7 @@
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
+#include "RageEnemyCharacter.h"
 #include "Potion.h"
 #include "FireballSpell.h"
 #include "Camera/CameraShakeBase.h"
@@ -1761,7 +1762,7 @@ void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 	}
 
 	// 5초 후에 암전 및 재생성 진행
-	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFade, this, &AMyDCharacter::FadeAndRegenWFC, 5.0f, false);
+	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFade, this, &AMyDCharacter::FadeAndRegenWFC, 2.0f, false);
 }
 
 void AMyDCharacter::FadeAndRegenWFC()
@@ -1803,11 +1804,12 @@ void AMyDCharacter::FadeAndRegenWFC()
 
 
 	// 0.5초 후에 재생성 시작 (연출이 먼저 보이도록)
-	GetWorldTimerManager().SetTimer(TimerHandle_StartWFC, [this]() {
-		// UI 상태 확인 후 실행
-		if (WFCDoneWidgetInstance && WFCDoneWidgetInstance->IsVisible()) {
-			ExecuteWFCNow();
-		}
+	GetWorldTimerManager().SetTimer(TimerHandle_StartWFC, [this]() 
+		{
+			// UI 상태 확인 후 실행
+			
+				ExecuteWFCNow();
+			
 		}, 0.5f, false);
 
 	// 5초 후 위젯 숨기기 (람다 사용)
@@ -1817,9 +1819,9 @@ void AMyDCharacter::FadeAndRegenWFC()
 			{
 				WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 			}
-		}, 4.0f, false);
+		}, 3.0f, false);
 
-
+	//ExecuteWFCNow();
 	//GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 5.0f, false);
 }
 
@@ -1827,12 +1829,12 @@ void AMyDCharacter::FadeAndRegenWFC()
 
 void AMyDCharacter::ExecuteWFCNow()
 {
-	
+	if (PendingRegenActor) {
 		if (AWFCRegenerator* Regen = Cast<AWFCRegenerator>(PendingRegenActor))
 		{
 			Regen->GenerateWFCAtLocation();
-		}	
-	
+		}
+	}
 
 	/*if (WFCDoneWidgetInstance)
 	{
@@ -2374,11 +2376,11 @@ void AMyDCharacter::TeleportToNearestEnemy()
 {
 	FVector MyLocation = GetActorLocation();
 	float NearestDistance = TNumericLimits<float>::Max();
-	AEnemyCharacter* NearestEnemy = nullptr;
+	ARageEnemyCharacter* NearestEnemy = nullptr;
 
-	for (TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
+	for (TActorIterator<ARageEnemyCharacter> It(GetWorld()); It; ++It)
 	{
-		AEnemyCharacter* Enemy = *It;
+		ARageEnemyCharacter* Enemy = *It;
 		if (!Enemy) continue;
 
 		float Dist = FVector::Dist(MyLocation, Enemy->GetActorLocation());

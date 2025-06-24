@@ -9,6 +9,7 @@
 #include "Engine/World.h"
 #include "EnemyAIController.h"
 #include "EnemyCharacter.h"
+#include "RageEnemyCharacter.h"
 #include "NavigationSystem.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -34,8 +35,7 @@ void UEnemyFSMComponent::BeginPlay()
     auto actor = UGameplayStatics::GetActorOfClass(GetWorld(), AMyDCharacter::StaticClass());
     target = Cast<AMyDCharacter>(actor);
 
-    me = Cast<AEnemyCharacter>(GetOwner());
-	// ...
+    me = GetOwner();
 	
 }
 
@@ -45,7 +45,9 @@ void UEnemyFSMComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-    if (me && me->bIsStunned) return;
+    
+
+    if (me && IsEnemyStunned()) return;
 
     currentTime += DeltaTime;
 
@@ -132,7 +134,7 @@ void UEnemyFSMComponent::HandleChasingState()
         }
 
         // 시야에 안 보일 땐 마지막 위치로 이동
-        if (AEnemyAIController* AI = Cast<AEnemyAIController>(me->GetController()))
+        if (AEnemyAIController* AI = Cast<AEnemyAIController>(GetEnemyController()))
         {
             AI->MoveToLocation(LastKnownPlayerLocation, 5.0f);
         }
@@ -152,7 +154,7 @@ void UEnemyFSMComponent::HandleChasingState()
     }
 
     // 이동
-    if (AEnemyAIController* AI = Cast<AEnemyAIController>(me->GetController()))
+    if (AEnemyAIController* AI = Cast<AEnemyAIController>(GetEnemyController()))
     {
         AI->MoveToActor(target, 5.0f);
     }
@@ -259,7 +261,7 @@ void UEnemyFSMComponent::HandleAttackingState()
     {
         if (me)
         {
-            me->PlayAttackMontage();  // 적 캐릭터 클래스에서 직접 재생
+            CallPlayAttackMontage();  // 적 캐릭터 클래스에서 직접 재생
             UE_LOG(LogTemp, Log, TEXT("Enemy attacks player!"));
         }
 
@@ -296,7 +298,7 @@ void UEnemyFSMComponent::HandleRoamingState()
         return;
     }
 
-    AEnemyAIController* AI = Cast<AEnemyAIController>(me->GetController());
+    AEnemyAIController* AI = Cast<AEnemyAIController>(GetEnemyController());
     if (!AI) return;
 
     EPathFollowingStatus::Type MoveStatus = AI->GetMoveStatus();
@@ -330,4 +332,44 @@ void UEnemyFSMComponent::HandleRoamingState()
     }
 
     currentTime = 0;
+}
+
+// 헬퍼 함수들 구현
+void UEnemyFSMComponent::CallPlayAttackMontage()
+{
+    if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(me))
+    {
+        Enemy->PlayAttackMontage();
+    }
+    else if (ARageEnemyCharacter* RageEnemy = Cast<ARageEnemyCharacter>(me))
+    {
+        RageEnemy->PlayAttackMontage();
+    }
+}
+
+bool UEnemyFSMComponent::IsEnemyStunned() const
+{
+    if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(me))
+    {
+        return Enemy->bIsStunned;
+    }
+    else if (ARageEnemyCharacter* RageEnemy = Cast<ARageEnemyCharacter>(me))
+    {
+        return RageEnemy->bIsStunned; // RageEnemy에 있는 실제 변수명으로 바꿔주세요
+    }
+    return false;
+}
+
+AController* UEnemyFSMComponent::GetEnemyController() const
+{
+    if (APawn* Pawn = Cast<APawn>(me))
+    {
+        return Pawn->GetController();
+    }
+    return nullptr;
+}
+
+APawn* UEnemyFSMComponent::GetEnemyPawn() const
+{
+    return Cast<APawn>(me);
 }

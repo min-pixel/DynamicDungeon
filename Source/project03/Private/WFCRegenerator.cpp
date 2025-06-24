@@ -248,6 +248,8 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("GenerateWFCAtLocation started"));
 
+
+
 	// 기존 WFC 액터 제거
 	ClearPreviousWFCActors();
 	UE_LOG(LogTemp, Warning, TEXT("Previous WFC actors cleared"));
@@ -259,6 +261,9 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 		UE_LOG(LogTemp, Error, TEXT("Failed to acquire WFCSubsystem or WFCModel"));
 		return;
 	}
+
+	
+
 
 	// 타일 좌표 계산
 	FVector LocalOffset = GetActorLocation() - WFCSubsystem->OriginLocation;
@@ -331,6 +336,7 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 
 	//WFCSubsystem->PrecomputeMapAsync(TryCount, RandomSeed, [this]() {});
 
+	RandomSeed = 0;
 
 	// 타이머 시작
 	double StartTime = FPlatformTime::Seconds();
