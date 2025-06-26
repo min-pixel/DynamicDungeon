@@ -141,7 +141,7 @@ void AEnemyCharacter::TraceAttack()
         UEngineTypes::ConvertToTraceType(ECC_Pawn),
         false,
         IgnoredActors,
-        EDrawDebugTrace::None,
+        EDrawDebugTrace::ForDuration,
         HitResults,
         true
     );

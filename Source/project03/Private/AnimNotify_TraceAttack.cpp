@@ -5,6 +5,7 @@
 #include "MyDCharacter.h"
 #include "Weapon.h"
 #include "EnemyCharacter.h"
+#include "RageEnemyCharacter.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "HitInterface.h"
 
@@ -20,12 +21,19 @@ void UAnimNotify_TraceAttack::Notify(USkeletalMeshComponent* MeshComp, UAnimSequ
     {
         Character->GetEquippedWeapon()->TraceAttack(); // 무기의 TraceAttack() 호출
     }
+    else if (ARageEnemyCharacter* RageEnemy = Cast<ARageEnemyCharacter>(Owner)) // 레이지 에네미 처리 추가
+    {
+        RageEnemy->StartTrace();
+        RageEnemy->TraceAttack(); // 레이지 에네미의 TraceAttack
+        return;
+    }
     else if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(Owner))
     {
         Enemy->StartTrace();
         Enemy->TraceAttack(); // 적 캐릭터 전용 TraceAttack
-        //return;
+        return;
     }
+    
     else
     {
         // 비무장일 경우: 기존 손 공격 로직

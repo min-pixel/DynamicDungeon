@@ -13,7 +13,7 @@
 #include "GoldWidget.h"
 #include "LobbyWidget.h"
 #include "DynamicDungeonInstance.h"
-
+#include "ItemTooltipWidget.h"
 
 //void USlotWidget::SetItem(AItem* InItem)
 //{
@@ -143,6 +143,27 @@ void USlotWidget::SetItemData(const FItemData& NewData)
         EmptyBrush.TintColor = FLinearColor(0.2f, 0.2f, 0.2f, 0.8f);
         ItemIcon->SetBrush(EmptyBrush);
     }
+
+
+    // ÅøÆÁ À§Á¬ ¿¬°á
+    if (TooltipWidgetClass && StoredData.ItemClass)
+    {
+        UItemTooltipWidget* TooltipWidget = CreateWidget<UItemTooltipWidget>(
+            GetWorld(), TooltipWidgetClass
+        );
+        if (TooltipWidget)
+        {
+            TooltipWidget->InitWithItemData(StoredData);
+            SetToolTip(TooltipWidget);
+            UE_LOG(LogTemp, Warning, TEXT("[SlotWidget] SetToolTip() called with widget: %s"), *TooltipWidget->GetName());
+        }
+    }
+    else
+    {
+        SetToolTip(nullptr);
+        UE_LOG(LogTemp, Warning, TEXT("[SlotWidget] Empty slot or TooltipWidgetClass is NULL, tooltip removed"));
+    }
+
 }
 
 void USlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)

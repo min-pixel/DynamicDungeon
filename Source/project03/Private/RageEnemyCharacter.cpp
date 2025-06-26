@@ -7,6 +7,7 @@
 #include "MyDCharacter.h"
 #include "InventoryWidget.h"
 #include "ItemDataD.h"
+
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -24,7 +25,7 @@ ARageEnemyCharacter::ARageEnemyCharacter()
         GetMesh()->SetSkeletalMesh(RageEnemyMeshAsset.Object);
         GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, -90.0f));
         GetMesh()->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
-        GetMesh()->SetRelativeScale3D(FVector(1.5f, 1.5f, 1.5f));
+        GetMesh()->SetRelativeScale3D(FVector(1.25f, 1.25f, 1.25f));
     }
 
     // === 레이지 에너미 전용 애니메이션 블루프린트 ===
@@ -108,9 +109,10 @@ void ARageEnemyCharacter::Tick(float DeltaTime)
     Super::Tick(DeltaTime);
 
     // 매 프레임마다 레이지 모드 체크
-    if (!bIsStunned)
+    if (!bIsStunned && !bIsPlayingRageMontage)
     {
         CheckRageMode();
+        
     }
 }
 
@@ -121,6 +123,9 @@ void ARageEnemyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 
 void ARageEnemyCharacter::PlayAttackMontage()
 {
+    
+   
+
     if (!AttackMontage || !GetMesh() || !GetMesh()->GetAnimInstance()) return;
 
     UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
@@ -133,6 +138,7 @@ void ARageEnemyCharacter::PlayAttackMontage()
     {
         MoveComp->StopMovementImmediately();
         MoveComp->DisableMovement(); // 이동 완전 비활성화
+        MoveComp->MaxWalkSpeed = 0.0f;
     }
 
     
@@ -169,6 +175,7 @@ void ARageEnemyCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInte
         if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
         {
             MoveComp->SetMovementMode(MOVE_Walking); // 이동 재활성화
+            MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed;
         }
 
         UE_LOG(LogTemp, Log, TEXT("Attack montage ended, movement re-enabled"));
@@ -184,6 +191,9 @@ void ARageEnemyCharacter::TraceAttack()
     FVector CurrentEnd = GetMesh()->GetSocketLocation(FName("AttackEnd"));
 
     TArray<FHitResult> HitResults;
+
+    TArray<FHitResult> StartHitResults;
+    TArray<FHitResult> EndHitResults;
     TArray<AActor*> IgnoredActors;
     IgnoredActors.Add(this);
 
@@ -195,12 +205,27 @@ void ARageEnemyCharacter::TraceAttack()
         UEngineTypes::ConvertToTraceType(ECC_Pawn),
         false,
         IgnoredActors,
-        EDrawDebugTrace::None,
-        HitResults,
+        EDrawDebugTrace::ForDuration,
+        StartHitResults,
         true
     );
 
-    for (const FHitResult& Hit : HitResults)
+    // End 소켓 궤적 트레이스
+    UKismetSystemLibrary::SphereTraceMulti(
+        GetWorld(),
+        LastEndLocation,
+        CurrentEnd,
+        30.0f,
+        UEngineTypes::ConvertToTraceType(ECC_Pawn),
+        false,
+        IgnoredActors,
+        EDrawDebugTrace::None,
+        EndHitResults,
+        true
+    );
+
+    // === StartHitResults 판정 ===
+    for (const FHitResult& Hit : StartHitResults)
     {
         AActor* HitActor = Hit.GetActor();
         if (HitActor && HitActor->Implements<UHitInterface>())
@@ -208,8 +233,22 @@ void ARageEnemyCharacter::TraceAttack()
             if (!HitActors.Contains(HitActor))
             {
                 HitActors.Add(HitActor);
-                // 레이지 모드에서는 더 큰 데미지
-                float Damage = bIsInRageMode ? (20.0f * RageDamageMultiplier) : 20.0f;
+                float Damage = bIsInRageMode ? (10.0f * RageDamageMultiplier) : 10.0f;
+                IHitInterface::Execute_GetHit(HitActor, Hit, this, Damage);
+            }
+        }
+    }
+
+    // === EndHitResults 판정 ===
+    for (const FHitResult& Hit : EndHitResults)
+    {
+        AActor* HitActor = Hit.GetActor();
+        if (HitActor && HitActor->Implements<UHitInterface>())
+        {
+            if (!HitActors.Contains(HitActor)) // 중복 방지(여기서도 꼭!)
+            {
+                HitActors.Add(HitActor);
+                float Damage = bIsInRageMode ? (10.0f * RageDamageMultiplier) : 10.0f;
                 IHitInterface::Execute_GetHit(HitActor, Hit, this, Damage);
             }
         }
@@ -514,13 +553,21 @@ void ARageEnemyCharacter::EnterRageMode()
     if (bIsInRageMode) return;
 
     bIsInRageMode = true;
+    bIsPlayingRageMontage = true;
+    
     UE_LOG(LogTemp, Warning, TEXT("RageEnemy entered RAGE MODE!"));
 
-    // 이동 속도 증가
+    // === 움직임 완전 정지 ===
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
-        MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed * RageSpeedMultiplier;
+        MoveComp->StopMovementImmediately();
+        MoveComp->DisableMovement(); // 움직임 완전 비활성화
+        MoveComp->MaxWalkSpeed = 0.0f;
     }
+
+    
+ 
+   
 
     // 메시 색상 변경으로 레이지 모드 표시 (빨간색 틴트)
     if (USkeletalMeshComponent* MeshComp = GetMesh())
@@ -534,7 +581,41 @@ void ARageEnemyCharacter::EnterRageMode()
         UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
         AnimInstance->Montage_Play(RageEnterMontage, 1.0f);
         
+        // 몽타주 종료 시 콜백 설정
+        FOnMontageEnded RageMontageEndedDelegate;
+        RageMontageEndedDelegate.BindUObject(this, &ARageEnemyCharacter::OnRageMontageEnded);
+        AnimInstance->Montage_SetEndDelegate(RageMontageEndedDelegate, RageEnterMontage);
+
     }
+}
+
+// 레이지 몽타주 종료 시 호출되는 함수
+void ARageEnemyCharacter::OnRageMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+    if (Montage == RageEnterMontage)
+    {
+        bIsPlayingRageMontage = false;
+
+        // 움직임 재활성화
+        if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+        {
+            MoveComp->SetMovementMode(MOVE_Walking);
+            // 이동 속도 증가
+           
+                MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed * RageSpeedMultiplier;
+           
+        }
+
+        
+
+        UE_LOG(LogTemp, Warning, TEXT("Rage montage ended, movement and AI re-enabled"));
+    }
+}
+
+// FSM이나 AI에서 움직임을 허용하기 전에 체크하는 함수들도 수정 필요
+bool ARageEnemyCharacter::CanMove() const
+{
+    return !bIsStunned && !bIsAttacking && !bIsPlayingRageMontage;
 }
 
 void ARageEnemyCharacter::ExitRageMode()

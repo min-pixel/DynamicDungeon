@@ -7,6 +7,7 @@
 #include "GameFramework/Character.h"
 #include "InventoryComponent.h"
 #include "InventoryWidget.h"
+
 #include "Components/BoxComponent.h"
 #include "RageEnemyCharacter.generated.h"
 
@@ -104,6 +105,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rage System")
 	bool bIsInRageMode = false;
 
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
+	bool bIsPlayingRageMontage = false;
+
 	// === 점프 공격 관련 ===
 	UPROPERTY(EditDefaultsOnly, Category = "Jump Attack")
 	UAnimMontage* JumpAttackMontage;
@@ -137,6 +141,9 @@ public:
 	void OnJumpAttackCooldownEnd();
 
 	void PlayRageAttackMontage(); // 레이지 모드 전용 공격 패턴
+
+	void OnRageMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	bool CanMove() const;
 
 private:
 	float OriginalMaxWalkSpeed; // 원래 속도 저장용

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
+#include "ItemTooltipWidget.h"
 #include "SlotWidget.generated.h"
 
 /**
@@ -41,6 +42,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bIsHotkeySlot = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tooltip")
+    TSubclassOf<class UItemTooltipWidget> TooltipWidgetClass;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 HotkeyIndex = -1; // 0 ~ 4 (1¹ø ½½·Ô ~ 5¹ø ½½·Ô)
