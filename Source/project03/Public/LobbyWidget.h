@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "AuthManager.h"
 #include "InventoryWidget.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h"
@@ -83,6 +84,19 @@ public:
     UPROPERTY(meta = (BindWidget))
     class UTextBlock* ClassText;
 
+    // 로그인·회원가입용 입력창 & 버튼
+    UPROPERTY(meta = (BindWidget))
+    class UEditableTextBox* UsernameTextBox;
+
+    UPROPERTY(meta = (BindWidget))
+    UEditableTextBox* PasswordTextBox;
+
+    UPROPERTY(meta = (BindWidget))
+    class UButton* LoginButton;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* RegisterButton;
+
     UFUNCTION()
     void OnLeftArrowClicked();
 
@@ -114,4 +128,22 @@ public:
 
     UPROPERTY()
     AMyDCharacter* PlayerCharacter;
+
+
+    // 마지막에 호출한 요청 타입을 기억 (true=Register, false=Login)
+    bool bWasRegister = false;
+
+        // AuthManager 참조
+        UAuthManager* AuthMgr = nullptr;
+
+        // 버튼 클릭 핸들러
+        UFUNCTION()
+        void OnLoginClicked();
+
+        UFUNCTION()
+        void OnRegisterClicked();
+
+        // 인증 결과 콜백
+        UFUNCTION()
+        void OnAuthResponse(bool bSuccess);
 };

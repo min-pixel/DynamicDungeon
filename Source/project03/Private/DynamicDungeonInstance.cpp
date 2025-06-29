@@ -2,7 +2,7 @@
 
 
 #include "DynamicDungeonInstance.h"
-
+#include "SocketManager.h"
 
 UDynamicDungeonInstance ::UDynamicDungeonInstance
 ()
@@ -10,6 +10,32 @@ UDynamicDungeonInstance ::UDynamicDungeonInstance
     // 기본값 설정
     bCanInteract = false;
     LobbyGold = 1000;
+}
+
+void UDynamicDungeonInstance::Init()
+{
+    Super::Init();
+
+    // 서브시스템 얻기
+    USocketManager* SocketMgr = GetSubsystem<USocketManager>();
+    if (SocketMgr)
+    {
+        // 로컬 테스트용으로 127.0.0.1:3000 에 연결 시도
+        bool bConnected = SocketMgr->Connect(TEXT("127.0.0.1"), 3000);
+        UE_LOG(LogTemp, Log, TEXT("[SocketTest] Connect: %s"), bConnected ? TEXT("Success") : TEXT("Fail"));
+
+        // Dynamic Multicast Delegate 바인딩 (람다 대신 UFUNCTION)
+        SocketMgr->OnDataReceived.AddDynamic(this, &UDynamicDungeonInstance::OnSocketDataReceived);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[SocketTest] SocketManager 서브시스템을 찾을 수 없습니다!"));
+    }
+}
+
+void UDynamicDungeonInstance::OnSocketDataReceived(const TArray<uint8>& Data)
+{
+    UE_LOG(LogTemp, Log, TEXT("[SocketTest] Received %d bytes"), Data.Num());
 }
 
 void UDynamicDungeonInstance::SetCanInteract(bool NewState)
@@ -48,4 +74,5 @@ void UDynamicDungeonInstance::InitializeCharacterData(EPlayerClass SelectedClass
     CurrentCharacterData.InventoryItems.Empty();
     CurrentCharacterData.EquippedItems.Empty();
 }
+
 

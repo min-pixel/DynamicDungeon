@@ -24,6 +24,13 @@ public:
     // 생성자
     UDynamicDungeonInstance();
 
+    // GameInstance 초기화 시 실행
+    virtual void Init() override;
+
+    // SocketManager의 OnDataReceived를 받을 함수
+    UFUNCTION()
+    void OnSocketDataReceived(const TArray<uint8>& Data);
+
     // 블루프린트에서도 접근 가능하도록 함수 추가
     UFUNCTION(BlueprintCallable, Category = "Game State")
     void SetCanInteract(bool NewState);
@@ -63,5 +70,7 @@ public:
 
     UPROPERTY()
     class ULobbyWidget* LobbyWidgetInstance;
+
+   
 
 };

@@ -3,6 +3,7 @@
 
 #include "LobbyWidget.h"
 #include "Components/Button.h"
+#include "Components/EditableTextBox.h"
 #include "MyDCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/UObjectIterator.h"
@@ -47,6 +48,19 @@ void ULobbyWidget::NativeConstruct()
     {
         GameInstance->LobbyWidgetInstance = this;
     }
+
+    // AuthManager 얻기
+    AuthMgr = GetGameInstance()->GetSubsystem<UAuthManager>();
+    if (AuthMgr)
+    {
+        AuthMgr->OnAuthResponse.AddDynamic(this, &ULobbyWidget::OnAuthResponse);
+    }
+
+    // 위젯 바인딩
+    if (LoginButton)
+        LoginButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLoginClicked);
+    if (RegisterButton)
+        RegisterButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRegisterClicked);
 
 }
 
@@ -346,3 +360,54 @@ void ULobbyWidget::OnCloseShopButtonClicked()
 
     UE_LOG(LogTemp, Warning, TEXT("Shop closed via LobbyWidget"));
 }
+
+void ULobbyWidget::OnLoginClicked()
+{
+    if (!AuthMgr || !UsernameTextBox || !PasswordTextBox) return;
+
+    const FString User = UsernameTextBox->GetText().ToString();
+    const FString Pass = PasswordTextBox->GetText().ToString();
+    bWasRegister = false;
+    AuthMgr->Login(User, Pass);
+}
+
+void ULobbyWidget::OnRegisterClicked()
+{
+    if (!AuthMgr || !UsernameTextBox || !PasswordTextBox) return;
+
+    const FString User = UsernameTextBox->GetText().ToString();
+    const FString Pass = PasswordTextBox->GetText().ToString();
+    bWasRegister = true;
+    AuthMgr->RegisterUser(User, Pass);
+}
+
+void ULobbyWidget::OnAuthResponse(bool bSuccess)
+{
+    if (bSuccess)
+    {
+      if (bWasRegister)
+      {
+          UE_LOG(LogTemp, Warning, TEXT("[Auth] Registration SUCCESS"));
+              
+      }
+      else
+      {
+        UE_LOG(LogTemp, Warning, TEXT("[Auth] Login SUCCESS → OpenLevel"));
+        OnStartGameClicked();
+        UE_LOG(LogTemp, Warning, TEXT("[Auth] OpenLevel success"));
+      }
+    }
+    else
+    {
+      if (bWasRegister)
+      {
+            UE_LOG(LogTemp, Warning, TEXT("[Auth] Registration FAIL"));
+      }
+      else
+      {
+            UE_LOG(LogTemp, Warning, TEXT("[Auth] Login FAIL"));
+      }
+         
+    }
+}
+
