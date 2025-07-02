@@ -37,6 +37,7 @@ public:
 	// 복도 타일 위에 플레이어 스폰
 	void SpawnPlayerOnCorridor();
 
+
 	// 지정된 위치에 플레이어 스폰
 	void SpawnPlayerAtLocation(const FVector& Location);
 

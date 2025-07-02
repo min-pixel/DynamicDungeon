@@ -10,7 +10,7 @@ ARobeBottom::ARobeBottom()
     ArmorType = EArmorType::Legs;
     BonusHealth = 15;
     BonusStamina = 15;
-
+    Price = 80;
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/trousers.trousers"));
     if (IconTexture.Succeeded())
     {

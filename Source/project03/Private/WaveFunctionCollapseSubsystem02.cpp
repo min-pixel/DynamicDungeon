@@ -1195,6 +1195,10 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 		return nullptr;
 	}
 
+	// 루트 Actor Replicate
+	SpawnedActor->SetReplicates(true);
+	SpawnedActor->Tags.Add(FName("WFCGenerated"));
+
 	TMap<FSoftObjectPath, UInstancedStaticMeshComponent*> BaseObjectToISM;
 
 	for (int32 Index = 0; Index < Tiles.Num(); Index++)
@@ -1241,7 +1245,8 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 					TileActor->SetActorScale3D(TileScale);
 					TileActor->AttachToActor(SpawnedActor, FAttachmentTransformRules::KeepWorldTransform);
 					TileActor->Tags.Add(FName("WFCGenerated"));
-
+					//TileActor Replicate
+					TileActor->SetReplicates(true);
 				}
 			}
 		}
@@ -1589,6 +1594,18 @@ void UWaveFunctionCollapseSubsystem02::ExecuteWFC(int32 TryCount, int32 RandomSe
 			//UE_LOG(LogTemp, Error, TEXT("WFCModel 로딩 실패! 경로를 확인하세요."));
 			return;
 		}
+	}
+
+	//서버에서만 실행되도록
+	/*if (!World || (World->GetNetMode() != NM_DedicatedServer && World->GetNetMode() != NM_ListenServer))
+	{
+		UE_LOG(LogWFC, Warning, TEXT("ExecuteWFC can only run on server."));
+		return;
+	}*/
+	if (!World || (World->GetAuthGameMode() == nullptr))
+	{
+		UE_LOG(LogWFC, Warning, TEXT("ExecuteWFC can only run on server (Auth check failed)."));
+		return;
 	}
 
 	OriginLocation = FVector(0.0f, 0.0f, 0.0f);

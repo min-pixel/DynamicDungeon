@@ -561,7 +561,7 @@ void ARageEnemyCharacter::EnterRageMode()
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         MoveComp->StopMovementImmediately();
-        MoveComp->DisableMovement(); // 움직임 완전 비활성화
+        //MoveComp->DisableMovement(); // 움직임 완전 비활성화
         MoveComp->MaxWalkSpeed = 0.0f;
     }
 

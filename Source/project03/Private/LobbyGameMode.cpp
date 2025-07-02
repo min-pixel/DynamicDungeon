@@ -20,6 +20,11 @@ void ALobbyGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (!HasAuthority())
+	{
+		return;  // 클라에서는 UI 생성 X
+	}
+
 	LobbyWidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, TEXT("/Game/BP/UI/LobbyWidget_BP.LobbyWidget_BP_C"));
 
 	//PlayerControllerClass = APlayerController::StaticClass();
@@ -37,7 +42,22 @@ void ALobbyGameMode::BeginPlay()
 			GetWorld()->GetTimerManager().SetTimer(DelayHandle, [this]()
 				{
 					APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-					if (PC)
+					for (FConstPlayerControllerIterator Iterator = GetWorld()->GetPlayerControllerIterator(); Iterator; ++Iterator)
+					{
+						APlayerController* EachPC = Iterator->Get();
+						if (EachPC && EachPC->IsLocalController())
+						{
+							AMyDCharacter* PlayerCharacter = Cast<AMyDCharacter>(EachPC->GetPawn());
+							LobbyWidgetInstance->InitializeLobby(PlayerCharacter);
+							EachPC->bShowMouseCursor = true;
+
+							FInputModeUIOnly InputMode;
+							InputMode.SetWidgetToFocus(LobbyWidgetInstance->TakeWidget());
+							InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+							EachPC->SetInputMode(InputMode);
+						}
+					}
+					/*if (PC)
 					{
 						AMyDCharacter* PlayerCharacter = Cast<AMyDCharacter>(PC->GetPawn());
 						if (LobbyWidgetInstance)
@@ -59,7 +79,7 @@ void ALobbyGameMode::BeginPlay()
 						InputMode.SetWidgetToFocus(LobbyWidgetInstance->TakeWidget());
 						InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 						PC->SetInputMode(InputMode);
-					}
+					}*/
 
 				}, 0.1f, false);
 			

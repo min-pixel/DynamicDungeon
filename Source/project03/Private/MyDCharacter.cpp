@@ -44,9 +44,10 @@ AMyDCharacter::AMyDCharacter()
 	// 매 프레임 Tick을 활성화
 	PrimaryActorTick.bCanEverTick = true;
 
+	bReplicates = true;
+	SetReplicateMovement(true);
 
-
-	AutoPossessPlayer = EAutoReceiveInput::Player0;
+	AutoPossessPlayer = EAutoReceiveInput::Disabled;
 
 	bUseControllerRotationYaw = true;
 	GetCharacterMovement()->bOrientRotationToMovement =true;
@@ -322,6 +323,9 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load GoldWidget_BP! Check the path."));
 	}
 
+
+	
+
 }
 
 // 게임 시작 시 호출
@@ -390,7 +394,7 @@ void AMyDCharacter::BeginPlay()
 	}
 
 	
-
+	
 
 	/*if (InventoryComponent)
 	{
@@ -927,7 +931,7 @@ void AMyDCharacter::DropWeapon()
 	}
 }
 
-void AMyDCharacter::EquipWeaponFromClass(TSubclassOf<AItem> WeaponClass)
+void AMyDCharacter::EquipWeaponFromClass(TSubclassOf<AItem> WeaponClass, EWeaponGrade Grade)
 {
 	if (!WeaponClass) {
 		return;
@@ -949,6 +953,12 @@ void AMyDCharacter::EquipWeaponFromClass(TSubclassOf<AItem> WeaponClass)
 	UE_LOG(LogTemp, Log, TEXT("Socket Location: %s"), *HandSocketTransform.GetLocation().ToString());
 
 	AWeapon* SpawnedWeapon = GetWorld()->SpawnActor<AWeapon>(WeaponClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+
+	if (SpawnedWeapon) {
+		SpawnedWeapon->WeaponGrade = Grade;  
+		SpawnedWeapon->ApplyGradeEffects(this);     
+	}
+
 	EquippedWeapon = SpawnedWeapon;
 
 	if (CharacterMesh && CharacterMesh->DoesSocketExist("middle_01_r"))
@@ -1017,7 +1027,16 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
 		SlotIndex, *NewMesh->GetName());
 
-	
+	// --- 기본 머티리얼 오버라이드 제거 헬퍼 람다
+	auto ResetToDefaultMaterials = [&](USkeletalMeshComponent* MeshComp) {
+		if (!MeshComp) return;
+		int32 NumMats = MeshComp->GetNumMaterials();
+		for (int32 i = 0; i < NumMats; ++i)
+		{
+			// nullptr을 넘기면 에셋에 설정된 머티리얼로 자동 복구됩니다
+			MeshComp->SetMaterial(i, nullptr);
+		}
+	};
 
 	switch (SlotIndex)
 	{
@@ -1062,6 +1081,8 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			}
 
+			ResetToDefaultMaterials(ChestMesh);
+
 			// 머티리얼 적용
 			if (Grade == EArmorGrade::B && SilverMat)
 			{
@@ -1093,6 +1114,8 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			}
 			//LegsMesh->SetLeaderPoseComponent(CharacterMesh);
+
+			ResetToDefaultMaterials(LegsMesh);
 
 			// 머티리얼 적용
 			if (Grade == EArmorGrade::B && SilverMat)
@@ -1191,6 +1214,15 @@ void AMyDCharacter::EquipHelmetMesh(UStaticMesh* NewMesh, EArmorGrade Grade, UMa
 	HelmetMesh->SetRelativeScale3D(DesiredScale);
 
 	
+	{
+		int32 NumMats = HelmetMesh->GetNumMaterials();
+		for (int32 i = 0; i < NumMats; ++i)
+		{
+			// nullptr 로 설정하면 에셋에 설정된 기본 머티리얼로 자동 복구됩니다
+			HelmetMesh->SetMaterial(i, nullptr);
+		}
+	}
+
 
 	// 머티리얼 직접 적용
 	switch (Grade)
@@ -1990,7 +2022,7 @@ void AMyDCharacter::ApplyCharacterData(const FPlayerCharacterData& Data)
 	{
 		if (EquipItem.ItemClass && EquipItem.ItemType == EItemType::Weapon)
 		{
-			EquipWeaponFromClass(EquipItem.ItemClass);
+			EquipWeaponFromClass(EquipItem.ItemClass, static_cast<EWeaponGrade>(EquipItem.Grade));
 			break;
 		}
 	}
@@ -2035,7 +2067,7 @@ void AMyDCharacter::TryCastSpell(int32 Index)
 
 void AMyDCharacter::CastSpell1()
 {
-	TryCastSpell(2);      // 0 - 파이어볼, 1 - 힐, 2 - 저주.
+	TryCastSpell(0);      // 0 - 파이어볼, 1 - 힐, 2 - 저주.
 }
 
 void AMyDCharacter::CastSpell2()
@@ -2043,8 +2075,19 @@ void AMyDCharacter::CastSpell2()
 	TryCastSpell(1);
 }
 
+
+
+
+
+
+
 void AMyDCharacter::ToggleMapView()
 {
+
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
 
 	if (!FirstPersonCameraComponent) return;
 
@@ -2131,7 +2174,7 @@ void AMyDCharacter::Die()
 	UE_LOG(LogTemp, Warning, TEXT("Player died. Returning to lobby..."));
 }
 
-void AMyDCharacter::TeleportToWFCRegen()
+void AMyDCharacter::ServerTeleportToWFCRegen_Implementation()
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
@@ -2166,6 +2209,17 @@ void AMyDCharacter::TeleportToWFCRegen()
 		SetActorLocation(TargetLocation, false, nullptr, ETeleportType::TeleportPhysics);
 		UE_LOG(LogTemp, Log, TEXT("Teleported to WFCRegenerator at %s"), *TargetLocation.ToString());
 	}
+}
+
+void AMyDCharacter::TeleportToWFCRegen()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
+	// 클라이언트에서 서버 RPC 호출
+	ServerTeleportToWFCRegen();
 }
 
 void AMyDCharacter::TeleportToEscapeObject()
@@ -2403,3 +2457,13 @@ void AMyDCharacter::TeleportToNearestEnemy()
 	}
 }
 
+void AMyDCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	if (IsLocallyControlled())
+	{
+		EnableInput(Cast<APlayerController>(NewController));
+
+	}
+}

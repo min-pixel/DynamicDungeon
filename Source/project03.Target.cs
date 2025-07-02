@@ -10,6 +10,9 @@ public class project03Target : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V5;
 
-		ExtraModuleNames.AddRange( new string[] { "project03" } );
+        CppStandard = CppStandardVersion.Cpp20;
+
+
+        ExtraModuleNames.AddRange( new string[] { "project03" } );
 	}
 }

@@ -32,7 +32,7 @@ AWeapon::AWeapon()
     // 무기 메쉬 생성
     WeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMesh"));
     RootComponent = WeaponMesh;
-
+    Price = 300;
     BaseDamage = 20.0f;
     Damage = BaseDamage; // 무기 생성 시 기본 데미지 적용
 
@@ -62,7 +62,7 @@ AWeapon::AWeapon()
         LoadedIcon = IconTexture.Object;
     }*/
 
-    ItemName = TEXT("Weapon");
+    ItemName = TEXT("Long Sword");
 
     
 }
@@ -241,7 +241,7 @@ void AWeapon::ApplyGradeEffects(AMyDCharacter* Character)
         Character->AttackStaminaCost -= 5.0f;
         if (WeaponMesh && ChromeMaterial)
         {
-            //WeaponMesh->SetMaterial(0, ChromeMaterial);
+            WeaponMesh->SetMaterial(0, ChromeMaterial);
         }
         break;
 
@@ -250,7 +250,7 @@ void AWeapon::ApplyGradeEffects(AMyDCharacter* Character)
         Character->AttackStaminaCost -= 10.0f;
         if (WeaponMesh && GoldMaterial)
         {
-            //WeaponMesh->SetMaterial(0, GoldMaterial);
+            WeaponMesh->SetMaterial(0, GoldMaterial);
         }
         break;
     }

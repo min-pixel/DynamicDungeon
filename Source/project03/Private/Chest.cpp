@@ -6,10 +6,10 @@
 
 AChest::AChest()
 {
-	ItemName = TEXT("Steel Chestplate");
+	ItemName = TEXT("Chestplate");
 	ArmorType = EArmorType::Chest;
 	BonusHealth = 50;
-	Price = 10;
+	Price = 250;
 
 
 	static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/armor.armor"));
@@ -20,7 +20,7 @@ AChest::AChest()
 
 	
 	///Game/BP/armour/Mesh/platemailchest.platemailchest
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/clothes/mesh/SKM_Medieval_Hooded_Cloak_Mesh.SKM_Medieval_Hooded_Cloak_Mesh"));  ///Script/Engine.SkeletalMesh''
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/armour/Mesh/platemailchest.platemailchest"));  ///Script/Engine.SkeletalMesh''
 	if (MeshAsset.Succeeded())
 	{
 		if (ArmorVisualMesh)

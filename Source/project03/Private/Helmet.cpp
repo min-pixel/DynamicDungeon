@@ -6,10 +6,10 @@
 
 AHelmet::AHelmet()
 {
-	ItemName = TEXT("Iron Helmet");
+	ItemName = TEXT("Helmet");
 	ArmorType = EArmorType::Helmet;
 	BonusHealth = 20;
-
+	Price = 220;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/helmet.helmet"));
 	if (IconTexture.Succeeded())
 	{

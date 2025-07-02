@@ -17,8 +17,9 @@ class PROJECT03_API ADynamicDungeonModeBase : public AGameModeBase
 public:
 	ADynamicDungeonModeBase();
 
-
+	virtual AActor* FindPlayerStart_Implementation(AController* Player, const FString& IncomingName) override;
+	void RestartAllPlayers();
 protected:
 	virtual void BeginPlay() override;
-
+	FVector GetRandomCorridorLocation() const;
 };

@@ -9,7 +9,7 @@ ARobeTop::ARobeTop()
     ArmorType = EArmorType::Chest;
     BonusHealth = 25;
     BonusStamina = 25;
-
+    Price = 100;
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/casual-t-shirt-.casual-t-shirt-"));
     if (IconTexture.Succeeded())
     {

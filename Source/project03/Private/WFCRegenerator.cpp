@@ -248,7 +248,10 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("GenerateWFCAtLocation started"));
 
-
+	if (!HasAuthority())
+	{
+		return;
+	}
 
 	// 기존 WFC 액터 제거
 	ClearPreviousWFCActors();

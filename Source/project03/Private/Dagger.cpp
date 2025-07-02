@@ -13,7 +13,7 @@ ADagger::ADagger()
     WeaponType = EWeaponType::Dagger;
     BaseDamage = 10.0f; //대형 무기라서 기본 공격력이 높음
     StaminaCost = 5.0f; //공격 시 스태미나 소모량 증가
-
+    Price = 200;
     Damage = BaseDamage;
 
     // 단검 무기 전용 메쉬 적용
@@ -29,7 +29,7 @@ ADagger::ADagger()
         ItemIcon = IconTexture.Object;
     }
 
-    ItemName = TEXT("DaggerWeapon");
+    ItemName = TEXT("Dagger");
 
 }
 

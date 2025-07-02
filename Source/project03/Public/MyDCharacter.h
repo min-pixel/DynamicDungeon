@@ -59,6 +59,20 @@ public:
 
 	void PickupWeapon();
 	void DropWeapon();
+	virtual void PossessedBy(AController* NewController) override;
+
+	//서버
+	UFUNCTION(Server, Reliable)
+	void ServerTeleportToWFCRegen();
+
+	
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<AActor> OverheadCameraClass;
+
+	AActor* OverheadCameraActor;
+
+	
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float Health = 100; // 체력
@@ -238,7 +252,7 @@ public:
 	UEquipmentWidget* EquipmentWidgetInstance;
 
 	UFUNCTION(BlueprintCallable)
-	void EquipWeaponFromClass(TSubclassOf<class AItem> WeaponClass);
+	void EquipWeaponFromClass(TSubclassOf<class AItem> WeaponClass, EWeaponGrade Grade);
 
 	UFUNCTION(BlueprintCallable)
 	void UnequipWeapon();

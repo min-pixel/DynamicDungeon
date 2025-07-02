@@ -5,12 +5,12 @@
 
 APotion::APotion()
 {
-    ItemData.ItemName = "HealthPotion";
-    ItemData.ItemType = EItemType::Potion;
+    ItemName = TEXT("HealthPotion");
+    ItemType = EItemType::Potion;
     PotionEffect = EPotionEffectType::Health;
     ItemData.PotionEffect = EPotionEffectType::Health;
     ItemData.Count = 1;
-    
+    Price = 50;
     HealAmount = 50; // 기본 회복량
 
     

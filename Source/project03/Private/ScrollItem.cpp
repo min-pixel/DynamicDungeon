@@ -23,8 +23,9 @@ void AScrollItem::InitializeSpellPoolIfNeeded()
 
 AScrollItem::AScrollItem()
 {
+    ItemName = TEXT("Scroll");
     ItemType = EItemType::Consumable;
-
+    Price = 150;
     // ·£´ý ½ºÅ³ ÀÎµ¦½º ¼±ÅÃ
     //SkillIndex = FMath::RandRange(0, 1);
 

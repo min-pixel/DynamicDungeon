@@ -40,7 +40,7 @@ void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
     {
         if (Index == EQUIP_SLOT_WEAPON && ItemData.ItemType == EItemType::Weapon)
         {
-            Char->EquipWeaponFromClass(ItemData.ItemClass);
+            Char->EquipWeaponFromClass(ItemData.ItemClass, static_cast<EWeaponGrade>(ItemData.Grade));
             UE_LOG(LogTemp, Log, TEXT("Weapon Equipped in Game"));
         }
         else if (ItemData.ItemType == EItemType::Armor)

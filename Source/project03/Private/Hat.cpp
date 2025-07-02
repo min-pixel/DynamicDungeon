@@ -10,7 +10,7 @@ AHat::AHat()
     ArmorType = EArmorType::Helmet;
     BonusHealth = 0;
     BonusMana = 30;
-
+    Price = 150;
 
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/wizard-hat.wizard-hat"));
     if (IconTexture.Succeeded())

@@ -20,7 +20,7 @@ UFireballSpell::UFireballSpell()
 
     ManaCost = 20.0f;
     StaminaCost = 10.0f;
-    Damage = 5000.0f;
+    Damage = 120.0f;
 
 }
 

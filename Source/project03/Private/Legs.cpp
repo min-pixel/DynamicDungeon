@@ -10,7 +10,7 @@ ALegs::ALegs()
 	ItemName = TEXT("Leather Greaves");
 	ArmorType = EArmorType::Legs;
 	BonusHealth = 30;
-
+	Price = 200;
 	static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/boots.boots"));
 	if (IconTexture.Succeeded())
 	{

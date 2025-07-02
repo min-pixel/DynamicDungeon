@@ -97,8 +97,15 @@ bool USocketManager::Connect(const FString& Address, int32 Port)
     ISocketSubsystem* Subsys = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM);
     Socket = Subsys->CreateSocket(NAME_Stream, TEXT("AuthSocket"), false);
 
+    /*FIPv4Address IP;
+    FIPv4Address::Parse(Address, IP);*/
+
+    // 원격 서버(192.168.0.12)에 고정 연결하도록 IP 지정
     FIPv4Address IP;
-    FIPv4Address::Parse(Address, IP);
+    {
+        const FString RemoteIPString = TEXT("192.168.0.12");
+        FIPv4Address::Parse(RemoteIPString, IP);
+    }
 
     // 변수명을 InternetAddr 로 일치시킵니다
     TSharedRef<FInternetAddr> InternetAddr = Subsys->CreateInternetAddr();

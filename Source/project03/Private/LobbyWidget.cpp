@@ -241,6 +241,9 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
 
 void ULobbyWidget::OnStartGameClicked()
 {
+
+
+
     //UE_LOG(LogTemp, Warning, TEXT("Start Game button clicked"));
 
     // 게임 준비 처리
@@ -262,8 +265,25 @@ void ULobbyWidget::OnStartGameClicked()
     APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
     if (PC)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Opening level now..."));
-        UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
+        // 클라이언트면 그냥 레벨만 연다 (ExecuteWFC 안 함)
+        if (!PC->HasAuthority())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Client: OpenLevel only, no WFC execute."));
+            //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
+            return;
+        }
+
+        // 서버면 그대로 진행 (Awfcex BeginPlay에서 WFC 자동 실행)
+        UE_LOG(LogTemp, Warning, TEXT("Server: OpenLevel now..."));
+        //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
+
+        if (PC && PC->GetPawn())
+        {
+            PC->GetPawn()->Destroy();
+            PC->UnPossess();
+        }
+
+        GetWorld()->ServerTravel("/Game/DynamicDugeon?listen");
     }
     else
     {

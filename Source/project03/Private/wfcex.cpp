@@ -30,34 +30,53 @@ void Awfcex::BeginPlay()
 {
 	Super::BeginPlay();
 
-    
-    const double StartTime = FPlatformTime::Seconds();
-
-	ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505--1, 767089153, 1948641409, 1358936321, 1964145409,  2078383361, 1231524609, 46204289
-    
-    const double EndTime = FPlatformTime::Seconds();
-    const double ElapsedTime = EndTime - StartTime;
-   
-   
-    UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec"), ElapsedTime);
-
-    //풀링
-    if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+    /*if (!HasAuthority() || GetNetMode() == NM_Client)
     {
-        WFCSubsystem->PrepareTilePrefabPool(GetWorld());
-    }
+        UE_LOG(LogTemp, Warning, TEXT("Awfcex BeginPlay: Client detected, skipping WFC!"));
+        return;
+    }*/
 
-    
+    if (HasAuthority()) // 서버 전용 실행
+    {
+
+        UE_LOG(LogTemp, Warning, TEXT("Awfcex HasAuthority: TRUE, Executing WFC"));
+
+        const double StartTime = FPlatformTime::Seconds();
+
+        ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505--1, 767089153, 1948641409, 1358936321, 1964145409,  2078383361, 1231524609, 46204289
+
+        const double EndTime = FPlatformTime::Seconds();
+        const double ElapsedTime = EndTime - StartTime;
+
+
+        UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec"), ElapsedTime);
+
+        //풀링
+        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        {
+            WFCSubsystem->PrepareTilePrefabPool(GetWorld());
+        }
+
+
+
+
+        
+       // SpawnEnemiesOnCorridor(15);
+
+        SpawnWFCRegeneratorOnRoom();
+
+        SpawnEscapeObjectsOnRoom();
+        SpawnTreasureChestsOnTiles();
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Awfcex HasAuthority: FALSE, Skipping WFC"));
+    }
 
 
     SpawnPlayerOnCorridor();
+    
 
-    SpawnEnemiesOnCorridor(15);
-
-    SpawnWFCRegeneratorOnRoom();
-
-    SpawnEscapeObjectsOnRoom();
-    SpawnTreasureChestsOnTiles();
 }
 
 
@@ -155,76 +174,149 @@ void Awfcex::SpawnPlayerOnCorridor()
 
 void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
 {
-    UWorld* World = GetWorld();
-    if (World)
-    {
-        //**C++ 캐릭터 직접 설정 (기본 C++ 클래스)**
+   
+        UWorld* World = GetWorld();
+        if (!World) return;
+
+        if (!HasAuthority())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Not authority, skipping spawn"));
+            return;
+        }
+
         if (!PlayerClass)
         {
             PlayerClass = AMyDCharacter::StaticClass();
         }
 
-        // Z축 살짝 올려서 바닥과 충돌 방지
-        FVector AdjustedLocation = Location + FVector(0.0f, 0.0f, 100.0f);
+        // 복도 타일 위치 수집
+        UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
+        if (!WFCSubsystem || !WFCSubsystem->WFCModel) return;
 
-        // 플레이어 스폰
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+        const TArray<FWaveFunctionCollapseTileCustom>& Tiles = WFCSubsystem->LastCollapsedTiles;
+        FIntVector Resolution = WFCSubsystem->Resolution;
+        float TileSize = WFCSubsystem->WFCModel->TileSize;
 
-        AMyDCharacter* SpawnedPlayer = World->SpawnActor<AMyDCharacter>(PlayerClass, AdjustedLocation, FRotator::ZeroRotator, SpawnParams);
+        TArray<FVector> CorridorTilePositions;
 
-        if (SpawnedPlayer)
+        for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
         {
-            UE_LOG(LogTemp, Log, TEXT("olmkmknunwn: %s"), *AdjustedLocation.ToString());
-
-            FVector FinalLocation = SpawnedPlayer->GetActorLocation();
-
-            if (!FinalLocation.Equals(AdjustedLocation, 1.0f)) // 위치가 바뀌었으면
+            if (Tiles[TileIndex].RemainingOptions.Num() > 0)
             {
-                UE_LOG(LogTemp, Warning, TEXT("Spawn location adjusted due to collision. Requested: %s | Actual: %s"),
-                    *AdjustedLocation.ToString(), *FinalLocation.ToString());
-            }
-            else
-            {
-                UE_LOG(LogTemp, Log, TEXT("Spawned at intended location: %s"), *FinalLocation.ToString());
-            }
-
-
-
-            //컨트롤러 확인
-            APlayerController* PlayerController = World->GetFirstPlayerController();
-            if (PlayerController)
-            {
-                UE_LOG(LogTemp, Log, TEXT("Found PlayerController: %s"), *PlayerController->GetName());
-
-                //강제로 Possess 시도
-                PlayerController->Possess(SpawnedPlayer);
-
-                //Possession 성공 여부 확인
-                if (SpawnedPlayer->GetController() == PlayerController)
+                const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
+                if (Option.bIsCorridorTile)
                 {
-                    UE_LOG(LogTemp, Log, TEXT("Player successfully possessed by controller."));
+                    FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
+                    CorridorTilePositions.Add(TilePosition);
+                }
+            }
+        }
+
+        if (CorridorTilePositions.Num() == 0)
+        {
+            UE_LOG(LogTemp, Error, TEXT("No corridor tiles found for spawning."));
+            return;
+        }
+
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+        {
+            APlayerController* PC = It->Get();
+            if (PC && !PC->GetPawn())
+            {
+                // 각 컨트롤러마다 랜덤 복도 위치 선택
+                int32 RandomIndex = FMath::RandRange(0, CorridorTilePositions.Num() - 1);
+                FVector SpawnLocation = CorridorTilePositions[RandomIndex] + FVector(0.0f, 0.0f, 100.0f);
+
+                AMyDCharacter* NewPawn = World->SpawnActor<AMyDCharacter>(PlayerClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+                if (NewPawn)
+                {
+                    PC->Possess(NewPawn);
+                    UE_LOG(LogTemp, Log, TEXT("Spawned & Possessed at %s for %s"), *SpawnLocation.ToString(), *PC->GetName());
                 }
                 else
                 {
-                    UE_LOG(LogTemp, Error, TEXT("Possession failed!"));
+                    UE_LOG(LogTemp, Error, TEXT("Failed to spawn pawn for %s"), *PC->GetName());
                 }
             }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("No PlayerController found!"));
-            }
         }
-        else
-        {
-            SpawnPlayerOnCorridor();
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("World is not available."));
-    }
+    
 }
+
+//void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
+//{
+//    UWorld* World = GetWorld();
+//    if (World)
+//    {
+//        //**C++ 캐릭터 직접 설정 (기본 C++ 클래스)**
+//        if (!PlayerClass)
+//        {
+//            PlayerClass = AMyDCharacter::StaticClass();
+//        }
+//
+//        // Z축 살짝 올려서 바닥과 충돌 방지
+//        FVector AdjustedLocation = Location + FVector(0.0f, 0.0f, 100.0f);
+//
+//        // 플레이어 스폰
+//        FActorSpawnParameters SpawnParams;
+//        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
+//
+//        AMyDCharacter* SpawnedPlayer = World->SpawnActor<AMyDCharacter>(PlayerClass, AdjustedLocation, FRotator::ZeroRotator, SpawnParams);
+//
+//        if (SpawnedPlayer)
+//        {
+//            UE_LOG(LogTemp, Log, TEXT("olmkmknunwn: %s"), *AdjustedLocation.ToString());
+//
+//            FVector FinalLocation = SpawnedPlayer->GetActorLocation();
+//
+//            if (!FinalLocation.Equals(AdjustedLocation, 1.0f)) // 위치가 바뀌었으면
+//            {
+//                UE_LOG(LogTemp, Warning, TEXT("Spawn location adjusted due to collision. Requested: %s | Actual: %s"),
+//                    *AdjustedLocation.ToString(), *FinalLocation.ToString());
+//            }
+//            else
+//            {
+//                UE_LOG(LogTemp, Log, TEXT("Spawned at intended location: %s"), *FinalLocation.ToString());
+//            }
+//
+//
+//
+//            //컨트롤러 확인
+//            APlayerController* PlayerController = World->GetFirstPlayerController();
+//            if (PlayerController)
+//            {
+//                UE_LOG(LogTemp, Log, TEXT("Found PlayerController: %s"), *PlayerController->GetName());
+//
+//                //강제로 Possess 시도
+//                PlayerController->Possess(SpawnedPlayer);
+//
+//                //Possession 성공 여부 확인
+//                if (SpawnedPlayer->GetController() == PlayerController)
+//                {
+//                    UE_LOG(LogTemp, Log, TEXT("Player successfully possessed by controller."));
+//                }
+//                else
+//                {
+//                    UE_LOG(LogTemp, Error, TEXT("Possession failed!"));
+//                }
+//            }
+//            else
+//            {
+//                UE_LOG(LogTemp, Error, TEXT("No PlayerController found!"));
+//            }
+//        }
+//        else
+//        {
+//            SpawnPlayerOnCorridor();
+//        }
+//    }
+//    else
+//    {
+//        UE_LOG(LogTemp, Error, TEXT("World is not available."));
+//    }
+//}
 
 
 void Awfcex::SpawnEnemiesOnCorridor(int32 EnemyCount)
@@ -537,3 +629,5 @@ bool Awfcex::CanSpawnAtLocation(UWorld* World, const FVector& Location, float Ra
         Params
     );
 }
+
+

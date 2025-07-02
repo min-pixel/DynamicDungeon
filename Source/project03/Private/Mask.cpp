@@ -10,7 +10,7 @@ AMask::AMask()
     ArmorType = EArmorType::Helmet;
     BonusHealth = 0;
     BonusStamina = 30;
-
+    Price = 150;
 
     static ConstructorHelpers::FObjectFinder<UTexture2D> IconTexture(TEXT("/Game/BP/Icon/plague-doctor.plague-doctor"));
     if (IconTexture.Succeeded())
