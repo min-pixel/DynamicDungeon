@@ -324,7 +324,11 @@ AMyDCharacter::AMyDCharacter()
 	}
 
 
-	
+	static ConstructorHelpers::FClassFinder<ACameraActor> CameraBPClass(TEXT("/Game/BP/BP_OverheadCamera.BP_OverheadCamera_C"));
+	if (CameraBPClass.Succeeded())
+	{
+		OverheadCameraClass = CameraBPClass.Class;
+	}
 
 }
 
@@ -394,7 +398,25 @@ void AMyDCharacter::BeginPlay()
 	}
 
 	
-	
+
+
+	if (OverheadCameraClass)
+	{
+		OverheadCameraActor = GetWorld()->SpawnActor<ACameraActor>(OverheadCameraClass, FVector(15000, 16000, 50500), FRotator(-90, 0, 0));
+		if (OverheadCameraActor)
+		{
+			UE_LOG(LogTemp, Log, TEXT("OverheadCameraActor Spawned: %s"), *OverheadCameraActor->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("OverheadCameraActor Spawn Failed"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("OverheadCameraClass is null!"));
+	}
+
 
 	/*if (InventoryComponent)
 	{
@@ -684,9 +706,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//스펠 사용 추가 (E키)
 	PlayerInputComponent->BindAction("CastSpell2", IE_Pressed, this, &AMyDCharacter::CastSpell2);
-
-	PlayerInputComponent->BindAction("ToggleMapView", IE_Pressed, this, &AMyDCharacter::ToggleMapView);
-
+	
+		PlayerInputComponent->BindAction("ToggleMapView", IE_Pressed, this, &AMyDCharacter::ToggleMapView);
+	
 	//f키
 	PlayerInputComponent->BindAction("ToggleTorch", IE_Pressed, this, &AMyDCharacter::ToggleTorch);
 
@@ -2078,73 +2100,94 @@ void AMyDCharacter::CastSpell2()
 
 
 
-
-
-
 void AMyDCharacter::ToggleMapView()
 {
-
-	if (!IsLocallyControlled())
-	{
-		return;
-	}
-
-	if (!FirstPersonCameraComponent) return;
-
 	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
 
 	if (!bIsInOverheadView)
 	{
-		// 현재 카메라 위치 저장 (회전 포함)
-		DefaultCameraLocation = FirstPersonCameraComponent->GetComponentLocation();
-		DefaultCameraRotation = FirstPersonCameraComponent->GetComponentRotation();
-
-		// 맵 전체 보기 시점 설정
-		FVector OverheadLocation = FVector(15000.0f, 16000.0f, 50500.0f);
-		FRotator OverheadRotation = FRotator(-90.0f, 0.0f, 0.0f); // 진짜로 수직으로 내려다봄
-
-		FirstPersonCameraComponent->SetWorldLocation(OverheadLocation);
-		FirstPersonCameraComponent->SetWorldRotation(OverheadRotation);
-
-		if (PC)
+		if (OverheadCameraActor)
 		{
-			PC->SetControlRotation(OverheadRotation); // ← 중요: 컨트롤러 회전도 고정
-			PC->SetIgnoreLookInput(true);              // 마우스 회전 막기
+			PC->SetViewTargetWithBlend(OverheadCameraActor, 0.5f);
+			bIsInOverheadView = true;
 		}
-
-		
-
-		if (CachedDirectionalLight)
-		{
-			CachedDirectionalLight->SetActorHiddenInGame(false);
-			CachedDirectionalLight->SetEnabled(true);
-		}
-
-		bUseControllerRotationYaw = false;
-		bIsInOverheadView = true;
 	}
 	else
 	{
-		// 원래 시점으로 복구
-		FirstPersonCameraComponent->SetWorldLocation(DefaultCameraLocation);
-		FirstPersonCameraComponent->SetWorldRotation(DefaultCameraRotation);
-
-		if (PC)
-		{
-			PC->SetControlRotation(DefaultCameraRotation); // ← 중요: 복구할 때도 같이 설정
-			PC->SetIgnoreLookInput(false);
-		}
-
-		if (CachedDirectionalLight)
-		{
-			CachedDirectionalLight->SetActorHiddenInGame(true);
-			CachedDirectionalLight->SetEnabled(false);
-		}
-
-		bUseControllerRotationYaw = true;
+		PC->SetViewTargetWithBlend(this, 0.5f);
 		bIsInOverheadView = false;
 	}
 }
+
+
+//void AMyDCharacter::ToggleMapView()
+//{
+//
+//
+//
+//
+//
+//	if (!FirstPersonCameraComponent) return;
+//
+//	APlayerController* PC = Cast<APlayerController>(GetController());
+//
+//	if (!bIsInOverheadView)
+//	{
+//		// 현재 카메라 위치 저장 (회전 포함)
+//		DefaultCameraLocation = FirstPersonCameraComponent->GetComponentLocation();
+//		DefaultCameraRotation = FirstPersonCameraComponent->GetComponentRotation();
+//
+//		// 맵 전체 보기 시점 설정
+//		FVector OverheadLocation = FVector(15000.0f, 16000.0f, 50500.0f);
+//		FRotator OverheadRotation = FRotator(-90.0f, 0.0f, 0.0f); // 진짜로 수직으로 내려다봄
+//
+//		FirstPersonCameraComponent->SetWorldLocation(OverheadLocation);
+//		FirstPersonCameraComponent->SetWorldRotation(OverheadRotation);
+//
+//		if (PC)
+//		{
+//			PC->SetControlRotation(OverheadRotation); // ← 중요: 컨트롤러 회전도 고정
+//			PC->SetIgnoreLookInput(true);              // 마우스 회전 막기
+//		}
+//
+//		
+//
+//		if (CachedDirectionalLight)
+//		{
+//			CachedDirectionalLight->SetActorHiddenInGame(false);
+//			CachedDirectionalLight->SetEnabled(true);
+//		}
+//
+//		bUseControllerRotationYaw = false;
+//		bIsInOverheadView = true;
+//	}
+//	else
+//	{
+//		// 원래 시점으로 복구
+//		FirstPersonCameraComponent->SetWorldLocation(DefaultCameraLocation);
+//		FirstPersonCameraComponent->SetWorldRotation(DefaultCameraRotation);
+//
+//		if (PC)
+//		{
+//			PC->SetControlRotation(DefaultCameraRotation); // ← 중요: 복구할 때도 같이 설정
+//			PC->SetIgnoreLookInput(false);
+//		}
+//
+//		if (CachedDirectionalLight)
+//		{
+//			CachedDirectionalLight->SetActorHiddenInGame(true);
+//			CachedDirectionalLight->SetEnabled(false);
+//		}
+//
+//		bUseControllerRotationYaw = true;
+//		bIsInOverheadView = false;
+//	}
+//}
+
+
+
+
 
 void AMyDCharacter::ToggleTorch()
 {

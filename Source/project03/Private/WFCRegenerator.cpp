@@ -40,6 +40,9 @@ AWFCRegenerator::AWFCRegenerator()
 	TriggerVolume->OnComponentBeginOverlap.AddDynamic(this, &AWFCRegenerator::OnOverlapBegin);
 	TriggerVolume->OnComponentEndOverlap.AddDynamic(this, &AWFCRegenerator::OnOverlapEnd);
 
+	bReplicates = true;
+	bAlwaysRelevant = true;
+
 	Tags.Add(FName("WFCRegen"));
 
 }

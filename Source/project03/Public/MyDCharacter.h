@@ -19,6 +19,10 @@
 #include "GoldWidget.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h" 
+#include "Engine/SceneCapture2D.h"
+#include "Camera/CameraActor.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "MyDCharacter.generated.h"
 
 //(Å¬·¡½º ¼±¾ð Àü)
@@ -67,11 +71,12 @@ public:
 
 	
 
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<AActor> OverheadCameraClass;
+	//¸Êºä
+	UPROPERTY()
+	ACameraActor* OverheadCameraActor;
 
-	AActor* OverheadCameraActor;
-
+	UPROPERTY(EditDefaultsOnly, Category = "Camera")
+	TSubclassOf<ACameraActor> OverheadCameraClass;
 	
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")

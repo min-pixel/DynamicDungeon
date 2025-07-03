@@ -17,6 +17,8 @@ class PROJECT03_API ALobbyGameMode : public AGameModeBase
 
 public:
 	ALobbyGameMode();
+
+	void CheckAllPlayersReady();
 	
 protected:
 	virtual void BeginPlay() override;

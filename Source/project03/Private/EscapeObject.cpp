@@ -32,6 +32,9 @@ AEscapeObject::AEscapeObject()
     TriggerVolume->OnComponentBeginOverlap.AddDynamic(this, &AEscapeObject::OnOverlapBegin);
     TriggerVolume->OnComponentEndOverlap.AddDynamic(this, &AEscapeObject::OnOverlapEnd);
 
+    bReplicates = true;
+    bAlwaysRelevant = true;
+
     Tags.Add(FName("Escape"));
 
 }

@@ -1246,7 +1246,24 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 					TileActor->AttachToActor(SpawnedActor, FAttachmentTransformRules::KeepWorldTransform);
 					TileActor->Tags.Add(FName("WFCGenerated"));
 					//TileActor Replicate
+					TileActor->bAlwaysRelevant = true;
 					TileActor->SetReplicates(true);
+
+					TArray<UStaticMeshComponent*> MeshComponents;
+					TileActor->GetComponents<UStaticMeshComponent>(MeshComponents);
+
+					for (UStaticMeshComponent* MeshComp : MeshComponents)
+					{
+						MeshComp->SetVisibility(true, true);
+						MeshComp->SetHiddenInGame(false, true);
+						MeshComp->bOwnerNoSee = false;
+						MeshComp->bOnlyOwnerSee = false;
+						MeshComp->bRenderInMainPass = true;
+						MeshComp->bRenderCustomDepth = true;
+						MeshComp->bAllowCullDistanceVolume = false;
+
+					}
+
 				}
 			}
 		}
@@ -1269,7 +1286,15 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 
 			if (ISMComponent)
 			{
+
 				ISMComponent->AddInstance(FTransform(TileRotation, TilePosition, TileScale));
+
+				ISMComponent->SetVisibility(true, true);
+				ISMComponent->SetHiddenInGame(false, true);
+				ISMComponent->bRenderInMainPass = true;
+				ISMComponent->bRenderCustomDepth = true;
+				ISMComponent->bAllowCullDistanceVolume = false;
+
 			}
 		}
 		else
