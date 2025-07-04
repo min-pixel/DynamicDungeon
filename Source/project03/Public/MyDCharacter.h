@@ -69,7 +69,8 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerTeleportToWFCRegen();
 
-	
+	UFUNCTION(Server, Reliable)
+	void Server_TryOpenDoor(AActor* DoorActor);
 
 	//¸Êºä
 	UPROPERTY()

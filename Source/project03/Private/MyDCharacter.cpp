@@ -836,7 +836,25 @@ void AMyDCharacter::StartInteraction()
 	{
 		UE_LOG(LogTemp, Error, TEXT("StartInteraction(): GameInstance not found!"));
 	}
+
+	if (OverlappedActor && OverlappedActor->ActorHasTag("Door"))
+	{
+		Server_TryOpenDoor(OverlappedActor);
+	}
+
 }
+
+
+void AMyDCharacter::Server_TryOpenDoor_Implementation(AActor* DoorActor)
+{
+	// DoorActor를 Door BP로 캐스팅
+	if (DoorActor)
+	{
+		// 예: Door BP에 Server_RequestOpenDoor라는 함수가 있다고 가정
+		DoorActor->CallFunctionByNameWithArguments(TEXT("Server_RequestOpenDoor"), *GLog, nullptr, true);
+	}
+}
+
 
 void AMyDCharacter::StopInteraction()
 {
@@ -857,6 +875,9 @@ void AMyDCharacter::StopInteraction()
 		UE_LOG(LogTemp, Error, TEXT("StopInteraction(): GameInstance not found!"));
 	}
 }
+
+
+
 
 // 무기 줍기 함수 (R 키 입력 시 실행)
 void AMyDCharacter::PickupWeapon()

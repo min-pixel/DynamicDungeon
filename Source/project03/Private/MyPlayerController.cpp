@@ -28,10 +28,22 @@ void AMyPlayerController::BeginPlay()
 
 
 
-
+    if (!IsLocalController())
+    {
+        return; // 로컬 컨트롤러가 아니면 UI 생성하지 않음
+    }
     
         LobbyWidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, TEXT("/Game/BP/UI/LobbyWidget_BP.LobbyWidget_BP_C")); 
     
+
+        FString MapName = GetWorld()->GetMapName();
+        MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+
+        if (!MapName.Contains("Lobby"))
+        {
+            // 로비 맵이 아니면 UI 생성 안 함
+            return;
+        }
 
     if (LobbyWidgetClass)
     {

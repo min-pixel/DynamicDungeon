@@ -109,5 +109,10 @@ void ALobbyGameMode::CheckAllPlayersReady()
 	}
 
 	// 모두 준비 완료 → 서버 트래블
-	UGameplayStatics::OpenLevel(this, TEXT("GameMap"), true, TEXT("listen"));
+	//UGameplayStatics::OpenLevel(this, TEXT("/Game/DynamicDugeon"), true, TEXT("listen"));
+
+	GetWorld()->ServerTravel("/Game/DynamicDugeon?listen"); 
+
+
+
 }

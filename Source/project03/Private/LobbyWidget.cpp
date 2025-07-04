@@ -9,6 +9,7 @@
 #include "UObject/UObjectIterator.h"
 #include "ShopWidget.h"
 #include "GoldWidget.h"
+#include "MyPlayerController.h"
 #include "GameFramework/HUD.h"
 
 
@@ -239,57 +240,86 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
 //
 //}
 
+//void ULobbyWidget::OnStartGameClicked()
+//{
+//
+//    //UE_LOG(LogTemp, Warning, TEXT("Start Game button clicked"));
+//
+//    // 게임 준비 처리
+//    // 예: 플레이어 상태 변경, 서버에 알림 등
+//
+//    if (EquipmentWidgetInstance)
+//    {
+//        UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+//        if (GameInstance)
+//        {
+//            GameInstance->SavedInventoryItems = InventoryComponentRef->InventoryItemsStruct;
+//            GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->EquipmentSlots;
+//            GameInstance->SavedStorageItems = StorageComponentRef->InventoryItemsStruct;
+//            GameInstance->InitializeCharacterData(AvailableClasses[CurrentClassIndex]);
+//            UE_LOG(LogTemp, Warning, TEXT("Saved Equipment Slots to GameInstance"));
+//        }
+//    }
+//
+//    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+//    if (PC)
+//    {
+//        // 클라이언트면 그냥 레벨만 연다 (ExecuteWFC 안 함)
+//        if (!PC->HasAuthority())
+//        {
+//            UE_LOG(LogTemp, Warning, TEXT("Client: OpenLevel only, no WFC execute."));
+//            //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
+//            return;
+//        }
+//
+//        // 서버면 그대로 진행 (Awfcex BeginPlay에서 WFC 자동 실행)
+//        UE_LOG(LogTemp, Warning, TEXT("Server: OpenLevel now..."));
+//        //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
+//
+//        if (PC && PC->GetPawn())
+//        {
+//            PC->GetPawn()->Destroy();
+//            PC->UnPossess();
+//        }
+//
+//        GetWorld()->ServerTravel("/Game/DynamicDugeon?listen");
+//    }
+//    else
+//    {
+//        UE_LOG(LogTemp, Error, TEXT("PlayerController is null, cannot open level."));
+//    }
+//    
+//}
+
 void ULobbyWidget::OnStartGameClicked()
 {
 
 
-
-    //UE_LOG(LogTemp, Warning, TEXT("Start Game button clicked"));
-
-    // 게임 준비 처리
-    // 예: 플레이어 상태 변경, 서버에 알림 등
-
-    if (EquipmentWidgetInstance)
+    AMyPlayerController* PC = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(this, 0));
+    
+    if (PC && PC->GetPawn())
     {
-        UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-        if (GameInstance)
-        {
-            GameInstance->SavedInventoryItems = InventoryComponentRef->InventoryItemsStruct;
-            GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->EquipmentSlots;
-            GameInstance->SavedStorageItems = StorageComponentRef->InventoryItemsStruct;
-            GameInstance->InitializeCharacterData(AvailableClasses[CurrentClassIndex]);
-            UE_LOG(LogTemp, Warning, TEXT("Saved Equipment Slots to GameInstance"));
-        }
-    }
-
-    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-    if (PC)
-    {
-        // 클라이언트면 그냥 레벨만 연다 (ExecuteWFC 안 함)
-        if (!PC->HasAuthority())
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Client: OpenLevel only, no WFC execute."));
-            //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
-            return;
-        }
-
-        // 서버면 그대로 진행 (Awfcex BeginPlay에서 WFC 자동 실행)
-        UE_LOG(LogTemp, Warning, TEXT("Server: OpenLevel now..."));
-        //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
-
-        if (PC && PC->GetPawn())
-        {
-            PC->GetPawn()->Destroy();
-            PC->UnPossess();
-        }
-
-        GetWorld()->ServerTravel("/Game/DynamicDugeon?listen");
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("PlayerController is null, cannot open level."));
+        PC->GetPawn()->Destroy();
+        PC->UnPossess();
     }
     
+    if (PC)
+    {
+        PC->ServerRequestStart();
+        UE_LOG(LogTemp, Warning, TEXT("Request Start sent to server (bIsReady = true)."));
+
+        if (PC->LobbyWidgetInstance)
+        {
+            PC->LobbyWidgetInstance->RemoveFromParent();
+            PC->LobbyWidgetInstance = nullptr;
+        }
+
+        PC->bShowMouseCursor = false;
+
+        FInputModeGameOnly GameMode;
+        PC->SetInputMode(GameMode);
+
+    }
 }
 
 void ULobbyWidget::OnGoToShopClicked()
