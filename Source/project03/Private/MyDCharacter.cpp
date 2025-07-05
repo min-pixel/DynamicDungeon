@@ -841,6 +841,11 @@ void AMyDCharacter::StartInteraction()
 	{
 		Server_TryOpenDoor(OverlappedActor);
 	}
+	
+	if (OverlappedActor && OverlappedActor->ActorHasTag("Statue"))
+	{
+		Server_TryEatStatue(OverlappedActor);
+	}
 
 }
 
@@ -852,6 +857,16 @@ void AMyDCharacter::Server_TryOpenDoor_Implementation(AActor* DoorActor)
 	{
 		// 예: Door BP에 Server_RequestOpenDoor라는 함수가 있다고 가정
 		DoorActor->CallFunctionByNameWithArguments(TEXT("Server_RequestOpenDoor"), *GLog, nullptr, true);
+	}
+}
+
+void AMyDCharacter::Server_TryEatStatue_Implementation(AActor* StatueActor)
+{
+	
+	if (StatueActor)
+	{
+		
+		StatueActor->CallFunctionByNameWithArguments(TEXT("ServerRequestEatStatue"), *GLog, nullptr, true);
 	}
 }
 

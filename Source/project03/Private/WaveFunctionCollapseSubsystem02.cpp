@@ -1259,7 +1259,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 						MeshComp->bOwnerNoSee = false;
 						MeshComp->bOnlyOwnerSee = false;
 						MeshComp->bRenderInMainPass = true;
-						MeshComp->bRenderCustomDepth = true;
+						//MeshComp->bRenderCustomDepth = true;
 						MeshComp->bAllowCullDistanceVolume = false;
 
 					}
@@ -1292,7 +1292,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 				ISMComponent->SetVisibility(true, true);
 				ISMComponent->SetHiddenInGame(false, true);
 				ISMComponent->bRenderInMainPass = true;
-				ISMComponent->bRenderCustomDepth = true;
+				//ISMComponent->bRenderCustomDepth = true;
 				ISMComponent->bAllowCullDistanceVolume = false;
 
 			}

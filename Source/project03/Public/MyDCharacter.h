@@ -72,6 +72,9 @@ public:
 	UFUNCTION(Server, Reliable)
 	void Server_TryOpenDoor(AActor* DoorActor);
 
+	UFUNCTION(Server, Reliable)
+	void Server_TryEatStatue(AActor* StatueActor);
+
 	//¸Êºä
 	UPROPERTY()
 	ACameraActor* OverheadCameraActor;
