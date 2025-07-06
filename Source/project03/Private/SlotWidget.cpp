@@ -197,35 +197,65 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         return false;
     }
 
+
+
+
     const int32 FromIndex = SourceSlot->SlotIndex;
     const int32 ToIndex = this->SlotIndex;
 
     
-    
+    if (!InventoryOwner || !InventoryOwner->InventoryRef) return false;
+    if (!InventoryOwner->InventoryRef->InventoryItemsStruct.IsValidIndex(ToIndex)) return false;
+    if (!SourceSlot->InventoryOwner || !SourceSlot->InventoryOwner->InventoryRef) return false;
+    if (!SourceSlot->InventoryOwner->InventoryRef->InventoryItemsStruct.IsValidIndex(FromIndex)) return false;
 
-    //1. 보물상자 → 플레이어 인벤토리
+    ////1. 보물상자 → 플레이어 인벤토리
+    //if (SourceSlot->bIsChestInventory && !this->bIsChestInventory)
+    //{
+    //    if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
+    //    {
+    //        InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+    //        SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+
+    //        UE_LOG(LogTemp, Log, TEXT("Moved item from Chest to Player Inventory"));
+    //    }
+    //}
+
+    ////2. 플레이어 인벤토리 → 보물상자
+    //else if (!SourceSlot->bIsChestInventory && this->bIsChestInventory)
+    //{
+    //    if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
+    //    {
+    //        InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+    //        SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
+
+    //        UE_LOG(LogTemp, Log, TEXT("Moved item from Player Inventory to Chest"));
+    //    }
+    //}
+
+    // 1. 보물상자 → 플레이어 인벤토리
     if (SourceSlot->bIsChestInventory && !this->bIsChestInventory)
     {
-        if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
-        {
-            InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
-            SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
-
-            UE_LOG(LogTemp, Log, TEXT("Moved item from Chest to Player Inventory"));
-        }
+        // 서버 RPC 호출
+        InventoryOwner->InventoryRef->ServerMoveItem(
+            SourceSlot->InventoryOwner->InventoryRef,
+            FromIndex,
+            ToIndex
+        );
+        UE_LOG(LogTemp, Log, TEXT("Client: Requested move from Chest to Player"));
     }
-
-    //2. 플레이어 인벤토리 → 보물상자
+    // 2. 플레이어 인벤토리 → 보물상자
     else if (!SourceSlot->bIsChestInventory && this->bIsChestInventory)
     {
-        if (InventoryOwner && InventoryOwner->InventoryRef && SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
-        {
-            InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
-            SourceSlot->InventoryOwner->InventoryRef->RemoveItemAtStruct(FromIndex);
-
-            UE_LOG(LogTemp, Log, TEXT("Moved item from Player Inventory to Chest"));
-        }
+        // 서버 RPC 호출
+        InventoryOwner->InventoryRef->ServerMoveItem(
+            SourceSlot->InventoryOwner->InventoryRef,
+            FromIndex,
+            ToIndex
+        );
+        UE_LOG(LogTemp, Log, TEXT("Client: Requested move from Player to Chest"));
     }
+
 
     //  인벤토리 → 핫키 슬롯
     else if (!SourceSlot->bIsHotkeySlot && this->bIsHotkeySlot)

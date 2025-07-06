@@ -26,6 +26,10 @@ AArmor::AArmor()
         GoldMaterial = GoldMatObj.Object;
     }
 
+    bReplicates = true;
+    bAlwaysRelevant = true;
+
+
 }
 
 void AArmor::ApplyArmorStats(AMyDCharacter* Character)

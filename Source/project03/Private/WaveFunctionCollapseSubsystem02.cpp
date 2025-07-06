@@ -4007,6 +4007,13 @@ void UWaveFunctionCollapseSubsystem02::PrepareTilePrefabPool(UWorld* World)
 		AActor* PooledActor = World->SpawnActor<AActor>(BPClass);
 		if (!PooledActor) continue;
 
+		if (World->GetAuthGameMode())  // 서버에서만
+		{
+			PooledActor->SetReplicates(true);
+			PooledActor->SetReplicateMovement(true);
+			PooledActor->bAlwaysRelevant = true;
+		}
+
 		PooledActor->SetActorHiddenInGame(true);
 		PooledActor->SetActorEnableCollision(false);
 		PooledActor->SetActorLocation(FVector::ZeroVector);
@@ -4029,13 +4036,12 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 {
 	if (!World || !WFCModel) return;
 
+	// 서버가 아닐 땐 아무 것도 안 함
+	if (!World->GetAuthGameMode()) return;
+
 	for (int32 Index = 0; Index < Tiles.Num(); ++Index)
 	{
 		const FWaveFunctionCollapseTileCustom& Tile = Tiles[Index];
-
-
-		
-
 
 		// 유효한 하나의 옵션만 있는 경우만 처리
 		if (Tile.RemainingOptions.Num() != 1) {
@@ -4046,61 +4052,40 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 		}
 
 		const FWaveFunctionCollapseOptionCustom& Option = Tile.RemainingOptions[0];
-
 		if (!Option.BaseObject.IsValid())
 		{
 			FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution);
-			UE_LOG(LogTemp, Warning, TEXT("[WFC] Index %d (%d, %d, %d) -  BaseObject is INVALID. BaseObject: %s"),
+			UE_LOG(LogTemp, Warning, TEXT("[WFC] Index %d (%d, %d, %d) - BaseObject is INVALID. BaseObject: %s"),
 				Index, Pos.X, Pos.Y, Pos.Z, *Option.BaseObject.ToString());
 			continue;
 		}
 
-
-		if (!Option.BaseObject.IsValid())
-		{
-			//UE_LOG(LogTemp, Warning, TEXT("[WFC] Index %d - BaseObject is INVALID. Option Name: %s"), Index, *Option.ToString());
-			continue;
-		}
-
-		// Key로 사용할 CleanOption 생성 (회전, 스케일 무시)
+		// 회전/스케일 무시한 키로 풀링 검색
 		FWaveFunctionCollapseOptionCustom CleanOption = Option;
 		CleanOption.BaseRotator = FRotator::ZeroRotator;
 		CleanOption.BaseScale3D = FVector(1.0f);
 
-		// 풀링에서 회전/스케일 무시한 키로 탐색
 		if (!TilePrefabPool.Contains(CleanOption))
 		{
 			UE_LOG(LogWFC, Warning, TEXT("No prefab found for option: %s"), *Option.BaseObject.ToString());
 			continue;
 		}
 
-		if (!TilePrefabPool.Contains(CleanOption))
-		{
-			FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution);
-			UE_LOG(LogTemp, Warning, TEXT("[WFC] Index %d (%d, %d, %d) -  Pool doesn't contain CleanOption. BaseObject: %s"),
-				Index, Pos.X, Pos.Y, Pos.Z, *Option.BaseObject.ToString());
-			continue;
-		}
-
-
-		// 풀링된 프리팹 가져오기
-		AActor* Prefab = nullptr;
-		/*if (!TilePrefabPool.Contains(Option))
-		{
-			UE_LOG(LogWFC, Warning, TEXT("No prefab found for option: %s"), *Option.BaseObject.ToString());
-			continue;
-		}*/
-
-		Prefab = TilePrefabPool[CleanOption];
+		AActor* Prefab = TilePrefabPool[CleanOption];
 		if (!IsValid(Prefab)) continue;
 
 		AActor* NewTile = nullptr;
 
-		//Case 1: StaticMeshActor이면 메시 복사 방식
+		// Case 1: StaticMeshActor이면 메시 복사 방식
 		if (AStaticMeshActor* StaticMeshPrefab = Cast<AStaticMeshActor>(Prefab))
 		{
 			AStaticMeshActor* NewStaticMeshTile = World->SpawnActor<AStaticMeshActor>();
 			if (!NewStaticMeshTile) continue;
+
+			// ── 복제 설정 추가 ──
+			NewStaticMeshTile->SetReplicates(true);
+			NewStaticMeshTile->SetReplicateMovement(true);
+			NewStaticMeshTile->bAlwaysRelevant = true;
 
 			UStaticMeshComponent* MeshComp = NewStaticMeshTile->GetStaticMeshComponent();
 			if (!MeshComp) continue;
@@ -4113,38 +4098,165 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 		}
 		else
 		{
-			//Case 2: 블루프린트 액터라면 동일한 클래스에서 복제
+			// Case 2: 블루프린트 액터라면 동일한 클래스에서 복제
 			UClass* ActorClass = Prefab->GetClass();
-			NewTile = World->SpawnActor<AActor>(ActorClass);
-			if (!NewTile) continue;
+			AActor* NewActorTile = World->SpawnActor<AActor>(ActorClass);
+			if (!NewActorTile) continue;
 
-			NewTile->SetActorScale3D(Prefab->GetActorScale3D());
-			NewTile->SetActorRotation(Prefab->GetActorRotation());
+			// ── 복제 설정 추가 ──
+			NewActorTile->SetReplicates(true);
+			NewActorTile->SetReplicateMovement(true);
+			NewActorTile->bAlwaysRelevant = true;
 
-			if (!NewTile)
-			{
-				FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution);
-				UE_LOG(LogTemp, Warning, TEXT("[WFC] SpawnActor<AActor> failed at (%d, %d, %d) - %s"),
-					Pos.X, Pos.Y, Pos.Z, *Option.BaseObject.ToString());
-				continue;
-			}
-
+			NewActorTile->SetActorScale3D(Prefab->GetActorScale3D());
+			NewActorTile->SetActorRotation(Prefab->GetActorRotation());
+			NewTile = NewActorTile;
 		}
 
 		if (!NewTile) continue;
 
 		// 위치 설정
-		FVector Location = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
+		FVector Location = FVector(
+			UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)
+		) * WFCModel->TileSize;
 		NewTile->SetActorLocation(Location);
-		NewTile->SetActorScale3D(Option.BaseScale3D); 
-		NewTile->SetActorRotation(Option.BaseRotator); 
+		NewTile->SetActorScale3D(Option.BaseScale3D);
+		NewTile->SetActorRotation(Option.BaseRotator);
+
+		// 보임 및 충돌 활성화
 		NewTile->SetActorHiddenInGame(false);
 		NewTile->SetActorEnableCollision(true);
-		NewTile->Tags.Add("WFCGenerated");
 
-		//SpawnedTileActors.Add(NewTile);
+		// 태그 추가
+		NewTile->Tags.Add("WFCGenerated");
 	}
 }
+
+
+//void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
+//	const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* World)
+//{
+//	if (!World || !WFCModel) return;
+//
+//	// 서버가 아닐 땐 아무 것도 안 함
+//	if (!World->GetAuthGameMode()) return;
+//
+//	for (int32 Index = 0; Index < Tiles.Num(); ++Index)
+//	{
+//		const FWaveFunctionCollapseTileCustom& Tile = Tiles[Index];
+//
+//
+//		
+//
+//
+//		// 유효한 하나의 옵션만 있는 경우만 처리
+//		if (Tile.RemainingOptions.Num() != 1) {
+//			FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution);
+//			UE_LOG(LogTemp, Warning, TEXT("[WFC] Skipped tile at (%d, %d, %d), RemainingOptions.Num() = %d"),
+//				Pos.X, Pos.Y, Pos.Z, Tile.RemainingOptions.Num());
+//			continue;
+//		}
+//
+//		const FWaveFunctionCollapseOptionCustom& Option = Tile.RemainingOptions[0];
+//
+//		if (!Option.BaseObject.IsValid())
+//		{
+//			FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution);
+//			UE_LOG(LogTemp, Warning, TEXT("[WFC] Index %d (%d, %d, %d) -  BaseObject is INVALID. BaseObject: %s"),
+//				Index, Pos.X, Pos.Y, Pos.Z, *Option.BaseObject.ToString());
+//			continue;
+//		}
+//
+//
+//		if (!Option.BaseObject.IsValid())
+//		{
+//			//UE_LOG(LogTemp, Warning, TEXT("[WFC] Index %d - BaseObject is INVALID. Option Name: %s"), Index, *Option.ToString());
+//			continue;
+//		}
+//
+//		// Key로 사용할 CleanOption 생성 (회전, 스케일 무시)
+//		FWaveFunctionCollapseOptionCustom CleanOption = Option;
+//		CleanOption.BaseRotator = FRotator::ZeroRotator;
+//		CleanOption.BaseScale3D = FVector(1.0f);
+//
+//		// 풀링에서 회전/스케일 무시한 키로 탐색
+//		if (!TilePrefabPool.Contains(CleanOption))
+//		{
+//			UE_LOG(LogWFC, Warning, TEXT("No prefab found for option: %s"), *Option.BaseObject.ToString());
+//			continue;
+//		}
+//
+//		if (!TilePrefabPool.Contains(CleanOption))
+//		{
+//			FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution);
+//			UE_LOG(LogTemp, Warning, TEXT("[WFC] Index %d (%d, %d, %d) -  Pool doesn't contain CleanOption. BaseObject: %s"),
+//				Index, Pos.X, Pos.Y, Pos.Z, *Option.BaseObject.ToString());
+//			continue;
+//		}
+//
+//
+//		// 풀링된 프리팹 가져오기
+//		AActor* Prefab = nullptr;
+//		/*if (!TilePrefabPool.Contains(Option))
+//		{
+//			UE_LOG(LogWFC, Warning, TEXT("No prefab found for option: %s"), *Option.BaseObject.ToString());
+//			continue;
+//		}*/
+//
+//		Prefab = TilePrefabPool[CleanOption];
+//		if (!IsValid(Prefab)) continue;
+//
+//		AActor* NewTile = nullptr;
+//
+//		//Case 1: StaticMeshActor이면 메시 복사 방식
+//		if (AStaticMeshActor* StaticMeshPrefab = Cast<AStaticMeshActor>(Prefab))
+//		{
+//			AStaticMeshActor* NewStaticMeshTile = World->SpawnActor<AStaticMeshActor>();
+//			if (!NewStaticMeshTile) continue;
+//
+//			UStaticMeshComponent* MeshComp = NewStaticMeshTile->GetStaticMeshComponent();
+//			if (!MeshComp) continue;
+//
+//			MeshComp->SetMobility(EComponentMobility::Movable);
+//			MeshComp->SetStaticMesh(StaticMeshPrefab->GetStaticMeshComponent()->GetStaticMesh());
+//			NewStaticMeshTile->SetActorScale3D(StaticMeshPrefab->GetActorScale3D());
+//			NewStaticMeshTile->SetActorRotation(StaticMeshPrefab->GetActorRotation());
+//			NewTile = NewStaticMeshTile;
+//		}
+//		else
+//		{
+//			//Case 2: 블루프린트 액터라면 동일한 클래스에서 복제
+//			UClass* ActorClass = Prefab->GetClass();
+//			NewTile = World->SpawnActor<AActor>(ActorClass);
+//			if (!NewTile) continue;
+//
+//			NewTile->SetActorScale3D(Prefab->GetActorScale3D());
+//			NewTile->SetActorRotation(Prefab->GetActorRotation());
+//
+//			if (!NewTile)
+//			{
+//				FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution);
+//				UE_LOG(LogTemp, Warning, TEXT("[WFC] SpawnActor<AActor> failed at (%d, %d, %d) - %s"),
+//					Pos.X, Pos.Y, Pos.Z, *Option.BaseObject.ToString());
+//				continue;
+//			}
+//
+//		}
+//
+//		if (!NewTile) continue;
+//
+//		// 위치 설정
+//		FVector Location = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(Index, Resolution)) * WFCModel->TileSize;
+//		NewTile->SetActorLocation(Location);
+//		NewTile->SetActorScale3D(Option.BaseScale3D); 
+//		NewTile->SetActorRotation(Option.BaseRotator); 
+//		NewTile->SetActorHiddenInGame(false);
+//		NewTile->SetActorEnableCollision(true);
+//		NewTile->Tags.Add("WFCGenerated");
+//
+//		//SpawnedTileActors.Add(NewTile);
+//	}
+//}
 
 
 void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 RandomSeed, TFunction<void()> OnCompleted)

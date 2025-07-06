@@ -16,6 +16,7 @@
 #include "Engine/DirectionalLight.h"
 #include "EngineUtils.h"
 #include "USpellBase.h"
+#include "WFCRegenerator.h"
 #include "GoldWidget.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h" 
@@ -34,7 +35,17 @@ enum class EAttackType : uint8
 	Weapon UMETA(DisplayName = "Weapon Attack")
 };
 
+USTRUCT(BlueprintType)
+struct FEquippedArmorData
+{
+	GENERATED_BODY()
 
+	UPROPERTY()
+	int32 SlotIndex;
+
+	UPROPERTY()
+	FItemData ArmorData;
+};
 
 UCLASS()
 class PROJECT03_API AMyDCharacter : public ACharacter, public IHitInterface
@@ -74,6 +85,49 @@ public:
 
 	UFUNCTION(Server, Reliable)
 	void Server_TryEatStatue(AActor* StatueActor);
+
+	// 클라이언트가 호출 -> 서버에서 실행
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerRequestWFCRegen(AWFCRegenerator* RegenActor);
+
+	// 서버에게 요청 -> 모든 클라이언트에서 재생성 연출 실행
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerPlayWFCRegenEffects();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayWFCRegenEffects();
+
+
+
+	// 무기 정보
+	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon)
+	FItemData EquippedWeaponData;
+
+	// 방어구 정보 (Map 또는 배열)
+	UPROPERTY(ReplicatedUsing = OnRep_EquippedArmors)
+	TArray<FEquippedArmorData> EquippedArmorsData;
+
+	UFUNCTION()
+	void OnRep_EquippedWeapon();
+
+	UFUNCTION()
+	void OnRep_EquippedArmors();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestEquipWeapon(const FItemData& WeaponData);
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestEquipArmor(const FItemData& ArmorData, int32 SlotIndex);
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestUnequipWeapon();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestUnequipArmor(int32 SlotIndex);
+
+	virtual void Restart() override;
+	void SetupInventoryAndEquipmentUI();
+
 
 	//맵뷰
 	UPROPERTY()

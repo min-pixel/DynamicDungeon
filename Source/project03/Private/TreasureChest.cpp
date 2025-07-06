@@ -27,7 +27,7 @@ ATreasureChest::ATreasureChest()
         ChestMesh->SetStaticMesh(ChestMeshAsset.Object);
     }
 
-    ChestInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("ChestInventory"));
+    //ChestInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("ChestInventory"));
 
     InteractionBox = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionBox"));
     InteractionBox->SetupAttachment(RootComponent);
@@ -47,6 +47,12 @@ ATreasureChest::ATreasureChest()
         InventoryWidgetClass = WidgetBPClass.Class;
     }
 
+    bReplicates = true;
+    bAlwaysRelevant = true;
+    // ChestInventory 복제 설정
+    ChestInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("ChestInventory"));
+    ChestInventory->SetIsReplicated(true);
+
 }
 
 // Called when the game starts or when spawned
@@ -65,7 +71,11 @@ void ATreasureChest::BeginPlay()
         }
     }
 
-    GenerateRandomItems();
+    // 서버에서만 아이템 생성
+    if (HasAuthority())
+    {
+        GenerateRandomItems();
+    }
 	
     if (!InventoryWidgetClass)
     {
@@ -167,6 +177,48 @@ void ATreasureChest::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* O
     }
 }
 
+//void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
+//{
+//    if (!ChestInventory || !InventoryWidgetClass) return;
+//
+//    if (ChestInventoryWidgetInstance && ChestInventoryWidgetInstance->IsInViewport())
+//    {
+//        UE_LOG(LogTemp, Warning, TEXT("Chest UI already open, skipping duplicate creation"));
+//        return;
+//    }
+//
+//    ChestInventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+//    if (ChestInventoryWidgetInstance)
+//    {
+//        ChestInventoryWidgetInstance->InventoryRef = ChestInventory;
+//        ChestInventoryWidgetInstance->bIsChestInventory = true;
+//        ChestInventoryWidgetInstance->SlotWidgetClass = InteractingPlayer->InventoryWidgetInstance->SlotWidgetClass;
+//        ChestInventoryWidgetInstance->RefreshInventoryStruct();
+//
+//        ChestInventoryWidgetInstance->AddToViewport(2);
+//        ChestInventoryWidgetInstance->SetPositionInViewport(FVector2D(800, 0), false);
+//
+//        UE_LOG(LogTemp, Log, TEXT("ChestInventoryWidget added to viewport"));
+//
+//        // 플레이어 인벤토리도 같이 띄우고 드래그 앤 드롭 되게 만들기
+//        if (InteractingPlayer && InteractingPlayer->InventoryWidgetInstance)
+//        {
+//            InteractingPlayer->InventoryWidgetInstance->AddToViewport(2);
+//            InteractingPlayer->InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 0), false);
+//
+//            // 마우스 설정
+//            APlayerController* PC = Cast<APlayerController>(InteractingPlayer->GetController());
+//            if (PC)
+//            {
+//                PC->bShowMouseCursor = true;
+//                FInputModeGameAndUI Mode;
+//                Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+//                PC->SetInputMode(Mode);
+//            }
+//        }
+//    }
+//}
+
 void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
 {
     if (!ChestInventory || !InventoryWidgetClass) return;
@@ -180,9 +232,13 @@ void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
     ChestInventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
     if (ChestInventoryWidgetInstance)
     {
+        // 서버 or 클라 모두에서 OwningWidgetInstance 지정
+        ChestInventory->OwningWidgetInstance = ChestInventoryWidgetInstance;
+
         ChestInventoryWidgetInstance->InventoryRef = ChestInventory;
         ChestInventoryWidgetInstance->bIsChestInventory = true;
         ChestInventoryWidgetInstance->SlotWidgetClass = InteractingPlayer->InventoryWidgetInstance->SlotWidgetClass;
+
         ChestInventoryWidgetInstance->RefreshInventoryStruct();
 
         ChestInventoryWidgetInstance->AddToViewport(2);
@@ -190,13 +246,12 @@ void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
 
         UE_LOG(LogTemp, Log, TEXT("ChestInventoryWidget added to viewport"));
 
-        // 플레이어 인벤토리도 같이 띄우고 드래그 앤 드롭 되게 만들기
+        // 플레이어 인벤토리도 표시
         if (InteractingPlayer && InteractingPlayer->InventoryWidgetInstance)
         {
             InteractingPlayer->InventoryWidgetInstance->AddToViewport(2);
             InteractingPlayer->InventoryWidgetInstance->SetPositionInViewport(FVector2D(0, 0), false);
 
-            // 마우스 설정
             APlayerController* PC = Cast<APlayerController>(InteractingPlayer->GetController());
             if (PC)
             {

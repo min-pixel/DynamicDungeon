@@ -54,6 +54,8 @@ public:
 
 	void ClearPreviousWFCActors();
 
+
+
 	FIntVector FixedTileCoord;
 	FWaveFunctionCollapseOptionCustom FixedTileOption;
 	bool bHasFixedTile = false;

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Item.h"
+#include "InventoryWidget.h"
 #include "InventoryComponent.generated.h"
 
 
@@ -25,8 +26,11 @@ public:
 	/*UPROPERTY(BlueprintReadOnly, Category = "Inventory")
 	TArray<AItem*> InventoryItems;*/
 
-	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	UPROPERTY(ReplicatedUsing = OnRep_InventoryItemsStruct, BlueprintReadOnly, Category = "Inventory")
 	TArray<FItemData> InventoryItemsStruct;
+
+	UPROPERTY()
+	UInventoryWidget* OwningWidgetInstance = nullptr;
 
 	// 아이템 추가 시도
 	/*UFUNCTION(BlueprintCallable)
@@ -45,14 +49,28 @@ public:
 	/*UFUNCTION(BlueprintCallable)
 	bool RemoveItemAt(int32 Index);*/
 	
+	// 서버 RPC: 아이템 이동 처리
+	UFUNCTION(Server, Reliable)
+	void ServerMoveItem(UInventoryComponent* SourceInventory, int32 FromIndex, int32 ToIndex);
+
+	// 서버 RPC: 아이템 제거 처리  
+	UFUNCTION(Server, Reliable)
+	void ServerRemoveItem(int32 Index);
+
+	// 서버 RPC: 아이템 추가 처리
+	UFUNCTION(Server, Reliable)
+	void ServerAddItem(const FItemData& NewItem, int32 ToIndex);
 
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
+	UFUNCTION()
+	void OnRep_InventoryItemsStruct();
+
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-		
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };

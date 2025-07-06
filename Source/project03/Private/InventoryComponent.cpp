@@ -2,6 +2,8 @@
 
 
 #include "InventoryComponent.h"
+#include "InventoryWidget.h"
+#include "Net/UnrealNetwork.h"
 
 // Sets default values for this component's properties
 UInventoryComponent::UInventoryComponent()
@@ -10,11 +12,18 @@ UInventoryComponent::UInventoryComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
     //InventoryItems.SetNum(Capacity); // Capacity만큼 슬롯 확보
-    InventoryItemsStruct.SetNum(Capacity);
+    //InventoryItemsStruct.SetNum(Capacity);
 	// ...
 
-    HotkeyItems.SetNum(5);
+   
 
+    
+
+    // 컴포넌트 자체 복제
+    SetIsReplicated(true);
+
+    InventoryItemsStruct.SetNum(Capacity);
+    HotkeyItems.SetNum(5);
 }
 
 
@@ -24,7 +33,11 @@ void UInventoryComponent::BeginPlay()
 	Super::BeginPlay();
     //InventoryItems.Init(nullptr, Capacity);
 	// ...
-	
+    // (서버 권한이 있는 쪽에서 한 번 더 확실히 초기화)
+    if (GetOwner()->HasAuthority() && InventoryItemsStruct.Num() == 0)
+    {
+        InventoryItemsStruct.SetNum(Capacity);
+    }
 }
 
 
@@ -117,4 +130,56 @@ bool UInventoryComponent::TryAddItemByClassWithGrade(TSubclassOf<AItem> ItemClas
     }
 
     return false;
+}
+
+void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    // 배열 복제 등록
+    DOREPLIFETIME(UInventoryComponent, InventoryItemsStruct);
+}
+
+void UInventoryComponent::OnRep_InventoryItemsStruct()
+{
+    UE_LOG(LogTemp, Log, TEXT("OnRep_InventoryItemsStruct called - Items count: %d"), InventoryItemsStruct.Num());
+
+    // UI가 떠 있으면, 서버에서 내려온 최신 배열로 다시 채워 넣는다.
+    if (OwningWidgetInstance)
+    {
+        OwningWidgetInstance->RefreshInventoryStruct();
+    }
+}
+
+void UInventoryComponent::ServerMoveItem_Implementation(UInventoryComponent* SourceInventory, int32 FromIndex, int32 ToIndex)
+{
+    // 서버에서만 실행되는 아이템 이동 로직
+    if (!SourceInventory) return;
+
+    if (!SourceInventory->InventoryItemsStruct.IsValidIndex(FromIndex)) return;
+    if (!InventoryItemsStruct.IsValidIndex(ToIndex)) return;
+
+    // 아이템 이동
+    FItemData ItemToMove = SourceInventory->InventoryItemsStruct[FromIndex];
+    InventoryItemsStruct[ToIndex] = ItemToMove;
+    SourceInventory->InventoryItemsStruct[FromIndex] = FItemData(); // 빈 슬롯으로 초기화
+
+    UE_LOG(LogTemp, Log, TEXT("Server: Moved item from %d to %d"), FromIndex, ToIndex);
+}
+
+void UInventoryComponent::ServerRemoveItem_Implementation(int32 Index)
+{
+    if (InventoryItemsStruct.IsValidIndex(Index))
+    {
+        InventoryItemsStruct[Index] = FItemData();
+        UE_LOG(LogTemp, Log, TEXT("Server: Removed item at index %d"), Index);
+    }
+}
+
+void UInventoryComponent::ServerAddItem_Implementation(const FItemData& NewItem, int32 ToIndex)
+{
+    if (InventoryItemsStruct.IsValidIndex(ToIndex))
+    {
+        InventoryItemsStruct[ToIndex] = NewItem;
+        UE_LOG(LogTemp, Log, TEXT("Server: Added item to index %d"), ToIndex);
+    }
 }

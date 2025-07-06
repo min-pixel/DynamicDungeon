@@ -34,6 +34,7 @@
 #include "Potion.h"
 #include "FireballSpell.h"
 #include "Camera/CameraShakeBase.h"
+#include "Net/UnrealNetwork.h"
 #include "WFCRegenerator.h"
 #include "Components/ProgressBar.h"
 #include "Animation/AnimBlueprintGeneratedClass.h"
@@ -366,37 +367,39 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is NULL!"));
 	}
 
-	// 위젯 생성은 항상!
-	if (InventoryWidgetClass)
-	{
-		InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
-		if (InventoryWidgetInstance)
-		{
-			InventoryWidgetInstance->InventoryRef = InventoryComponent;
-			InventoryWidgetInstance->RefreshInventoryStruct();
+	//if (IsLocallyControlled())
+	//{
+	//	// 위젯 생성은 항상!
+	//	if (InventoryWidgetClass)
+	//	{
+	//		InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+	//		if (InventoryWidgetInstance)
+	//		{
+	//			InventoryWidgetInstance->InventoryRef = InventoryComponent;
+	//			InventoryWidgetInstance->RefreshInventoryStruct();
 
-			//if (InventoryComponent)
-			//{
-			//	InventoryComponent->TryAddItemByClass(AGreatWeapon::StaticClass());
+	//			//if (InventoryComponent)
+	//			//{
+	//			//	InventoryComponent->TryAddItemByClass(AGreatWeapon::StaticClass());
 
-			//	InventoryWidgetInstance->RefreshInventoryStruct(); // 다시 갱신
-			//}
+	//			//	InventoryWidgetInstance->RefreshInventoryStruct(); // 다시 갱신
+	//			//}
 
-		}
-	}
+	//		}
+	//	}
 
-	if (EquipmentWidgetClass)
-	{
-		EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
+	//	if (EquipmentWidgetClass)
+	//	{
+	//		EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
 
-		if (EquipmentWidgetClass)
-		{
-			EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
+	//		if (EquipmentWidgetClass)
+	//		{
+	//			EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
 
-			EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
-		}
-	}
-
+	//			EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
+	//		}
+	//	}
+	//}
 	
 
 
@@ -519,31 +522,31 @@ void AMyDCharacter::BeginPlay()
 
 
 
-	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-	if (GameInstance)
-	{
-		ApplyCharacterData(GameInstance->CurrentCharacterData);
+	//UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	//if (GameInstance)
+	//{
+	//	ApplyCharacterData(GameInstance->CurrentCharacterData);
 
-		// 인벤토리 복원
-		if (InventoryComponent)
-		{
-			InventoryComponent->InventoryItemsStruct = GameInstance->SavedInventoryItems;
-		}
+	//	// 인벤토리 복원
+	//	if (InventoryComponent)
+	//	{
+	//		InventoryComponent->InventoryItemsStruct = GameInstance->SavedInventoryItems;
+	//	}
 
-		// 장비창 복원
-		if (EquipmentWidgetInstance)
-		{
-			EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
-		}
+	//	// 장비창 복원
+	//	if (EquipmentWidgetInstance)
+	//	{
+	//		EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
+	//	}
 
-		//골드 복원
-		if (GameInstance)
-		{
-			Gold = GameInstance->LobbyGold;
-			GoldWidgetInstance->UpdateGoldAmount(Gold);
-		}
+	//	//골드 복원
+	//	if (GameInstance)
+	//	{
+	//		Gold = GameInstance->LobbyGold;
+	//		GoldWidgetInstance->UpdateGoldAmount(Gold);
+	//	}
 
-	}
+	//}
 
 	if (PlayerClass == EPlayerClass::Mage)
 	{
@@ -574,6 +577,58 @@ void AMyDCharacter::BeginPlay()
 
 
 }
+
+
+
+void AMyDCharacter::Restart()
+{
+	Super::Restart();
+
+	if (IsLocallyControlled())
+	{
+		if (InventoryWidgetClass)
+		{
+			InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+			if (InventoryWidgetInstance)
+			{
+				InventoryWidgetInstance->InventoryRef = InventoryComponent;
+				InventoryWidgetInstance->RefreshInventoryStruct();
+			}
+		}
+
+		if (EquipmentWidgetClass)
+		{
+			EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
+			if (EquipmentWidgetInstance)
+			{
+				EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
+			}
+		}
+	}
+}
+
+void AMyDCharacter::SetupInventoryAndEquipmentUI()
+{
+	if (InventoryWidgetClass)
+	{
+		InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
+		if (InventoryWidgetInstance)
+		{
+			InventoryWidgetInstance->InventoryRef = InventoryComponent;
+			InventoryWidgetInstance->RefreshInventoryStruct();
+		}
+	}
+
+	if (EquipmentWidgetClass)
+	{
+		EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
+		if (EquipmentWidgetInstance)
+		{
+			EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
+		}
+	}
+}
+
 
 // 매 프레임 호출
 void AMyDCharacter::Tick(float DeltaTime)
@@ -788,6 +843,8 @@ void AMyDCharacter::StartInteraction()
 		if (OverlappedActor && OverlappedActor->ActorHasTag("Chest"))
 		{
 			ATreasureChest* Chest = Cast<ATreasureChest>(OverlappedActor);
+
+
 			if (Chest)
 			{
 				Chest->OpenChestUI(this); // 플레이어를 전달하여 양쪽 UI 열기
@@ -814,9 +871,16 @@ void AMyDCharacter::StartInteraction()
 			//경고 UI 표시 (UMG로 표시하는 방식에 따라 구현 필요)
 			UE_LOG(LogTemp, Warning, TEXT("55555se"));
 
-			PlayWFCRegenCameraShake();
-
-			TriggerDelayedWFC();
+			// 로컬이 아닌 항상 서버 호출
+			if (HasAuthority())
+			{
+				MulticastPlayWFCRegenEffects();
+			}
+			else
+			{
+				ServerPlayWFCRegenEffects();
+			}
+			return;
 
 			return;
 		}
@@ -1360,8 +1424,131 @@ void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
 	}
 }
 
+void AMyDCharacter::ServerRequestEquipWeapon_Implementation(const FItemData& WeaponData)
+{
+	EquippedWeaponData = WeaponData;
+	EquipWeaponFromClass(WeaponData.ItemClass, static_cast<EWeaponGrade>(WeaponData.Grade));
+}
+
+void AMyDCharacter::ServerRequestEquipArmor_Implementation(const FItemData& ArmorData, int32 SlotIndex)
+{
+	FEquippedArmorData NewEntry;
+	NewEntry.SlotIndex = SlotIndex;
+	NewEntry.ArmorData = ArmorData;
+
+	// 기존 슬롯 데이터 갱신
+	bool bFound = false;
+	for (FEquippedArmorData& Entry : EquippedArmorsData)
+	{
+		if (Entry.SlotIndex == SlotIndex)
+		{
+			Entry.ArmorData = ArmorData;
+			bFound = true;
+			break;
+		}
+	}
+
+	if (!bFound)
+	{
+		EquippedArmorsData.Add(NewEntry);
+	}
+
+	EquipArmorFromClass(SlotIndex, ArmorData.ItemClass, ArmorData.Grade);
+}
+
+void AMyDCharacter::OnRep_EquippedWeapon()
+{
+	if (EquippedWeaponData.ItemClass)
+	{
+		EquipWeaponFromClass(EquippedWeaponData.ItemClass, static_cast<EWeaponGrade>(EquippedWeaponData.Grade));
+	}
+	else
+	{
+		UnequipWeapon();
+	}
+}
+
+void AMyDCharacter::OnRep_EquippedArmors()
+{
+	UE_LOG(LogTemp, Log, TEXT("Client: OnRep_EquippedArmors called"));
+
+	// 현재 장착된 슬롯들 확인
+	TArray<int32> CurrentSlots;
+	for (auto& Pair : EquippedArmors)
+	{
+		CurrentSlots.Add(Pair.Key);
+	}
+
+	// 새로운 데이터에 있는 슬롯들 확인
+	TArray<int32> NewSlots;
+	for (const FEquippedArmorData& ArmorEntry : EquippedArmorsData)
+	{
+		NewSlots.Add(ArmorEntry.SlotIndex);
+	}
+
+	// 제거된 슬롯들 해제
+	for (int32 CurrentSlot : CurrentSlots)
+	{
+		if (!NewSlots.Contains(CurrentSlot))
+		{
+			UnequipArmorAtSlot(CurrentSlot);
+			UE_LOG(LogTemp, Log, TEXT("Client: Unequipped armor at slot %d"), CurrentSlot);
+		}
+	}
+
+	// 새로운 장비들 장착
+	for (const FEquippedArmorData& ArmorEntry : EquippedArmorsData)
+	{
+		if (!CurrentSlots.Contains(ArmorEntry.SlotIndex))
+		{
+			EquipArmorFromClass(ArmorEntry.SlotIndex, ArmorEntry.ArmorData.ItemClass, ArmorEntry.ArmorData.Grade);
+			UE_LOG(LogTemp, Log, TEXT("Client: Equipped armor at slot %d"), ArmorEntry.SlotIndex);
+		}
+	}
+}
+
+void AMyDCharacter::ServerRequestUnequipWeapon_Implementation()
+{
+	EquippedWeaponData = FItemData(); // 기본값
+	//ForceNetUpdate();
+
+	if (IsLocallyControlled())
+	{
+		UnequipWeapon();
+	}
+
+	OnRep_EquippedWeapon();
+}
+
+void AMyDCharacter::ServerRequestUnequipArmor_Implementation(int32 SlotIndex)
+{
+	// 데이터에서 제거
+	for (int32 i = 0; i < EquippedArmorsData.Num(); ++i)
+	{
+		if (EquippedArmorsData[i].SlotIndex == SlotIndex)
+		{
+			EquippedArmorsData.RemoveAt(i);
+			break;
+		}
+	}
+
+	// 서버에서 직접 해제 (조건 제거)
+	UnequipArmorAtSlot(SlotIndex);
+
+	// 네트워크 업데이트 강제
+	ForceNetUpdate();
+
+	UE_LOG(LogTemp, Log, TEXT("Server: Unequipped armor at slot %d"), SlotIndex);
+}
 
 
+void AMyDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(AMyDCharacter, EquippedWeaponData);
+	DOREPLIFETIME(AMyDCharacter, EquippedArmorsData);
+}
 
 void AMyDCharacter::UpdateHUD()
 {
@@ -1922,7 +2109,16 @@ void AMyDCharacter::ExecuteWFCNow()
 	if (PendingRegenActor) {
 		if (AWFCRegenerator* Regen = Cast<AWFCRegenerator>(PendingRegenActor))
 		{
-			Regen->GenerateWFCAtLocation();
+			// 서버라면 바로 실행
+			if (Regen->HasAuthority())
+			{
+				Regen->GenerateWFCAtLocation();
+			}
+			// 클라이언트라면 서버에게 요청
+			else
+			{
+				ServerRequestWFCRegen(Regen);
+			}
 		}
 	}
 
@@ -1935,6 +2131,42 @@ void AMyDCharacter::ExecuteWFCNow()
 	PendingRegenActor = nullptr;
 
 }
+
+bool AMyDCharacter::ServerRequestWFCRegen_Validate(AWFCRegenerator* RegenActor)
+{
+	// 필요하면 유효성 검사 추가
+	return true;
+}
+
+void AMyDCharacter::ServerRequestWFCRegen_Implementation(AWFCRegenerator* RegenActor)
+{
+	// 서버에서만 실행
+	if (!HasAuthority() || !IsValid(RegenActor)) return;
+
+	// 실제 리제너레이터 로직 실행
+	RegenActor->GenerateWFCAtLocation();
+}
+
+// RPC: 클라이언트->서버
+bool AMyDCharacter::ServerPlayWFCRegenEffects_Validate()
+{
+	return true;
+}
+
+void AMyDCharacter::ServerPlayWFCRegenEffects_Implementation()
+{
+	// 서버에서만 Multicast 호출
+	MulticastPlayWFCRegenEffects();
+}
+
+// RPC: 서버→모든 클라이언트
+void AMyDCharacter::MulticastPlayWFCRegenEffects_Implementation()
+{
+	// 모든 인스턴스에서 실행
+	PlayWFCRegenCameraShake();
+	TriggerDelayedWFC();
+}
+
 
 
 bool AMyDCharacter ::IsPlayerInFixedRoomTile()
@@ -2081,6 +2313,7 @@ void AMyDCharacter::ApplyCharacterData(const FPlayerCharacterData& Data)
 		if (EquipItem.ItemClass && EquipItem.ItemType == EItemType::Weapon)
 		{
 			EquipWeaponFromClass(EquipItem.ItemClass, static_cast<EWeaponGrade>(EquipItem.Grade));
+
 			break;
 		}
 	}

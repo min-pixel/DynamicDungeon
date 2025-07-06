@@ -40,12 +40,14 @@ void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
     {
         if (Index == EQUIP_SLOT_WEAPON && ItemData.ItemType == EItemType::Weapon)
         {
-            Char->EquipWeaponFromClass(ItemData.ItemClass, static_cast<EWeaponGrade>(ItemData.Grade));
+            //Char->EquipWeaponFromClass(ItemData.ItemClass, static_cast<EWeaponGrade>(ItemData.Grade));
+            Char->ServerRequestEquipWeapon(ItemData);
             UE_LOG(LogTemp, Log, TEXT("Weapon Equipped in Game"));
         }
         else if (ItemData.ItemType == EItemType::Armor)
         {
-            Char->EquipArmorFromClass(Index, ItemData.ItemClass, ItemData.Grade);
+            //Char->EquipArmorFromClass(Index, ItemData.ItemClass, ItemData.Grade);
+            Char->ServerRequestEquipArmor(ItemData, Index);
             UE_LOG(LogTemp, Log, TEXT("Armor Equipped at slot %d"), Index);
         }
     }
@@ -65,11 +67,22 @@ void UEquipmentWidget::ClearSlot(int32 Index)
         {
             if (Index == EQUIP_SLOT_WEAPON)
             {
-                Char->UnequipWeapon();
+                //Char->UnequipWeapon();
+                Char->ServerRequestUnequipWeapon();
             }
             else if (EquipmentSlots[Index].ItemType == EItemType::Armor)
             {
-                Char->UnequipArmorAtSlot(Index);
+
+                // 서버 요청 전에 즉시 시각적 제거 (옵션)
+                if (Char->IsLocallyControlled())
+                {
+                    Char->UnequipArmorAtSlot(Index);
+                }
+
+  
+
+                //Char->UnequipArmorAtSlot(Index);
+                Char->ServerRequestUnequipArmor(Index);
                 UE_LOG(LogTemp, Log, TEXT("Armor unequipped at slot %d"), Index);
             }
         }
