@@ -27,6 +27,10 @@ public:
 	// Tile 종류 → 원본 액터 20250531
 	TMap<FWaveFunctionCollapseOptionCustom, AActor*> TilePrefabPool;
 
+	// WFC 완료 여부를 나타내는 플래그
+	UPROPERTY(BlueprintReadOnly, Category = "WFC")
+	bool bWFCCompleted = false;
+
 	void PrepareTilePrefabPool(UWorld* World);
 
 	void ReuseTilePrefabsFromPool(const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* World);

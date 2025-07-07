@@ -18,7 +18,18 @@ class PROJECT03_API ALobbyGameMode : public AGameModeBase
 public:
 	ALobbyGameMode();
 
+	
+
+	UFUNCTION(BlueprintCallable)
 	void CheckAllPlayersReady();
+
+	void BroadcastReadyStatus();
+
+	void StartTravel();
+
+	int32 GetReadyCount() const;
+	int32 GetNotReadyCount() const;
+
 	
 protected:
 	virtual void BeginPlay() override;

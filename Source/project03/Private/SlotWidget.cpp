@@ -197,7 +197,7 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         return false;
     }
 
-
+    
 
 
     const int32 FromIndex = SourceSlot->SlotIndex;
@@ -208,6 +208,8 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
     if (!InventoryOwner->InventoryRef->InventoryItemsStruct.IsValidIndex(ToIndex)) return false;
     if (!SourceSlot->InventoryOwner || !SourceSlot->InventoryOwner->InventoryRef) return false;
     if (!SourceSlot->InventoryOwner->InventoryRef->InventoryItemsStruct.IsValidIndex(FromIndex)) return false;
+
+    
 
     ////1. 보물상자 → 플레이어 인벤토리
     //if (SourceSlot->bIsChestInventory && !this->bIsChestInventory)
@@ -236,6 +238,10 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
     // 1. 보물상자 → 플레이어 인벤토리
     if (SourceSlot->bIsChestInventory && !this->bIsChestInventory)
     {
+
+        
+
+
         // 서버 RPC 호출
         InventoryOwner->InventoryRef->ServerMoveItem(
             SourceSlot->InventoryOwner->InventoryRef,
@@ -243,10 +249,16 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
             ToIndex
         );
         UE_LOG(LogTemp, Log, TEXT("Client: Requested move from Chest to Player"));
+
+       
+
     }
     // 2. 플레이어 인벤토리 → 보물상자
     else if (!SourceSlot->bIsChestInventory && this->bIsChestInventory)
     {
+
+        
+
         // 서버 RPC 호출
         InventoryOwner->InventoryRef->ServerMoveItem(
             SourceSlot->InventoryOwner->InventoryRef,
@@ -254,6 +266,8 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
             ToIndex
         );
         UE_LOG(LogTemp, Log, TEXT("Client: Requested move from Player to Chest"));
+
+        
     }
 
 

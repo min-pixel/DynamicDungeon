@@ -99,20 +99,115 @@ void ALobbyGameMode::BeginPlay()
 
 void ALobbyGameMode::CheckAllPlayersReady()
 {
+	bool bAllReady = true;
+
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
 		AMyPlayerController* PC = Cast<AMyPlayerController>(It->Get());
 		if (PC && !PC->bIsReady)
 		{
-			return; // 아직 준비 안 한 사람 있음
+			bAllReady = false;
+			break;
 		}
 	}
 
-	// 모두 준비 완료 → 서버 트래블
-	//UGameplayStatics::OpenLevel(this, TEXT("/Game/DynamicDugeon"), true, TEXT("listen"));
+	if (bAllReady)
+	{
+		// 마지막 준비 상태 (5/5) 먼저 브로드캐스트
+		BroadcastReadyStatus();
 
-	GetWorld()->ServerTravel("/Game/DynamicDugeon?listen"); 
+		// 약간의 딜레이 후 이동
+		FTimerHandle TravelTimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(TravelTimerHandle, this, &ALobbyGameMode::StartTravel, 1.0f, false);
+	}
+	else
+	{
+		BroadcastReadyStatus();
+	}
+}
+
+void ALobbyGameMode::StartTravel()
+{
+	GetWorld()->ServerTravel("/Game/DynamicDugeon?listen");
+}
 
 
+int32 ALobbyGameMode::GetReadyCount() const
+{
+	int32 Count = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AMyPlayerController* PC = Cast<AMyPlayerController>(It->Get());
+		if (PC && PC->bIsReady)
+		{
+			Count++;
+		}
+	}
+	return Count;
+}
 
+int32 ALobbyGameMode::GetNotReadyCount() const
+{
+	int32 Total = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		Total++;
+	}
+	return Total - GetReadyCount();
+}
+
+//void ALobbyGameMode::BroadcastReadyStatus()
+//{
+//	int32 ReadyCount = 0;
+//	int32 NotReadyCount = 0;
+//
+//	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+//	{
+//		AMyPlayerController* PC = Cast<AMyPlayerController>(It->Get());
+//		if (PC)
+//		{
+//			if (PC->bIsReady) ReadyCount++;
+//			else NotReadyCount++;
+//		}
+//	}
+//
+//	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+//	{
+//		AMyPlayerController* PC = Cast<AMyPlayerController>(It->Get());
+//		if (PC)
+//		{
+//			PC->ClientUpdateWaitWidget(ReadyCount, NotReadyCount);
+//		}
+//	}
+//}
+
+void ALobbyGameMode::BroadcastReadyStatus()
+{
+	int32 Total = 0;
+	int32 ReadyCount = 0;
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AMyPlayerController* PC = Cast<AMyPlayerController>(It->Get());
+		if (PC)
+		{
+			Total++;
+			if (PC->bIsReady)
+			{
+				ReadyCount++;
+			}
+		}
+	}
+
+	// 모든 클라에게 현재 준비 상태 전송
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AMyPlayerController* PC = Cast<AMyPlayerController>(It->Get());
+		if (PC)
+		{
+			PC->ClientUpdateWaitWidget(ReadyCount, Total);
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Broadcast] ReadyCount: %d, Total: %d"), ReadyCount, Total);
 }

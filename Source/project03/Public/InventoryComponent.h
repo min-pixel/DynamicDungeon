@@ -50,7 +50,7 @@ public:
 	bool RemoveItemAt(int32 Index);*/
 	
 	// 서버 RPC: 아이템 이동 처리
-	UFUNCTION(Server, Reliable)
+	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerMoveItem(UInventoryComponent* SourceInventory, int32 FromIndex, int32 ToIndex);
 
 	// 서버 RPC: 아이템 제거 처리  

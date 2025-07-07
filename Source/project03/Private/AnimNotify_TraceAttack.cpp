@@ -36,38 +36,39 @@ void UAnimNotify_TraceAttack::Notify(USkeletalMeshComponent* MeshComp, UAnimSequ
     
     else
     {
-        // 비무장일 경우: 기존 손 공격 로직
-        FVector Start = MeshComp->GetSocketLocation(TraceSocketName);
-        FVector End = Start + Owner->GetActorForwardVector() * 33.0f;
+        //// 비무장일 경우: 기존 손 공격 로직
+        //FVector Start = MeshComp->GetSocketLocation(TraceSocketName);
+        //FVector End = Start + Owner->GetActorForwardVector() * 33.0f;
 
-        TArray<FHitResult> HitResults;
-        TArray<AActor*> IgnoredActors;
-        IgnoredActors.Add(Owner);
+        //TArray<FHitResult> HitResults;
+        //TArray<AActor*> IgnoredActors;
+        //IgnoredActors.Add(Owner);
 
-        UKismetSystemLibrary::SphereTraceMulti(
-            Owner->GetWorld(),
-            Start,
-            End,
-            Radius,
-            UEngineTypes::ConvertToTraceType(ECC_Pawn),
-            false,
-            IgnoredActors,
-            EDrawDebugTrace::None,
-            HitResults,
-            true
-        );
+        //UKismetSystemLibrary::SphereTraceMulti(
+        //    Owner->GetWorld(),
+        //    Start,
+        //    End,
+        //    Radius,
+        //    UEngineTypes::ConvertToTraceType(ECC_Pawn),
+        //    false,
+        //    IgnoredActors,
+        //    EDrawDebugTrace::None,
+        //    HitResults,
+        //    true
+        //);
 
-        for (const FHitResult& Hit : HitResults)
-        {
-            AActor* HitActor = Hit.GetActor();
-            if (HitActor && HitActor->Implements<UHitInterface>())
-            {
-                if (!Character->HitActors.Contains(HitActor)) // 중복 피격 방지
-                {
-                    Character->HitActors.Add(HitActor);
-                    IHitInterface::Execute_GetHit(HitActor, Hit, Owner, Damage);
-                }
-            }
-        }
+        //for (const FHitResult& Hit : HitResults)
+        //{
+        //    AActor* HitActor = Hit.GetActor();
+        //    if (HitActor && HitActor->Implements<UHitInterface>())
+        //    {
+        //        if (!Character->HitActors.Contains(HitActor)) // 중복 피격 방지
+        //        {
+        //            Character->HitActors.Add(HitActor);
+        //            IHitInterface::Execute_GetHit(HitActor, Hit, Owner, Damage);
+        //        }
+        //    }
+        //}
+        Character->ServerPerformTraceAttack();
     }
 }

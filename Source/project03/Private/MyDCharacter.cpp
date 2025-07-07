@@ -30,6 +30,7 @@
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
+#include "Components/Image.h"
 #include "RageEnemyCharacter.h"
 #include "Potion.h"
 #include "FireballSpell.h"
@@ -592,7 +593,9 @@ void AMyDCharacter::Restart()
 			if (InventoryWidgetInstance)
 			{
 				InventoryWidgetInstance->InventoryRef = InventoryComponent;
+				InventoryComponent->OwningWidgetInstance = InventoryWidgetInstance;
 				InventoryWidgetInstance->RefreshInventoryStruct();
+
 			}
 		}
 
@@ -615,6 +618,7 @@ void AMyDCharacter::SetupInventoryAndEquipmentUI()
 		if (InventoryWidgetInstance)
 		{
 			InventoryWidgetInstance->InventoryRef = InventoryComponent;
+			InventoryComponent->OwningWidgetInstance = InventoryWidgetInstance;
 			InventoryWidgetInstance->RefreshInventoryStruct();
 		}
 	}
@@ -778,6 +782,9 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//v
 	PlayerInputComponent->BindAction("TeleportToEnemy", IE_Pressed, this, &AMyDCharacter::TeleportToNearestEnemy);
+
+	//y
+	PlayerInputComponent->BindAction("TeleportToNearestPlayer", IE_Pressed, this, &AMyDCharacter::TeleportToNearestPlayer);
 
 	// 핫키 입력 바인딩 (예: 1~5 키)
 
@@ -1548,6 +1555,8 @@ void AMyDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 
 	DOREPLIFETIME(AMyDCharacter, EquippedWeaponData);
 	DOREPLIFETIME(AMyDCharacter, EquippedArmorsData);
+	DOREPLIFETIME(AMyDCharacter, Health);
+
 }
 
 void AMyDCharacter::UpdateHUD()
@@ -1560,6 +1569,30 @@ void AMyDCharacter::UpdateHUD()
 		
 	}
 }
+
+void AMyDCharacter::OnRep_Health()
+{
+	if (GetLocalRole() == ROLE_AutonomousProxy && HUDWidget)
+	{
+		// 비교는 여기서!
+		if (PreviousHealth < 0.0f || Health < PreviousHealth)
+		{
+			// 빨간 연출 직접 실행
+			float NormalizedHealth = Health / MaxHealth;
+			float OverlayAlpha = FMath::Clamp(1.0f - NormalizedHealth, 0.0f, 0.6f);
+
+			HUDWidget->Image_HitOverlay->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, OverlayAlpha));
+			HUDWidget->Image_HitOverlay->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			HUDWidget->StartHitOverlayFadeOut();
+		}
+
+		// HUD에 단순히 현재 체력 표시
+		HUDWidget->UpdateHealth(Health, MaxHealth);
+
+		PreviousHealth = Health;
+	}
+}
+
 
 // 점프 시작
 void AMyDCharacter::StartJump()
@@ -1589,31 +1622,130 @@ void AMyDCharacter::PlayMagicMontage()
 
 void AMyDCharacter::PlayAttackAnimation()
 {
-	if (bIsAttacking)  // 공격 중이면 입력 무시
-	{
-		UE_LOG(LogTemp, Log, TEXT("Already attacking! Ignoring input."));
-		return;
-	}
+	//if (bIsAttacking)  // 공격 중이면 입력 무시
+	//{
+	//	UE_LOG(LogTemp, Log, TEXT("Already attacking! Ignoring input."));
+	//	return;
+	//}
 
-	if (bIsAttacking || bIsRolling)  // 구르기 중이면 공격 입력 무시
+	//if (bIsAttacking || bIsRolling)  // 구르기 중이면 공격 입력 무시
+	//{
+	//	UE_LOG(LogTemp, Log, TEXT("Already attacking or rolling! Ignoring input."));
+	//	return;
+	//}
+
+	//if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
+	//{
+	//	ReduceStamina(0.0f);
+	//	return;
+	//}
+
+	//// 공격 상태 설정
+	//bIsAttacking = true;
+
+	//ReduceStamina(AttackStaminaCost);
+	//
+
+	//// 사용할 몽타주 결정 (무기 장착 여부에 따라 다르게 설정)
+	//UAnimMontage* SelectedMontage = nullptr;
+
+	//if (EquippedWeapon)
+	//{
+	//	switch (EquippedWeapon->WeaponType)
+	//	{
+	//	case EWeaponType::GreatWeapon:
+	//		SelectedMontage = GreatWeaponMontage; // 이건 변수로 미리 만들어둬야 함
+	//		break;
+	//	case EWeaponType::Dagger:
+	//		SelectedMontage = DaggerWeaponMontage;
+	//		break;
+	//	case EWeaponType::Staff:
+	//		//SelectedMontage = StaffMontage;
+	//		break;
+	//	default:
+	//		SelectedMontage = WeaponAttackMontage; // 기본값
+	//		break;
+	//	}
+	//}
+	//else
+	//{
+	//	SelectedMontage = UnarmedAttackMontage;
+	//}
+	//if (!SelectedMontage || !CharacterMesh->GetAnimInstance())
+	//{
+	//	UE_LOG(LogTemp, Error, TEXT("Attack montage or anim instance is missing!"));
+	//	bIsAttacking = false;
+	//	return;
+	//}
+
+	//UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+
+	//// **현재 콤보 수에 따라 재생할 섹션 선택**
+	//FName SelectedSection = (AttackComboIndex == 0) ? FName("Combo1") : FName("Combo2");
+
+	//// 특정 슬롯에서만 실행 (UpperBody 슬롯에서 재생)
+	//FName UpperBodySlot = FName("UpperBody");
+
+	//// UpperBody 슬롯에서 실행되도록 설정
+	//FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(SelectedMontage); 
+	//if (MontageInstance) 
+	//{
+	//	MontageInstance->Montage->SlotAnimTracks[0].SlotName = UpperBodySlot; 
+	//}
+
+	//if (EquippedWeapon)
+	//{
+	//	EquippedWeapon->StartTrace(); 
+	//}
+
+	//// 애니메이션 실행 (선택된 섹션 처음부터 재생)
+	//AnimInstance->Montage_Play(SelectedMontage, 1.0f);
+	//AnimInstance->Montage_JumpToSection(SelectedSection, SelectedMontage);
+	//
+	//UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage Section: %s"), *SelectedSection.ToString());
+
+	//// **현재 섹션의 길이 가져오기**
+	//float SectionDuration = SelectedMontage->GetSectionLength(SelectedMontage->GetSectionIndex(SelectedSection));
+
+	//// **타이머 설정: 정확한 섹션 종료 후 공격 상태 초기화**
+	//GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, SectionDuration, false);
+
+	//// **다음 입력 시 다른 섹션 실행되도록 설정 (콤보 증가)**
+	//AttackComboIndex = (AttackComboIndex == 0) ? 1 : 0;
+
+	if (HasAuthority())
+	{
+		MulticastPlayAttackMontage();
+	}
+	else
+	{
+		ServerRequestPlayAttackMontage();
+	}
+}
+
+void AMyDCharacter::MulticastPlayAttackMontage_Implementation()
+{
+	PlayAttackAnimation_Internal();
+}
+
+
+void AMyDCharacter::PlayAttackAnimation_Internal()
+{
+	if (bIsAttacking || bIsRolling)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Already attacking or rolling! Ignoring input."));
 		return;
 	}
 
-	if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
+	if (Stamina <= 0)
 	{
 		ReduceStamina(0.0f);
 		return;
 	}
 
-	// 공격 상태 설정
 	bIsAttacking = true;
-
 	ReduceStamina(AttackStaminaCost);
-	
 
-	// 사용할 몽타주 결정 (무기 장착 여부에 따라 다르게 설정)
 	UAnimMontage* SelectedMontage = nullptr;
 
 	if (EquippedWeapon)
@@ -1621,7 +1753,7 @@ void AMyDCharacter::PlayAttackAnimation()
 		switch (EquippedWeapon->WeaponType)
 		{
 		case EWeaponType::GreatWeapon:
-			SelectedMontage = GreatWeaponMontage; // 이건 변수로 미리 만들어둬야 함
+			SelectedMontage = GreatWeaponMontage;
 			break;
 		case EWeaponType::Dagger:
 			SelectedMontage = DaggerWeaponMontage;
@@ -1630,7 +1762,7 @@ void AMyDCharacter::PlayAttackAnimation()
 			//SelectedMontage = StaffMontage;
 			break;
 		default:
-			SelectedMontage = WeaponAttackMontage; // 기본값
+			SelectedMontage = WeaponAttackMontage;
 			break;
 		}
 	}
@@ -1638,6 +1770,7 @@ void AMyDCharacter::PlayAttackAnimation()
 	{
 		SelectedMontage = UnarmedAttackMontage;
 	}
+
 	if (!SelectedMontage || !CharacterMesh->GetAnimInstance())
 	{
 		UE_LOG(LogTemp, Error, TEXT("Attack montage or anim instance is missing!"));
@@ -1646,38 +1779,21 @@ void AMyDCharacter::PlayAttackAnimation()
 	}
 
 	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-
-	// **현재 콤보 수에 따라 재생할 섹션 선택**
 	FName SelectedSection = (AttackComboIndex == 0) ? FName("Combo1") : FName("Combo2");
-
-	// 특정 슬롯에서만 실행 (UpperBody 슬롯에서 재생)
-	FName UpperBodySlot = FName("UpperBody");
-
-	// UpperBody 슬롯에서 실행되도록 설정
-	FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(SelectedMontage); 
-	if (MontageInstance) 
-	{
-		MontageInstance->Montage->SlotAnimTracks[0].SlotName = UpperBodySlot; 
-	}
 
 	if (EquippedWeapon)
 	{
-		EquippedWeapon->StartTrace(); 
+		EquippedWeapon->StartTrace();
 	}
 
-	// 애니메이션 실행 (선택된 섹션 처음부터 재생)
 	AnimInstance->Montage_Play(SelectedMontage, 1.0f);
 	AnimInstance->Montage_JumpToSection(SelectedSection, SelectedMontage);
-	
+
 	UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage Section: %s"), *SelectedSection.ToString());
 
-	// **현재 섹션의 길이 가져오기**
 	float SectionDuration = SelectedMontage->GetSectionLength(SelectedMontage->GetSectionIndex(SelectedSection));
-
-	// **타이머 설정: 정확한 섹션 종료 후 공격 상태 초기화**
 	GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, SectionDuration, false);
 
-	// **다음 입력 시 다른 섹션 실행되도록 설정 (콤보 증가)**
 	AttackComboIndex = (AttackComboIndex == 0) ? 1 : 0;
 }
 
@@ -1691,83 +1807,144 @@ void AMyDCharacter::ResetAttack()
 	ResetHitActors();
 }
 
-
-void AMyDCharacter::PlayRollAnimation()
+void AMyDCharacter::ServerPerformTraceAttack_Implementation()
 {
-	if (bIsRolling || !RollMontage) return;
+	// HitActors를 서버에서 초기화
+	HitActors.Empty();
 
-	if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
+	if (EquippedWeapon)
 	{
-		ReduceStamina(0.0f);
-		return;
-	}
-
-	bIsRolling = true;
-
-	// 현재 이동 방향 계산
-	FVector RollDirection;
-	FName SelectedSection = "RollF"; // 기본값 (앞구르기)
-
-	ReduceStamina(RollStaminaCost);
-
-	if (FMath::Abs(MoveForwardValue) > 0.1f || FMath::Abs(MoveRightValue) > 0.1f)
-	{
-		// 방향키 입력이 있을 경우: 해당 방향으로 구르기
-		FRotator ControlRotation = GetControlRotation();
-		FVector ForwardVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::X);
-		FVector RightVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::Y);
-
-		RollDirection = ForwardVector * MoveForwardValue + RightVector * MoveRightValue;
-		RollDirection.Normalize();
-
-		// **입력 방향에 따라 적절한 섹션 선택**
-		if (MoveForwardValue > 0.1f)
-		{
-			SelectedSection = "RollF";  // 앞구르기
-		}
-		else if (MoveForwardValue < -0.1f)
-		{
-			SelectedSection = "RollB";  // 뒤구르기
-		}
-		else if (MoveRightValue > 0.1f)
-		{
-			SelectedSection = "RollR";  // 오른쪽 구르기
-		}
-		else if (MoveRightValue < -0.1f)
-		{
-			SelectedSection = "RollL";  // 왼쪽 구르기
-		}
+		EquippedWeapon->TraceAttack();
 	}
 	else
 	{
-		// 방향키 입력이 없을 경우: 기본적으로 앞구르기
-		RollDirection = GetActorForwardVector();
+		FVector Start = CharacterMesh->GetSocketLocation(FName("hand_r"));
+		FVector End = Start + GetActorForwardVector() * 33.0f;
+
+		TArray<FHitResult> HitResults;
+		TArray<AActor*> IgnoredActors;
+		IgnoredActors.Add(this);
+
+		UKismetSystemLibrary::SphereTraceMulti(
+			GetWorld(),
+			Start,
+			End,
+			20.0f, // Radius
+			UEngineTypes::ConvertToTraceType(ECC_Pawn),
+			false,
+			IgnoredActors,
+			EDrawDebugTrace::None,
+			HitResults,
+			true
+		);
+
+		for (const FHitResult& Hit : HitResults)
+		{
+			AActor* HitActor = Hit.GetActor();
+			if (HitActor && HitActor->Implements<UHitInterface>())
+			{
+				if (!HitActors.Contains(HitActor))
+				{
+					HitActors.Add(HitActor);
+					IHitInterface::Execute_GetHit(HitActor, Hit, this, 30.0f);
+				}
+			}
+		}
 	}
+}
 
-	// RollDirection을 멤버 변수로 저장 (이동 함수에서 사용)
-	StoredRollDirection = RollDirection;
+void AMyDCharacter::ServerRequestPlayAttackMontage_Implementation()
+{
+	MulticastPlayAttackMontage();
+}
 
-	// **구르기 방향으로 캐릭터 회전 (카메라는 고정)**
-	if (RollDirection.SizeSquared() > 0)
+
+
+void AMyDCharacter::PlayRollAnimation()
+{
+	//if (bIsRolling || !RollMontage) return;
+
+	//if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
+	//{
+	//	ReduceStamina(0.0f);
+	//	return;
+	//}
+
+	//bIsRolling = true;
+
+	//// 현재 이동 방향 계산
+	//FVector RollDirection;
+	//FName SelectedSection = "RollF"; // 기본값 (앞구르기)
+
+	//ReduceStamina(RollStaminaCost);
+
+	//if (FMath::Abs(MoveForwardValue) > 0.1f || FMath::Abs(MoveRightValue) > 0.1f)
+	//{
+	//	// 방향키 입력이 있을 경우: 해당 방향으로 구르기
+	//	FRotator ControlRotation = GetControlRotation();
+	//	FVector ForwardVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::X);
+	//	FVector RightVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::Y);
+
+	//	RollDirection = ForwardVector * MoveForwardValue + RightVector * MoveRightValue;
+	//	RollDirection.Normalize();
+
+	//	// **입력 방향에 따라 적절한 섹션 선택**
+	//	if (MoveForwardValue > 0.1f)
+	//	{
+	//		SelectedSection = "RollF";  // 앞구르기
+	//	}
+	//	else if (MoveForwardValue < -0.1f)
+	//	{
+	//		SelectedSection = "RollB";  // 뒤구르기
+	//	}
+	//	else if (MoveRightValue > 0.1f)
+	//	{
+	//		SelectedSection = "RollR";  // 오른쪽 구르기
+	//	}
+	//	else if (MoveRightValue < -0.1f)
+	//	{
+	//		SelectedSection = "RollL";  // 왼쪽 구르기
+	//	}
+	//}
+	//else
+	//{
+	//	// 방향키 입력이 없을 경우: 기본적으로 앞구르기
+	//	RollDirection = GetActorForwardVector();
+	//}
+
+	//// RollDirection을 멤버 변수로 저장 (이동 함수에서 사용)
+	//StoredRollDirection = RollDirection;
+
+	//// **구르기 방향으로 캐릭터 회전 (카메라는 고정)**
+	//if (RollDirection.SizeSquared() > 0)
+	//{
+	//	FRotator NewRotation = RollDirection.Rotation();
+	//	SetActorRotation(NewRotation);
+	//}
+
+	//// **애니메이션 실행 (선택된 섹션으로 점프)**
+	//UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+	//if (AnimInstance)
+	//{
+	//	AnimInstance->Montage_Play(RollMontage, 1.0f);
+	//	AnimInstance->Montage_JumpToSection(SelectedSection, RollMontage);
+	//	UE_LOG(LogTemp, Log, TEXT("Playing Roll Montage Section: %s"), *SelectedSection.ToString());
+	//}
+
+	//// **구르기 이동 적용**
+	//ApplyRollMovement(RollDirection);
+
+	//// **구르기 후 원래 상태 복구**
+	//GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetRoll, RollDuration, false);
+	if (HasAuthority())
 	{
-		FRotator NewRotation = RollDirection.Rotation();
-		SetActorRotation(NewRotation);
+		MulticastPlayRoll(MoveForwardValue, MoveRightValue);
 	}
-
-	// **애니메이션 실행 (선택된 섹션으로 점프)**
-	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-	if (AnimInstance)
+	else
 	{
-		AnimInstance->Montage_Play(RollMontage, 1.0f);
-		AnimInstance->Montage_JumpToSection(SelectedSection, RollMontage);
-		UE_LOG(LogTemp, Log, TEXT("Playing Roll Montage Section: %s"), *SelectedSection.ToString());
+		ServerRequestRoll(MoveForwardValue, MoveRightValue);
 	}
 
-	// **구르기 이동 적용**
-	ApplyRollMovement(RollDirection);
-
-	// **구르기 후 원래 상태 복구**
-	GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetRoll, RollDuration, false);
 }
 
 void AMyDCharacter::ResetRoll()
@@ -1795,6 +1972,86 @@ void AMyDCharacter::ApplyRollMovement(FVector RollDirection)
 		GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Falling);
 	}
 }
+
+void AMyDCharacter::ServerRequestRoll_Implementation(float ForwardValue, float RightValue)
+{
+	MulticastPlayRoll(ForwardValue, RightValue);
+}
+
+void AMyDCharacter::MulticastPlayRoll_Implementation(float ForwardValue, float RightValue)
+{
+	ExecuteRoll(ForwardValue, RightValue);
+}
+
+void AMyDCharacter::ExecuteRoll(float ForwardValue, float RightValue)
+{
+	if (bIsRolling || !RollMontage) return;
+
+	if (Stamina <= 0)
+	{
+		ReduceStamina(0.0f);
+		return;
+	}
+
+	bIsRolling = true;
+
+	FVector RollDirection;
+	FName SelectedSection = "RollF";
+
+	ReduceStamina(RollStaminaCost);
+
+	if (FMath::Abs(ForwardValue) > 0.1f || FMath::Abs(RightValue) > 0.1f)
+	{
+		FRotator ControlRotation = GetControlRotation();
+		FVector ForwardVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::X);
+		FVector RightVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::Y);
+
+		RollDirection = ForwardVector * ForwardValue + RightVector * RightValue;
+		RollDirection.Normalize();
+
+		if (ForwardValue > 0.1f)
+		{
+			SelectedSection = "RollF";
+		}
+		else if (ForwardValue < -0.1f)
+		{
+			SelectedSection = "RollB";
+		}
+		else if (RightValue > 0.1f)
+		{
+			SelectedSection = "RollR";
+		}
+		else if (RightValue < -0.1f)
+		{
+			SelectedSection = "RollL";
+		}
+	}
+	else
+	{
+		RollDirection = GetActorForwardVector();
+	}
+
+	StoredRollDirection = RollDirection;
+
+	if (RollDirection.SizeSquared() > 0)
+	{
+		FRotator NewRotation = RollDirection.Rotation();
+		SetActorRotation(NewRotation);
+	}
+
+	UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+	if (AnimInstance)
+	{
+		AnimInstance->Montage_Play(RollMontage, 1.0f);
+		AnimInstance->Montage_JumpToSection(SelectedSection, RollMontage);
+		UE_LOG(LogTemp, Log, TEXT("Playing Roll Montage Section: %s"), *SelectedSection.ToString());
+	}
+
+	ApplyRollMovement(RollDirection);
+
+	GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetRoll, RollDuration, false);
+}
+
 
 void AMyDCharacter::UpdateMoveForward(float Value)
 {
@@ -1868,7 +2125,23 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 	Health -= Damage;
 	Health = FMath::Clamp(Health, 0.0f, MaxHealth);
 
-	UpdateHUD();
+	//UpdateHUD();
+
+	// 서버 전용 HUD 갱신
+	if (IsLocallyControlled() && HUDWidget)
+	{
+		HUDWidget->UpdateHealth(Health, MaxHealth);
+
+		float NormalizedHealth = Health / MaxHealth;
+		float OverlayAlpha = FMath::Clamp(1.0f - NormalizedHealth, 0.0f, 0.6f);
+
+		HUDWidget->Image_HitOverlay->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, OverlayAlpha));
+		HUDWidget->Image_HitOverlay->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		HUDWidget->StartHitOverlayFadeOut();
+	}
+
+	// 클라들에는 RepNotify를 통해 자동 전파
+	OnRep_Health();
 
 	if (Health <= 0)
 	{
@@ -2676,13 +2949,75 @@ void AMyDCharacter::UseHotkey3() { UseHotkey(2); }
 void AMyDCharacter::UseHotkey4() { UseHotkey(3); }
 void AMyDCharacter::UseHotkey5() { UseHotkey(4); }
 
+
+
+void AMyDCharacter::TeleportToNearestPlayer()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+
+	ServerTeleportToNearestPlayer();
+}
+
+void AMyDCharacter::ServerTeleportToNearestPlayer_Implementation()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	TArray<AActor*> FoundPlayers;
+	UGameplayStatics::GetAllActorsOfClass(World, AMyDCharacter::StaticClass(), FoundPlayers);
+
+	if (FoundPlayers.Num() <= 1)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No other players found!"));
+		return;
+	}
+
+	AMyDCharacter* ClosestPlayer = nullptr;
+	float MinDistSqr = TNumericLimits<float>::Max();
+	FVector MyLocation = GetActorLocation();
+
+	for (AActor* Actor : FoundPlayers)
+	{
+		AMyDCharacter* OtherPlayer = Cast<AMyDCharacter>(Actor);
+		if (!OtherPlayer || OtherPlayer == this) continue;
+
+		float DistSqr = FVector::DistSquared(MyLocation, OtherPlayer->GetActorLocation());
+		if (DistSqr < MinDistSqr)
+		{
+			MinDistSqr = DistSqr;
+			ClosestPlayer = OtherPlayer;
+		}
+	}
+
+	if (ClosestPlayer)
+	{
+		FVector TargetLocation = ClosestPlayer->GetActorLocation() + FVector(0, 0, 100);
+		SetActorLocation(TargetLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		UE_LOG(LogTemp, Log, TEXT("Teleported to nearest player at %s"), *TargetLocation.ToString());
+	}
+}
+
+
+
 void AMyDCharacter::TeleportToNearestChest()
+{
+	if (!IsLocallyControlled())
+	{
+		return;
+	}
+	ServerTeleportToNearestChest();
+}
+
+void AMyDCharacter::ServerTeleportToNearestChest_Implementation()
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
 
 	TArray<AActor*> FoundChests;
-	UGameplayStatics::GetAllActorsWithTag(World, FName("Chest"), FoundChests);
+	UGameplayStatics::GetAllActorsOfClass(World, ATreasureChest::StaticClass(), FoundChests);
 
 	if (FoundChests.Num() == 0)
 	{
@@ -2691,26 +3026,26 @@ void AMyDCharacter::TeleportToNearestChest()
 	}
 
 	AActor* ClosestChest = nullptr;
-	float MinDistSq = FLT_MAX;
+	float MinDistSqr = TNumericLimits<float>::Max();
 	FVector MyLocation = GetActorLocation();
 
 	for (AActor* Chest : FoundChests)
 	{
-		float DistSq = FVector::DistSquared(MyLocation, Chest->GetActorLocation());
-		if (DistSq < MinDistSq)
+		float DistSqr = FVector::DistSquared(MyLocation, Chest->GetActorLocation());
+		if (DistSqr < MinDistSqr)
 		{
-			MinDistSq = DistSq;
+			MinDistSqr = DistSqr;
 			ClosestChest = Chest;
 		}
 	}
 
 	if (ClosestChest)
 	{
-		SetActorLocation(ClosestChest->GetActorLocation() + FVector(0, 0, 100)); // 살짝 위로 이동
-		UE_LOG(LogTemp, Log, TEXT("Teleported to chest: %s"), *ClosestChest->GetName());
+		FVector TargetLocation = ClosestChest->GetActorLocation() + FVector(0, 0, 100);
+		SetActorLocation(TargetLocation, false, nullptr, ETeleportType::TeleportPhysics);
+		UE_LOG(LogTemp, Log, TEXT("Teleported to chest at %s"), *TargetLocation.ToString());
 	}
 }
-
 
 void AMyDCharacter::ApplyDebuff_Implementation(EDebuffType DebuffType, float Magnitude, float Duration)
 {

@@ -359,7 +359,7 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 
 			if (Awfcex* WFCManager = Cast<Awfcex>(UGameplayStatics::GetActorOfClass(GetWorld(), Awfcex::StaticClass())))
 			{
-				WFCManager->SpawnEnemiesOnCorridor(15);
+				//WFCManager->SpawnEnemiesOnCorridor(15);
 				WFCManager->SpawnEscapeObjectsOnRoom();
 				WFCManager->SpawnTreasureChestsOnTiles();
 			}

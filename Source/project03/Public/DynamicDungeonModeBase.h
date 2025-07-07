@@ -18,7 +18,14 @@ public:
 	ADynamicDungeonModeBase();
 
 	virtual AActor* FindPlayerStart_Implementation(AController* Player, const FString& IncomingName) override;
+
+
+
 	void RestartAllPlayers();
+
+	
+	void ForceRestartAllPlayers();
+
 protected:
 	virtual void BeginPlay() override;
 	FVector GetRandomCorridorLocation() const;

@@ -16,21 +16,21 @@ void UUCharacterHUDWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
         HealthProgressBar->SetPercent(HealthPercent);
     }
 
-    if (!Image_HitOverlay) return;
+    //if (!Image_HitOverlay) return;
 
-    // 실제로 체력이 줄어든 경우에만 피격 효과 발생
-    if (PreviousHealth < 0.0f || CurrentHealth < PreviousHealth)
-    {
-        float NormalizedHealth = CurrentHealth / MaxHealth;
-        float OverlayAlpha = FMath::Clamp(1.0f - NormalizedHealth, 0.0f, 0.6f);
+    //// 실제로 체력이 줄어든 경우에만 피격 효과 발생
+    //if (PreviousHealth < 0.0f || CurrentHealth < PreviousHealth)
+    //{
+    //    float NormalizedHealth = CurrentHealth / MaxHealth;
+    //    float OverlayAlpha = FMath::Clamp(1.0f - NormalizedHealth, 0.0f, 0.6f);
 
-        Image_HitOverlay->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, OverlayAlpha));
-        Image_HitOverlay->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+    //    Image_HitOverlay->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, OverlayAlpha));
+    //    Image_HitOverlay->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 
-        StartHitOverlayFadeOut(); // 이때만 페이드 시작
-    }
+    //    StartHitOverlayFadeOut(); // 이때만 페이드 시작
+    //}
 
-    PreviousHealth = CurrentHealth;
+    //PreviousHealth = CurrentHealth;
 
     if (WFCWarningWidgetClass)
     {

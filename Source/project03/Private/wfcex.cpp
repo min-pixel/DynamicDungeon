@@ -6,6 +6,8 @@
 #include "WaveFunctionCollapseSubsystem02.h"
 #include "WaveFunctionCollapseBPLibrary02.h"
 #include "GameFramework/PlayerStart.h"
+#include "Kismet/GameplayStatics.h"
+#include "DynamicDungeonModeBase.h"
 #include "EngineUtils.h" 
 //#include "Editor.h" 
 
@@ -67,6 +69,14 @@ void Awfcex::BeginPlay()
 
         SpawnEscapeObjectsOnRoom();
         SpawnTreasureChestsOnTiles();
+
+        // WFC 완료 플래그 설정
+        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        {
+            WFCSubsystem->bWFCCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("WFC completed, players can now spawn"));
+        }
+
     }
     else
     {
@@ -74,8 +84,12 @@ void Awfcex::BeginPlay()
     }
 
 
-    SpawnPlayerOnCorridor();
-    
+    //SpawnPlayerOnCorridor();
+    if (ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(UGameplayStatics::GetGameMode(this)))
+    {
+        GameMode->ForceRestartAllPlayers();
+        UE_LOG(LogTemp, Warning, TEXT("Players forced to restart after WFC completion."));
+    }
 
 }
 
@@ -136,22 +150,11 @@ void Awfcex::SpawnPlayerOnCorridor()
 
     TArray<FVector> CorridorTilePositions;
 
-    // 복도 타일 위치 수집
-    for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
-    {
-        if (Tiles[TileIndex].RemainingOptions.Num() > 0)
-        {
-            const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
-
-            // 복도 타일인지 확인
-            if (Option.bIsCorridorTile) // 복도 타일 조건 확인
-            {
-                FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
-                CorridorTilePositions.Add(TilePosition);
-
-                // 로그로 위치 출력
-                UE_LOG(LogTemp, Log, TEXT("Corridor tile found at location: %s"), *TilePosition.ToString());
-            }
+    for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex) {
+        if (Tiles[TileIndex].RemainingOptions.Num() > 0 &&
+            Tiles[TileIndex].RemainingOptions[0].bIsCorridorTile) {
+            FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
+            CorridorTilePositions.Add(TilePosition);
         }
     }
 
@@ -174,75 +177,29 @@ void Awfcex::SpawnPlayerOnCorridor()
 
 void Awfcex::SpawnPlayerAtLocation(const FVector& Location)
 {
-   
-        UWorld* World = GetWorld();
-        if (!World) return;
+    UWorld* World = GetWorld();
+    if (!World || !HasAuthority() || !PlayerClass) return;
 
-        if (!HasAuthority())
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+    for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+    {
+        APlayerController* PC = It->Get();
+        if (PC && !PC->GetPawn())
         {
-            UE_LOG(LogTemp, Warning, TEXT("Not authority, skipping spawn"));
-            return;
-        }
-
-        if (!PlayerClass)
-        {
-            PlayerClass = AMyDCharacter::StaticClass();
-        }
-
-        // 복도 타일 위치 수집
-        UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
-        if (!WFCSubsystem || !WFCSubsystem->WFCModel) return;
-
-        const TArray<FWaveFunctionCollapseTileCustom>& Tiles = WFCSubsystem->LastCollapsedTiles;
-        FIntVector Resolution = WFCSubsystem->Resolution;
-        float TileSize = WFCSubsystem->WFCModel->TileSize;
-
-        TArray<FVector> CorridorTilePositions;
-
-        for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
-        {
-            if (Tiles[TileIndex].RemainingOptions.Num() > 0)
+            AMyDCharacter* NewPawn = World->SpawnActor<AMyDCharacter>(PlayerClass, Location, FRotator::ZeroRotator, SpawnParams);
+            if (NewPawn)
             {
-                const FWaveFunctionCollapseOptionCustom& Option = Tiles[TileIndex].RemainingOptions[0];
-                if (Option.bIsCorridorTile)
-                {
-                    FVector TilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * TileSize;
-                    CorridorTilePositions.Add(TilePosition);
-                }
+                PC->Possess(NewPawn);
+                UE_LOG(LogTemp, Log, TEXT("Spawned & Possessed at %s for %s"), *Location.ToString(), *PC->GetName());
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to spawn pawn for %s"), *PC->GetName());
             }
         }
-
-        if (CorridorTilePositions.Num() == 0)
-        {
-            UE_LOG(LogTemp, Error, TEXT("No corridor tiles found for spawning."));
-            return;
-        }
-
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-        for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-        {
-            APlayerController* PC = It->Get();
-            if (PC && !PC->GetPawn())
-            {
-                // 각 컨트롤러마다 랜덤 복도 위치 선택
-                int32 RandomIndex = FMath::RandRange(0, CorridorTilePositions.Num() - 1);
-                FVector SpawnLocation = CorridorTilePositions[RandomIndex] + FVector(0.0f, 0.0f, 100.0f);
-
-                AMyDCharacter* NewPawn = World->SpawnActor<AMyDCharacter>(PlayerClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
-                if (NewPawn)
-                {
-                    PC->Possess(NewPawn);
-                    UE_LOG(LogTemp, Log, TEXT("Spawned & Possessed at %s for %s"), *SpawnLocation.ToString(), *PC->GetName());
-                }
-                else
-                {
-                    UE_LOG(LogTemp, Error, TEXT("Failed to spawn pawn for %s"), *PC->GetName());
-                }
-            }
-        }
-    
+    }
 }
 
 //void Awfcex::SpawnPlayerAtLocation(const FVector& Location)

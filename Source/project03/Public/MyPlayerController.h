@@ -6,6 +6,7 @@
 #include "GameFramework/PlayerController.h"
 #include "LobbyWidget.h"
 #include "MyDCharacter.h" 
+#include "WaitForPlayersWidget.h"
 #include "MyPlayerController.generated.h"
 
 /**
@@ -32,6 +33,19 @@ public:
 
     UPROPERTY(Replicated)
     bool bIsReady;
+
+    
+
+    UPROPERTY(BlueprintReadWrite)
+    UWaitForPlayersWidget* WaitWidgetInstance;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = UI)
+    TSubclassOf<UWaitForPlayersWidget> WaitWidgetClass;
+
+
+    UFUNCTION(Client, Reliable)
+    void ClientUpdateWaitWidget(int32 ReadyCount, int32 TotalCount);
+
 
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	

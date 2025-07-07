@@ -76,22 +76,33 @@ FVector ADynamicDungeonModeBase::GetRandomCorridorLocation() const
 
 AActor* ADynamicDungeonModeBase::FindPlayerStart_Implementation(AController* Player, const FString& IncomingName)
 {
-    FVector SpawnLocation = GetRandomCorridorLocation();
+    UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetGameInstance()->GetSubsystem<UWaveFunctionCollapseSubsystem02>();
+
+    FVector SpawnLocation = FVector::ZeroVector; // 기본값 (임시)
+
+    if (WFCSubsystem && WFCSubsystem->bWFCCompleted)
+    {
+        // Collapse 후 복도 위치
+        SpawnLocation = GetRandomCorridorLocation();
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("WFC not completed yet, using fallback (0,0,0)"));
+    }
 
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-    // 반드시 APlayerStart로 생성
     AActor* StartSpot = GetWorld()->SpawnActor<APlayerStart>(APlayerStart::StaticClass(), SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 
     if (StartSpot)
     {
-        UE_LOG(LogTemp, Log, TEXT("Custom PlayerStart at: %s"), *SpawnLocation.ToString());
+        UE_LOG(LogTemp, Log, TEXT("PlayerStart at: %s"), *SpawnLocation.ToString());
         return StartSpot;
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to spawn PlayerStart, using Super."));
+        UE_LOG(LogTemp, Error, TEXT("Failed to spawn StartSpot, fallback Super"));
         return Super::FindPlayerStart_Implementation(Player, IncomingName);
     }
 }
@@ -101,12 +112,33 @@ void ADynamicDungeonModeBase::RestartAllPlayers()
     UWorld* World = GetWorld();
     if (!World) return;
 
+    // 모든 플레이어를 일단 정리
     for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
     {
         APlayerController* PC = It->Get();
-        if (PC && !PC->GetPawn())
+        if (PC && PC->GetPawn())
         {
-            RestartPlayer(PC);
+            PC->GetPawn()->Destroy();
+            PC->UnPossess();
         }
     }
+
+    // 1초 후 모든 플레이어를 재시작
+    FTimerHandle TimerHandle;
+    World->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([this]()
+        {
+            for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+            {
+                APlayerController* PC = It->Get();
+                if (PC)
+                {
+                    RestartPlayer(PC);
+                }
+            }
+        }), 1.0f, false);
+}
+
+void ADynamicDungeonModeBase::ForceRestartAllPlayers()
+{
+    RestartAllPlayers();
 }

@@ -589,7 +589,9 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 							UE_LOG(LogWFC, Display, TEXT("Spawned Blueprint Actor at (%d, %d, %d) with offset"), X, Y, Z);
 							SpawnedActor->Tags.Add(FName("WFCGenerated"));
 
-
+							// Replication 설정 추가
+							SpawnedActor->SetReplicates(true);
+							SpawnedActor->bAlwaysRelevant = true;
 						}
 						else
 						{

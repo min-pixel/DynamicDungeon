@@ -20,6 +20,12 @@ AMyPlayerController::AMyPlayerController()
         LobbyWidgetClass = WidgetBPClass.Class;
     }
 
+    static ConstructorHelpers::FClassFinder<UWaitForPlayersWidget> WaitBPClass(TEXT("/Game/BP/UI/WaitForPlayersWidget_BP.WaitForPlayersWidget_BP_C"));
+    if (WaitBPClass.Succeeded())
+    {
+        WaitWidgetClass = WaitBPClass.Class;
+    }
+
 }
 
 void AMyPlayerController::BeginPlay()
@@ -87,6 +93,24 @@ void AMyPlayerController::ServerRequestStart_Implementation()
         Cast<ALobbyGameMode>(GM)->CheckAllPlayersReady();
     }
 }
+
+void AMyPlayerController::ClientUpdateWaitWidget_Implementation(int32 ReadyCount, int32 TotalCount)
+{
+    if (!WaitWidgetInstance && WaitWidgetClass)
+    {
+        WaitWidgetInstance = CreateWidget<UWaitForPlayersWidget>(this, WaitWidgetClass);
+        if (WaitWidgetInstance)
+        {
+            WaitWidgetInstance->AddToViewport(1);
+        }
+    }
+
+    if (WaitWidgetInstance)
+    {
+        WaitWidgetInstance->UpdateStatus(ReadyCount, TotalCount);
+    }
+}
+
 
 void AMyPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {

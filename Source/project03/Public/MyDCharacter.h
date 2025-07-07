@@ -90,6 +90,15 @@ public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerRequestWFCRegen(AWFCRegenerator* RegenActor);
 
+	UFUNCTION(Server, Reliable)
+	void ServerTeleportToNearestChest();
+
+	UFUNCTION()
+	void TeleportToNearestPlayer();
+
+	UFUNCTION(Server, Reliable)
+	void ServerTeleportToNearestPlayer();
+
 	// 서버에게 요청 -> 모든 클라이언트에서 재생성 연출 실행
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerPlayWFCRegenEffects();
@@ -97,6 +106,26 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastPlayWFCRegenEffects();
 
+	UFUNCTION(Server, Reliable)
+	void ServerPerformTraceAttack();
+
+	// 서버 함수 선언
+	UFUNCTION(Server, Reliable)
+	void ServerRequestPlayAttackMontage();
+
+	// 멀티캐스트 함수 선언
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayAttackMontage();
+
+	void PlayAttackAnimation_Internal();
+
+	UFUNCTION(Server, Reliable)
+	void ServerRequestRoll(float ForwardValue, float RightValue);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayRoll(float ForwardValue, float RightValue);
+
+	void ExecuteRoll(float ForwardValue, float RightValue);
 
 
 	// 무기 정보
@@ -137,8 +166,13 @@ public:
 	TSubclassOf<ACameraActor> OverheadCameraClass;
 	
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_Health, BlueprintReadWrite, Category = "Player Stats")
 	float Health = 100; // 체력
+
+	float PreviousHealth = -1.0f;
+
+	UFUNCTION()
+	void OnRep_Health();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float MaxHealth = 100; // 최대 체력

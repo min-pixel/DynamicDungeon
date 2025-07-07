@@ -150,20 +150,31 @@ void UInventoryComponent::OnRep_InventoryItemsStruct()
     }
 }
 
-void UInventoryComponent::ServerMoveItem_Implementation(UInventoryComponent* SourceInventory, int32 FromIndex, int32 ToIndex)
+bool UInventoryComponent::ServerMoveItem_Validate(UInventoryComponent* SourceInv, int32 FromIndex, int32 ToIndex)
 {
-    // 서버에서만 실행되는 아이템 이동 로직
-    if (!SourceInventory) return;
+    return true; 
+}
 
-    if (!SourceInventory->InventoryItemsStruct.IsValidIndex(FromIndex)) return;
-    if (!InventoryItemsStruct.IsValidIndex(ToIndex)) return;
+void UInventoryComponent::ServerMoveItem_Implementation(UInventoryComponent* SourceInv, int32 FromIndex, int32 ToIndex)
+{
+    // 1) 서버에서만 실제 배열 수정
+    if (SourceInv && SourceInv->InventoryItemsStruct.IsValidIndex(FromIndex) &&
+        InventoryItemsStruct.IsValidIndex(ToIndex))
+    {
+        FItemData Moved = SourceInv->InventoryItemsStruct[FromIndex];
+        SourceInv->InventoryItemsStruct.RemoveAt(FromIndex);
+        InventoryItemsStruct[ToIndex] = Moved;
+    }
 
-    // 아이템 이동
-    FItemData ItemToMove = SourceInventory->InventoryItemsStruct[FromIndex];
-    InventoryItemsStruct[ToIndex] = ItemToMove;
-    SourceInventory->InventoryItemsStruct[FromIndex] = FItemData(); // 빈 슬롯으로 초기화
-
-    UE_LOG(LogTemp, Log, TEXT("Server: Moved item from %d to %d"), FromIndex, ToIndex);
+    //// 2) 리스너 서버 자신(UI)을 즉시 갱신
+    //if (OwningWidgetInstance)
+    //{
+    //    OwningWidgetInstance->RefreshInventoryStruct();
+    //}
+    //if (SourceInv->OwningWidgetInstance)
+    //{
+    //    SourceInv->OwningWidgetInstance->RefreshInventoryStruct();
+    //}
 }
 
 void UInventoryComponent::ServerRemoveItem_Implementation(int32 Index)
