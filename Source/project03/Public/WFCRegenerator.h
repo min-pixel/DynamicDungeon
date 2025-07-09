@@ -8,6 +8,7 @@
 #include "WFCRegenerator.generated.h"
 
 
+
 UCLASS()
 class PROJECT03_API AWFCRegenerator : public AActor
 {
@@ -54,7 +55,8 @@ public:
 
 	void ClearPreviousWFCActors();
 
-
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastRestoreGravity();
 
 	FIntVector FixedTileCoord;
 	FWaveFunctionCollapseOptionCustom FixedTileOption;

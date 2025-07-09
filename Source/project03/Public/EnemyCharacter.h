@@ -52,10 +52,24 @@ public:
 
 	// 체력
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float MaxHealth = 100.0f;
+	float MaxHealth = 10.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	float CurrentHealth;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Dead)
+	bool bIsDead = false;
+
+	UPROPERTY()
+	class UNiagaraSystem* TreasureGlowEffectAsset;
+
+	UFUNCTION()
+	void OnRep_Dead();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastActivateRagdoll();
 
 	// 피격 처리
 	virtual void GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage);
@@ -69,6 +83,23 @@ public:
 	bool bIsStunned = false;
 
 	void PlayHitShake();
+
+	UPROPERTY(EditDefaultsOnly, Category = "Animation")
+	UAnimMontage* DeathMontage;
+
+	UPROPERTY()
+	UStaticMeshComponent* ChestStaticMesh;
+
+	UPROPERTY()
+	UStaticMesh* ChestMeshAsset;
+
+	UPROPERTY(ReplicatedUsing = OnRep_TransformToChest)
+	bool bIsTransformedToChest = false;
+
+	UFUNCTION()
+	void OnRep_TransformToChest();
+
+	void ReplaceMeshWithChest();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	UInventoryComponent* EnemyInventory;
@@ -87,7 +118,7 @@ public:
 
 	void OpenLootUI(class AMyDCharacter* InteractingPlayer);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Loot")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Loot")
 	UInventoryComponent* LootInventory;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")

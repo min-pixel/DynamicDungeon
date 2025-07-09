@@ -297,6 +297,9 @@ void ULobbyWidget::OnStartGameClicked()
 
     AMyPlayerController* PC = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(this, 0));
     
+    
+
+
     if (PC && PC->GetPawn())
     {
         PC->GetPawn()->Destroy();

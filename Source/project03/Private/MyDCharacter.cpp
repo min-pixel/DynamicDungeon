@@ -31,6 +31,7 @@
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
 #include "Components/Image.h"
+#include "NiagaraFunctionLibrary.h"
 #include "RageEnemyCharacter.h"
 #include "Potion.h"
 #include "FireballSpell.h"
@@ -549,8 +550,7 @@ void AMyDCharacter::BeginPlay()
 
 	//}
 
-	if (PlayerClass == EPlayerClass::Mage)
-	{
+	
 		UFireballSpell* Fireball = NewObject<UFireballSpell>(this);
 		SpellSet.Add(Fireball); // 인덱스 0번: 파이어 볼
 
@@ -560,7 +560,8 @@ void AMyDCharacter::BeginPlay()
 		UCurseSpell* Curse = NewObject<UCurseSpell>(this);
 		SpellSet.Add(Curse);
 
-	}
+	
+	
 
 	if (!CachedDirectionalLight)
 	{
@@ -587,6 +588,25 @@ void AMyDCharacter::Restart()
 
 	if (IsLocallyControlled())
 	{
+
+		if (HUDWidgetClass)
+		{
+			// 기존 HUD 제거 (있다면)
+			if (HUDWidget)
+			{
+				HUDWidget->RemoveFromParent();
+				HUDWidget = nullptr;
+			}
+
+			// 새로 생성
+			HUDWidget = CreateWidget<UUCharacterHUDWidget>(GetWorld(), HUDWidgetClass);
+			if (HUDWidget)
+			{
+				HUDWidget->AddToViewport(1);
+				UE_LOG(LogTemp, Warning, TEXT("Restart: HUD Widget created and added to viewport"));
+			}
+		}
+
 		if (InventoryWidgetClass)
 		{
 			InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
@@ -699,6 +719,10 @@ void AMyDCharacter::StartSprinting()
 {
 	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed * Agility;
 	GetWorldTimerManager().SetTimer(TimerHandle_SprintDrain, this, &AMyDCharacter::SprintStaminaDrain, 0.1f, true);
+	if (bIsSlowed)
+	{
+		ApplySpeedMultiplier();
+	}
 }
 
 // 달리기 중지
@@ -707,6 +731,11 @@ void AMyDCharacter::StopSprinting()
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
 	GetWorldTimerManager().ClearTimer(TimerHandle_SprintDrain);
 	ManageStaminaRegen();  //달리기 끝나고 스테미나 회복 시키기
+
+	if (bIsSlowed)
+	{
+		ApplySpeedMultiplier();
+	}
 }
 
 void AMyDCharacter::SprintStaminaDrain()
@@ -865,6 +894,13 @@ void AMyDCharacter::StartInteraction()
 				UE_LOG(LogTemp, Log, TEXT("Opened enemy loot UI"));
 				return;
 			}
+			ARageEnemyCharacter* RageEnemy = Cast<ARageEnemyCharacter>(OverlappedActor);
+			if (RageEnemy)
+			{
+				RageEnemy->OpenLootUI(this);
+				UE_LOG(LogTemp, Log, TEXT("Opened enemy loot UI"));
+				return;
+			}
 			
 
 
@@ -889,7 +925,7 @@ void AMyDCharacter::StartInteraction()
 			}
 			return;
 
-			return;
+			
 		}
 
 		if (OverlappedActor && OverlappedActor->ActorHasTag("Escape") && !bIsEscapeCountdownActive) 
@@ -1556,7 +1592,9 @@ void AMyDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AMyDCharacter, EquippedWeaponData);
 	DOREPLIFETIME(AMyDCharacter, EquippedArmorsData);
 	DOREPLIFETIME(AMyDCharacter, Health);
-
+	DOREPLIFETIME(AMyDCharacter, bIsSlowed);
+	DOREPLIFETIME(AMyDCharacter, OriginalWalkSpeed);
+	DOREPLIFETIME(AMyDCharacter, SpeedMultiplier);
 }
 
 void AMyDCharacter::UpdateHUD()
@@ -2341,15 +2379,8 @@ void AMyDCharacter::FadeAndRegenWFC()
 	if (bPlayerInFixedRoom)
 	{
 		// 플레이어 중력 비활성화
-		if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
-		{
-			MovementComp->GravityScale = 0.0f;
-			// 이동 모드를 Flying으로 변경
-			//MovementComp->SetMovementMode(EMovementMode::MOVE_Flying);
-
-			// Velocity 초기화
-			//MovementComp->Velocity = FVector::ZeroVector;
-		}
+		ServerSetPlayerGravity(0.0f);
+		TeleportToWFCRegen();
 	}
 
 
@@ -2369,13 +2400,41 @@ void AMyDCharacter::FadeAndRegenWFC()
 			{
 				WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 			}
-		}, 3.0f, false);
+		}, 5.0f, false);
 
 	//ExecuteWFCNow();
 	//GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 5.0f, false);
 }
 
+void AMyDCharacter::ServerSetPlayerGravity_Implementation(float GravityScale)
+{
+	if (!HasAuthority()) return;
 
+	// 서버에서 중력 설정
+	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+	{
+		MovementComp->GravityScale = GravityScale;
+	}
+
+	// 모든 클라이언트에 전파
+	MulticastSetPlayerGravity(GravityScale);
+}
+
+bool AMyDCharacter::ServerSetPlayerGravity_Validate(float GravityScale)
+{
+	return true;
+}
+
+void AMyDCharacter::MulticastSetPlayerGravity_Implementation(float GravityScale)
+{
+	// 자신의 캐릭터만 업데이트
+	if (!IsLocallyControlled()) return;
+
+	if (UCharacterMovementComponent* MovementComp = GetCharacterMovement())
+	{
+		MovementComp->GravityScale = GravityScale;
+	}
+}
 
 void AMyDCharacter::ExecuteWFCNow()
 {
@@ -2429,7 +2488,10 @@ bool AMyDCharacter::ServerPlayWFCRegenEffects_Validate()
 void AMyDCharacter::ServerPlayWFCRegenEffects_Implementation()
 {
 	// 서버에서만 Multicast 호출
-	MulticastPlayWFCRegenEffects();
+    if (HasAuthority())
+    {
+        MulticastPlayWFCRegenEffects();
+    }
 }
 
 // RPC: 서버→모든 클라이언트
@@ -2440,7 +2502,272 @@ void AMyDCharacter::MulticastPlayWFCRegenEffects_Implementation()
 	TriggerDelayedWFC();
 }
 
+bool AMyDCharacter::ServerCastSpell_Validate(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation)
+{
+	// 유효성 검사
+	return SpellSet.IsValidIndex(SpellIndex) && SpellSet[SpellIndex] != nullptr;
+}
 
+void AMyDCharacter::ServerCastSpell_Implementation(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation)
+{
+	if (!HasAuthority()) return;
+
+	// 서버에서 다시 한번 검증
+	if (!SpellSet.IsValidIndex(SpellIndex) || !SpellSet[SpellIndex]) return;
+	if (!SpellSet[SpellIndex]->CanActivate(this)) return;
+
+	// 리소스 소모
+	Knowledge -= SpellSet[SpellIndex]->ManaCost;
+	Stamina -= SpellSet[SpellIndex]->StaminaCost;
+	UpdateHUD();
+
+	// 마법 시전 애니메이션 재생 (모든 클라이언트)
+	MulticastPlaySpellCastAnimation();
+
+	// 마법별 실행
+	ExecuteSpellOnServer(SpellIndex, TargetLocation, TargetRotation);
+}
+
+void AMyDCharacter::ExecuteSpellOnServer(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation)
+{
+	switch (SpellIndex)
+	{
+	case 0: // Fireball
+		ExecuteFireballSpell(TargetLocation, TargetRotation);
+		break;
+
+	case 1: // Heal
+		ExecuteHealSpell();
+		//MulticastPlayHealEffect(GetActorLocation());
+		break;
+
+	case 2: // Curse
+		ExecuteCurseSpell(TargetLocation);
+		break;
+
+	default:
+		UE_LOG(LogTemp, Warning, TEXT("Unknown spell index: %d"), SpellIndex);
+		break;
+	}
+}
+
+void AMyDCharacter::ExecuteFireballSpell(FVector TargetLocation, FRotator TargetRotation)
+{
+	UFireballSpell* FireballSpell = Cast<UFireballSpell>(SpellSet[0]);
+	if (!FireballSpell) return;
+
+	// 서버에서 투사체 생성
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = this;
+
+	ASpellProjectile* Fireball = GetWorld()->SpawnActor<ASpellProjectile>(
+		FireballSpell->FireballProjectileClass,
+		TargetLocation,
+		TargetRotation,
+		SpawnParams
+	);
+
+	if (Fireball)
+	{
+		FVector LaunchDirection = TargetRotation.Vector();
+		Fireball->Init(this, FireballSpell->Damage);
+		Fireball->LaunchInDirection(LaunchDirection * FireballSpell->FireballSpeed);
+
+		// 모든 클라이언트에서 파이어볼 이펙트 재생
+		MulticastSpawnFireball(TargetLocation, TargetRotation, FireballSpell->Damage, FireballSpell->FireballSpeed);
+	}
+}
+
+void AMyDCharacter::ExecuteHealSpell()
+{
+	UHealSpell* HealSpell = Cast<UHealSpell>(SpellSet[1]);
+	if (!HealSpell) return;
+
+	// 서버에서 실제 힐링 처리
+	HealPlayer(HealSpell->HealAmount);
+
+	// 모든 클라이언트에서 힐링 이펙트 재생
+	MulticastPlayHealEffect(GetActorLocation());
+
+	//UE_LOG(LogTemp, Log, TEXT("Server: Heal spell executed"));
+}
+
+void AMyDCharacter::ExecuteCurseSpell(FVector TargetLocation)
+{
+	UCurseSpell* CurseSpell = Cast<UCurseSpell>(SpellSet[2]);
+	if (!CurseSpell) return;
+
+	// 서버에서 라인 트레이스 실행
+	FVector Start = FirstPersonCameraComponent->GetComponentLocation() +
+		FirstPersonCameraComponent->GetForwardVector() * 30.0f;
+	FVector End = TargetLocation;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);  // 자신은 제외
+
+	bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Pawn, Params);
+
+	UE_LOG(LogTemp, Warning, TEXT("Server: Curse spell line trace from %s to %s"),
+		*Start.ToString(), *End.ToString());
+
+	AActor* HitActor = nullptr;
+	if (bHit)
+	{
+		HitActor = Hit.GetActor();
+		UE_LOG(LogTemp, Warning, TEXT("Server: Curse hit actor: %s"),
+			HitActor ? *HitActor->GetName() : TEXT("None"));
+
+		if (HitActor && HitActor->Implements<UHitInterface>())
+		{
+			// 서버에서 디버프 적용
+			IHitInterface::Execute_ApplyDebuff(HitActor, EDebuffType::Slow,
+				CurseSpell->SlowAmount, CurseSpell->Duration);
+
+			UE_LOG(LogTemp, Warning, TEXT("Server: Applied curse debuff to %s"), *HitActor->GetName());
+		}
+	}
+
+	// 모든 클라이언트에서 저주 이펙트 재생 (히트한 위치로)
+	FVector EffectLocation = bHit ? Hit.Location : End;
+	MulticastPlayCurseEffect(Start, EffectLocation, HitActor);
+}
+
+// =========================
+// Multicast RPC 구현부
+// =========================
+
+void AMyDCharacter::MulticastPlaySpellCastAnimation_Implementation()
+{
+	if (SpellCastMontage && CharacterMesh && CharacterMesh->GetAnimInstance())
+	{
+		UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+		AnimInstance->Montage_Play(SpellCastMontage, 1.0f);
+	}
+}
+
+void AMyDCharacter::MulticastSpawnFireball_Implementation(FVector SpawnLocation, FRotator SpawnRotation, float Damage, float Speed)
+{
+	// 로컬 플레이어가 아닌 경우에만 이펙트 재생 (중복 방지)
+	if (IsLocallyControlled()) return;
+
+	// 파이어볼 이펙트만 재생 (실제 투사체는 서버에서 이미 생성됨)
+	UE_LOG(LogTemp, Log, TEXT("Fireball effect played on client"));
+}
+
+void AMyDCharacter::MulticastPlayHealEffect_Implementation(FVector Location)
+{
+	UE_LOG(LogTemp, Log, TEXT("MulticastPlayHealEffect: Playing heal effect at %s"), *Location.ToString());
+
+	UHealSpell* HealSpell = Cast<UHealSpell>(SpellSet[1]);
+	if (!HealSpell || !HealSpell->HealEffect)
+	{
+		UE_LOG(LogTemp, Error, TEXT("HealSpell or HealEffect is null!"));
+		return;
+	}
+
+	// OrbitEffectActor 생성 (원래 로직 복원)
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+
+	AOrbitEffectActor* OrbitActor = GetWorld()->SpawnActor<AOrbitEffectActor>(
+		AOrbitEffectActor::StaticClass(),
+		Location,
+		FRotator::ZeroRotator,
+		SpawnParams
+	);
+
+	if (OrbitActor)
+	{
+		// 원래 HealSpell.cpp의 설정값들 사용
+		OrbitActor->InitOrbit(
+			this,                                    // Center Actor
+			HealSpell->HealEffect,                  // Effect
+			100.f,                                  // Radius
+			5.f,                                    // Duration (수정: 원래는 2.f였음)
+			1080.f,                                 // Speed
+			FLinearColor(0.4f, 1.f, 0.2f),        // Color (녹색)
+			5.f                                     // Sprite Size
+		);
+
+		UE_LOG(LogTemp, Log, TEXT("Heal OrbitEffectActor created successfully"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to create Heal OrbitEffectActor"));
+	}
+}
+
+void AMyDCharacter::MulticastPlayCurseEffect_Implementation(FVector StartLocation, FVector EndLocation, AActor* TargetActor)
+{
+	UE_LOG(LogTemp, Log, TEXT("MulticastPlayCurseEffect: Playing curse effect from %s to %s"),
+		*StartLocation.ToString(), *EndLocation.ToString());
+
+	UCurseSpell* CurseSpell = Cast<UCurseSpell>(SpellSet[2]);
+	if (!CurseSpell || !CurseSpell->CurseEffect)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CurseSpell or CurseEffect is null!"));
+		return;
+	}
+
+	// 디버그 라인 그리기
+	DrawDebugLine(GetWorld(), StartLocation, EndLocation, FColor::Purple, false, 3.0f, 0, 3.0f);
+
+	// 타겟이 있으면 타겟 위치에, 없으면 EndLocation에 이펙트 생성
+	FVector EffectLocation = TargetActor ? TargetActor->GetActorLocation() : EndLocation;
+
+	// OrbitEffectActor 생성 (원래 로직 복원)
+	if (TargetActor) // 타겟이 있을 때만 OrbitEffect 생성
+	{
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.Owner = this;
+
+		AOrbitEffectActor* OrbitActor = GetWorld()->SpawnActor<AOrbitEffectActor>(
+			AOrbitEffectActor::StaticClass(),
+			EffectLocation,
+			FRotator::ZeroRotator,
+			SpawnParams
+		);
+
+		if (OrbitActor)
+		{
+			// 원래 CurseSpell.cpp의 설정값들 사용
+			OrbitActor->InitOrbit(
+				TargetActor,                        // Center Actor
+				CurseSpell->CurseEffect,           // Effect
+				100.f,                             // Radius
+				10.f,                               // Duration (원래 설정값)
+				1080.f,                            // Speed
+				FLinearColor(0.8f, 0.5f, 1.0f),  // Color (보라색)
+				3.f                                // Sprite Size
+			);
+
+			UE_LOG(LogTemp, Log, TEXT("Curse OrbitEffectActor created successfully on target: %s"),
+				*TargetActor->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to create Curse OrbitEffectActor"));
+		}
+	}
+	else
+	{
+		// 타겟이 없으면 단순히 위치에 이펙트만 스폰
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(),
+			CurseSpell->CurseEffect,
+			EffectLocation,
+			FRotator::ZeroRotator,
+			FVector(1.0f),
+			true,
+			true,
+			ENCPoolMethod::None
+		);
+
+		UE_LOG(LogTemp, Log, TEXT("Curse Niagara effect spawned at location (no target)"));
+	}
+}
 
 bool AMyDCharacter ::IsPlayerInFixedRoomTile()
 {
@@ -2631,15 +2958,54 @@ void AMyDCharacter::TryCastSpell(int32 Index)
 
 void AMyDCharacter::CastSpell1()
 {
-	TryCastSpell(0);      // 0 - 파이어볼, 1 - 힐, 2 - 저주.
+	TryCastSpellMultiplayer(0);      // 0 - 파이어볼, 1 - 힐, 2 - 저주.
 }
 
 void AMyDCharacter::CastSpell2()
 {
-	TryCastSpell(1);
+	TryCastSpellMultiplayer(2);
 }
 
+void AMyDCharacter::TryCastSpellMultiplayer(int32 SpellIndex)
+{
+	if (PlayerClass != EPlayerClass::Mage) return;
 
+	// 유효성 검사
+	if (!SpellSet.IsValidIndex(SpellIndex) || !SpellSet[SpellIndex]) return;
+
+	// 간단한 스팸 방지 (0.1초)
+	
+
+	// 리소스 확인
+	if (!SpellSet[SpellIndex]->CanActivate(this)) return;
+
+	
+	
+
+	
+	FVector TargetLocation = FVector::ZeroVector;
+	FRotator TargetRotation = GetControlRotation();
+
+	if (SpellIndex == 0) // Fireball
+	{
+		TargetLocation = GetActorLocation() + GetActorForwardVector() * 200.0f + FVector(0, 0, 50.0f);
+	}
+	else if (SpellIndex == 1) // Heal
+	{
+		TargetLocation = GetActorLocation(); // Heal은 자기 위치
+		UE_LOG(LogTemp, Warning, TEXT("Client: Requesting Heal spell at %s"), *TargetLocation.ToString());
+	}
+	else if (SpellIndex == 2) // Curse
+	{
+		FVector Start = FirstPersonCameraComponent->GetComponentLocation() +
+			FirstPersonCameraComponent->GetForwardVector() * 30.0f;
+		FVector End = Start + FirstPersonCameraComponent->GetForwardVector() * 1000.0f;
+		TargetLocation = End;
+	}
+
+	// 서버에 마법 시전 요청
+	ServerCastSpell(SpellIndex, TargetLocation, TargetRotation);
+}
 
 
 void AMyDCharacter::ToggleMapView()
@@ -3054,23 +3420,83 @@ void AMyDCharacter::ApplyDebuff_Implementation(EDebuffType DebuffType, float Mag
 		UCharacterMovementComponent* Movement = GetCharacterMovement();
 		if (!Movement) return;
 
-		// 현재 이동 속도 저장
-		const float OriginalSpeed = Movement->MaxWalkSpeed;
+		// 이미 슬로우 상태라면 기존 타이머 클리어
+		if (bIsSlowed)
+		{
+			GetWorldTimerManager().ClearTimer(DebuffRecoveryTimerHandle);
+		}
 
-		// 속도 감소 적용 (예: Magnitude = 0.4f 이면 40% 감소)
-		const float SlowFactor = FMath::Clamp(1.0f - Magnitude, 0.1f, 1.0f); // 최소 10%까지 유지
-		Movement->MaxWalkSpeed = OriginalSpeed * SlowFactor;
+		// 원래 속도 저장 (처음 적용될 때만)
+		if (!bIsSlowed)
+		{
+			OriginalWalkSpeed = Movement->MaxWalkSpeed;
+		}
+
+		bIsSlowed = true;
+
+		// 속도 배율 적용 (기존 속도 저장하지 않고 배율만 사용)
+		SpeedMultiplier = FMath::Clamp(1.0f - Magnitude, 0.1f, 1.0f);
+
+		// 현재 속도에 배율 적용
+		ApplySpeedMultiplier();
+
+		//// 속도 감소 적용
+		//const float SlowFactor = FMath::Clamp(1.0f - Magnitude, 0.1f, 1.0f);
+		//Movement->MaxWalkSpeed = OriginalWalkSpeed * SlowFactor;
+
+		UE_LOG(LogTemp, Warning, TEXT("Applied slow debuff: %f -> %f for %f seconds"),
+			OriginalWalkSpeed, Movement->MaxWalkSpeed, Duration);
 
 		// 디버프 해제용 타이머 설정
-		GetWorldTimerManager().ClearTimer(DebuffRecoveryTimerHandle);
-		GetWorldTimerManager().SetTimer(DebuffRecoveryTimerHandle, FTimerDelegate::CreateLambda([this, OriginalSpeed]()
-			{
-				if (UCharacterMovementComponent* MovementInner = GetCharacterMovement())
-				{
-					MovementInner->MaxWalkSpeed = OriginalSpeed;
-				}
-			}), Duration, false);
+		GetWorldTimerManager().SetTimer(
+			DebuffRecoveryTimerHandle,
+			this,
+			&AMyDCharacter::RemoveSlowDebuff,
+			Duration,
+			false
+		);
 	}
+}
+
+
+
+void AMyDCharacter::RemoveSlowDebuff()
+{
+	if (!bIsSlowed) return;
+
+	bIsSlowed = false;
+	SpeedMultiplier = 1.0f;  // 정상 배율로 복구
+
+	// 현재 속도에 정상 배율 적용
+	ApplySpeedMultiplier();
+
+	UE_LOG(LogTemp, Warning, TEXT("Removed slow debuff: SpeedMultiplier restored to 1.0"));
+	GetWorldTimerManager().ClearTimer(DebuffRecoveryTimerHandle);
+}
+
+void AMyDCharacter::ApplySpeedMultiplier()
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (!Movement) return;
+
+	float CurrentBaseSpeed = Movement->MaxWalkSpeed;
+
+	// 현재 속도가 SprintSpeed 범위인지 WalkSpeed 범위인지 판단
+	float NormalizedSpeed = CurrentBaseSpeed / (WalkSpeed * Agility);
+
+	if (NormalizedSpeed > 1.5f)  // 달리기 상태로 추정
+	{
+		// 달리기 속도에 배율 적용
+		Movement->MaxWalkSpeed = (SprintSpeed * Agility) * SpeedMultiplier;
+	}
+	else  // 걷기 상태
+	{
+		// 걷기 속도에 배율 적용
+		Movement->MaxWalkSpeed = (WalkSpeed * Agility) * SpeedMultiplier;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Applied SpeedMultiplier %f: %f -> %f"),
+		SpeedMultiplier, CurrentBaseSpeed, Movement->MaxWalkSpeed);
 }
 
 void AMyDCharacter::TeleportToNearestEnemy()
@@ -3078,6 +3504,7 @@ void AMyDCharacter::TeleportToNearestEnemy()
 	FVector MyLocation = GetActorLocation();
 	float NearestDistance = TNumericLimits<float>::Max();
 	ARageEnemyCharacter* NearestEnemy = nullptr;
+	//AEnemyCharacter* NearestEnemy = nullptr;
 
 	for (TActorIterator<ARageEnemyCharacter> It(GetWorld()); It; ++It)
 	{
@@ -3091,6 +3518,19 @@ void AMyDCharacter::TeleportToNearestEnemy()
 			NearestEnemy = Enemy;
 		}
 	}
+
+	/*for (TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
+	{
+		AEnemyCharacter* Enemy = *It;
+		if (!Enemy) continue;
+
+		float Dist = FVector::Dist(MyLocation, Enemy->GetActorLocation());
+		if (Dist < NearestDistance)
+		{
+			NearestDistance = Dist;
+			NearestEnemy = Enemy;
+		}
+	}*/
 
 	if (NearestEnemy)
 	{

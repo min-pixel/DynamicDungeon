@@ -4276,7 +4276,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 				return;
 			}
 
-			// 기본 설정
+			// 기본 설정S
 			//int32 SeedToUse = (RandomSeed != 0) ? RandomSeed : FMath::RandRange(1, TNumericLimits<int32>::Max());
 			int32 SeedToUse = static_cast<int32>(FDateTime::Now().GetTicks() % INT32_MAX);
 			int32 AttemptCount = 0;

@@ -63,7 +63,7 @@ void Awfcex::BeginPlay()
 
 
         
-       // SpawnEnemiesOnCorridor(15);
+        SpawnEnemiesOnCorridor(1);
 
         SpawnWFCRegeneratorOnRoom();
 

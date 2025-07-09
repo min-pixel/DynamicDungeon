@@ -7,7 +7,10 @@
 #include "MyDCharacter.h"
 #include "InventoryWidget.h"
 #include "ItemDataD.h"
-
+#include "Net/UnrealNetwork.h"
+#include "TreasureGlowEffect.h"
+#include "NiagaraSystem.h"
+#include "NiagaraFunctionLibrary.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -81,12 +84,34 @@ ARageEnemyCharacter::ARageEnemyCharacter()
     InteractionBox->OnComponentEndOverlap.AddDynamic(this, &ARageEnemyCharacter::OnOverlapEnd);
 
     LootInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("LootInventory"));
+    LootInventory->SetIsReplicated(true);
 
     static ConstructorHelpers::FClassFinder<UInventoryWidget> WidgetBPClass(TEXT("/Game/BP/UI/InventoryWidget.InventoryWidget_C"));
     if (WidgetBPClass.Succeeded())
     {
         InventoryWidgetClass = WidgetBPClass.Class;
     }
+
+ 
+
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> FoundChestMesh(TEXT("/Game/BP/object/Chest_Low.Chest_Low"));
+    if (FoundChestMesh.Succeeded())
+    {
+        ChestMeshAsset = FoundChestMesh.Object;
+    }
+
+    // 나이아가라 이펙트 로드
+    static ConstructorHelpers::FObjectFinder<UNiagaraSystem> GlowEffect(TEXT("/Game/PixieDustTrail/FX/NS_PixieDustTrail.NS_PixieDustTrail"));
+    if (GlowEffect.Succeeded())
+    {
+        TreasureGlowEffectAsset = GlowEffect.Object;
+    }
+
+
+    bReplicates = true;
+    SetReplicatingMovement(true);
+    bAlwaysRelevant = true;
+
 }
 
 void ARageEnemyCharacter::BeginPlay()
@@ -101,7 +126,10 @@ void ARageEnemyCharacter::BeginPlay()
         OriginalMaxWalkSpeed = MoveComp->MaxWalkSpeed;
     }
 
-    GenerateRandomLoot();
+    if (HasAuthority())
+    {
+        GenerateRandomLoot();
+    }
 }
 
 void ARageEnemyCharacter::Tick(float DeltaTime)
@@ -300,26 +328,130 @@ void ARageEnemyCharacter::GetHit_Implementation(const FHitResult& HitResult, AAc
         HandleStun();
     }
 
+    //if (CurrentHealth <= 0)
+    //{
+    //    // 레이지 모드 종료
+    //    if (bIsInRageMode)
+    //    {
+    //        ExitRageMode();
+    //    }
+
+    //    if (fsm)
+    //    {
+    //        fsm->SetState(EEnemyState::Dead);
+    //    }
+
+    //    // 사망 처리
+    //    GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+    //    GetMesh()->SetSimulatePhysics(true);
+    //    SetActorEnableCollision(true);
+    //    InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    //    Tags.Add(FName("Chest"));
+    //}
+
+
+     // === 멀티플레이 사망 처리 ===
     if (CurrentHealth <= 0)
     {
-        // 레이지 모드 종료
-        if (bIsInRageMode)
+        if (!bIsDead)
         {
-            ExitRageMode();
+            bIsDead = true;
+            OnRep_Dead();
+            MulticastActivateRagdoll();
         }
-
-        if (fsm)
-        {
-            fsm->SetState(EEnemyState::Dead);
-        }
-
-        // 사망 처리
-        GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
-        GetMesh()->SetSimulatePhysics(true);
-        SetActorEnableCollision(true);
-        InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-        Tags.Add(FName("Chest"));
     }
+}
+
+void ARageEnemyCharacter::OnRep_Dead()
+{
+    if (fsm)
+    {
+        fsm->SetState(EEnemyState::Dead);
+    }
+
+    //// 레이지 모드 종료
+    if (bIsInRageMode)
+    {
+        ExitRageMode();
+    }
+}
+
+void ARageEnemyCharacter::MulticastActivateRagdoll_Implementation()
+{
+    GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+    GetMesh()->SetSimulatePhysics(true);
+    SetActorEnableCollision(true);
+    InteractionBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    Tags.Add(FName("Chest"));
+
+    bIsTransformedToChest = true;
+
+    // 일정 시간 후 보물상자 메시로 변경
+    FTimerHandle ReplaceMeshTimer;
+    GetWorldTimerManager().SetTimer(ReplaceMeshTimer, this, &ARageEnemyCharacter::OnRep_TransformToChest, 2.0f, false);
+}
+
+void ARageEnemyCharacter::ReplaceMeshWithChest()
+{
+    if (!IsValid(this) || !ChestMeshAsset) return;
+
+    // 기존 스켈레탈 메시 숨김
+    GetMesh()->SetVisibility(false, true);
+
+    // 보물 상자 메시 생성 및 부착
+    if (!ChestStaticMesh)
+    {
+        ChestStaticMesh = NewObject<UStaticMeshComponent>(this, UStaticMeshComponent::StaticClass(), TEXT("ChestStaticMesh"));
+        if (ChestStaticMesh)
+        {
+            ChestStaticMesh->RegisterComponent();
+            ChestStaticMesh->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepWorldTransform);
+
+            ChestStaticMesh->SetStaticMesh(ChestMeshAsset);
+            ChestStaticMesh->SetCollisionProfileName(TEXT("BlockAll"));
+            ChestStaticMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -80.0f));
+            ChestStaticMesh->SetVisibility(true);
+            
+            if (TreasureGlowEffectAsset)
+            {
+                FActorSpawnParameters SpawnParams;
+                SpawnParams.Owner = this;
+
+                ATreasureGlowEffect* GlowEffect = GetWorld()->SpawnActor<ATreasureGlowEffect>(
+                    ATreasureGlowEffect::StaticClass(),
+                    GetActorLocation(),
+                    FRotator::ZeroRotator,
+                    SpawnParams
+                );
+
+                if (GlowEffect)
+                {
+                    GlowEffect->InitEffect(this, TreasureGlowEffectAsset, -80.0f);
+                }
+            }
+
+        }
+    }
+    else
+    {
+        ChestStaticMesh->SetVisibility(true);
+    }
+}
+
+
+void ARageEnemyCharacter::OnRep_TransformToChest()
+{
+    ReplaceMeshWithChest();
+}
+
+
+void ARageEnemyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+    DOREPLIFETIME(ARageEnemyCharacter, bIsDead);
+    DOREPLIFETIME(ARageEnemyCharacter, LootInventory);
+    DOREPLIFETIME(ARageEnemyCharacter, bIsTransformedToChest);
 }
 
 void ARageEnemyCharacter::ApplyDebuff_Implementation(EDebuffType DebuffType, float Value, float Duration)
@@ -435,6 +567,7 @@ void ARageEnemyCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AAct
 
         if (LootInventoryWidgetInstance)
         {
+            LootInventory->OwningWidgetInstance = nullptr;
             LootInventoryWidgetInstance->RemoveFromParent();
             LootInventoryWidgetInstance = nullptr;
             UE_LOG(LogTemp, Log, TEXT("Closed rage enemy loot UI"));
@@ -464,6 +597,7 @@ void ARageEnemyCharacter::OpenLootUI(AMyDCharacter* InteractingPlayer)
     LootInventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
     if (LootInventoryWidgetInstance)
     {
+        LootInventory->OwningWidgetInstance = LootInventoryWidgetInstance;
         LootInventoryWidgetInstance->InventoryRef = LootInventory;
         LootInventoryWidgetInstance->bIsChestInventory = true;
         LootInventoryWidgetInstance->SlotWidgetClass = InteractingPlayer->InventoryWidgetInstance->SlotWidgetClass;

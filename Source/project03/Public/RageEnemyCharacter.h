@@ -7,7 +7,7 @@
 #include "GameFramework/Character.h"
 #include "InventoryComponent.h"
 #include "InventoryWidget.h"
-
+#include "TreasureGlowEffect.h"
 #include "Components/BoxComponent.h"
 #include "RageEnemyCharacter.generated.h"
 
@@ -48,10 +48,40 @@ public:
 
 	// === 체력 시스템 ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float MaxHealth = 150.0f; // 기본 에너미보다 높게
+	float MaxHealth = 15.0f; // 기본 에너미보다 높게
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	float CurrentHealth;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Dead)
+	bool bIsDead = false;
+
+	UFUNCTION()
+	void OnRep_Dead();
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	// === 멀티플레이 관련 변수 추가 ===
+	UPROPERTY(Replicated)
+	bool bIsTransformedToChest = false;
+
+	UPROPERTY()
+	class UStaticMeshComponent* ChestStaticMesh;
+
+	UPROPERTY()
+	class UStaticMesh* ChestMeshAsset;
+
+	// === 멀티플레이 함수 추가 ===
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastActivateRagdoll();
+
+	UFUNCTION()
+	void OnRep_TransformToChest();
+
+	void ReplaceMeshWithChest();
+
+	UPROPERTY()
+	class UNiagaraSystem* TreasureGlowEffectAsset;
 
 	// === 피격 처리 ===
 	virtual void GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage) override;
@@ -80,7 +110,7 @@ public:
 
 	void OpenLootUI(class AMyDCharacter* InteractingPlayer);
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Loot")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "Loot")
 	UInventoryComponent* LootInventory;
 
 	UPROPERTY(EditDefaultsOnly, Category = "UI")

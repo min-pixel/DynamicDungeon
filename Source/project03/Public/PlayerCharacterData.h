@@ -9,9 +9,11 @@
 UENUM(BlueprintType)
 enum class EPlayerClass : uint8
 {
+
+    Mage        UMETA(DisplayName = "Mage"),
     Warrior     UMETA(DisplayName = "Warrior"),
-    Rogue       UMETA(DisplayName = "Rogue"),
-    Mage        UMETA(DisplayName = "Mage")
+    Rogue       UMETA(DisplayName = "Rogue")
+    
 };
 
 USTRUCT(BlueprintType)
@@ -21,7 +23,7 @@ struct FPlayerCharacterData
 
     FPlayerCharacterData()
         : PlayerName(TEXT("Player"))
-        , PlayerClass(EPlayerClass::Warrior)
+        , PlayerClass(EPlayerClass::Mage)
         , MaxHealth(1000.f)
         , MaxStamina(500.f)
         , MaxKnowledge(30.f)

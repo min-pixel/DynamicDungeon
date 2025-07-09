@@ -18,6 +18,7 @@
 #include "USpellBase.h"
 #include "WFCRegenerator.h"
 #include "GoldWidget.h"
+#include "OrbitEffectActor.h"
 #include "InventoryComponent.h"
 #include "EquipmentWidget.h" 
 #include "Engine/SceneCapture2D.h"
@@ -124,6 +125,71 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastPlayRoll(float ForwardValue, float RightValue);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSetPlayerGravity(float GravityScale);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSetPlayerGravity(float GravityScale);
+
+
+	// =========================
+	// 마법 시스템 RPC 함수들
+	// =========================
+
+	// 클라이언트 -> 서버: 마법 시전 요청
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerCastSpell(int32 SpellIndex, FVector TargetLocation = FVector::ZeroVector, FRotator TargetRotation = FRotator::ZeroRotator);
+
+	// 서버 -> 모든 클라이언트: 파이어볼 생성
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastSpawnFireball(FVector SpawnLocation, FRotator SpawnRotation, float Damage, float Speed);
+
+	// 서버 -> 모든 클라이언트: 힐링 이펙트
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayHealEffect(FVector Location);  // 매개변수 간소화
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayCurseEffect(FVector StartLocation, FVector EndLocation, AActor* TargetActor);
+
+	// 서버 -> 모든 클라이언트: 마법 시전 애니메이션
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlaySpellCastAnimation();
+
+	// 서버에서 실행되는 마법 검증 및 처리
+	UFUNCTION(BlueprintCallable)
+	void ExecuteSpellOnServer(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation);
+
+	// 마법별 실행 함수들 (서버에서 호출)
+	void ExecuteFireballSpell(FVector TargetLocation, FRotator TargetRotation);
+	void ExecuteHealSpell();
+	void ExecuteCurseSpell(FVector TargetLocation);
+
+	UUSpellBase* TempScrollSpell;
+
+	UPROPERTY(Replicated)
+	float SpeedMultiplier = 1.0f;
+
+	void ApplySpeedMultiplier();
+
+	UFUNCTION()
+	void TryCastSpellMultiplayer(int32 SpellIndex);
+
+	UFUNCTION()
+	void ResetSpellCasting() { bCanCastSpell = true; }
+
+	bool bCanCastSpell = true;
+	
+	// 디버프 상태 관리
+	UPROPERTY(Replicated)
+	bool bIsSlowed = false;
+
+	UPROPERTY(Replicated)
+	float OriginalWalkSpeed = 600.0f;  // 원래 속도 저장
+
+	// 디버프 해제 함수
+	UFUNCTION()
+	void RemoveSlowDebuff();
 
 	void ExecuteRoll(float ForwardValue, float RightValue);
 

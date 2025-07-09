@@ -364,21 +364,9 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 				WFCManager->SpawnTreasureChestsOnTiles();
 			}
 
-			// 맵 생성이 끝난 후, 캐릭터 중력 복구
 			
-			if (AMyDCharacter* Player = Cast<AMyDCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0)))
-			{
-				UCharacterMovementComponent* MovementComp = Player->GetCharacterMovement();
-				if (MovementComp)
-				{
-					MovementComp->GravityScale = 1.0f;
-					//MovementComp->SetMovementMode(EMovementMode::MOVE_Walking); // Flying이 아닌 Walking으로
-
-					// Velocity 초기화
-					//MovementComp->Velocity = FVector::ZeroVector;
-				}
-
-			}
+			// 맵 생성이 끝난 후, 캐릭터 중력 복구
+			MulticastRestoreGravity();
 			
 
 	});
@@ -400,3 +388,22 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	//WFCSubsystem->PostProcessFixedRoomTileAt(TileCoord, Tiles);
 }
 
+void AWFCRegenerator::MulticastRestoreGravity_Implementation()
+{
+    // 모든 플레이어 캐릭터 순회
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        APlayerController* PC = It->Get();
+        if (!PC) continue;
+        
+        APawn* Pawn = PC->GetPawn();
+        if (AMyDCharacter* MyCharacter = Cast<AMyDCharacter>(Pawn))
+        {
+            // 각 플레이어가 자신의 중력만 복구하도록
+            if (PC->IsLocalController())
+            {
+                MyCharacter->ServerSetPlayerGravity(1.0f);
+            }
+        }
+    }
+}

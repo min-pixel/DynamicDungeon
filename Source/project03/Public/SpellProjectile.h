@@ -65,10 +65,33 @@ public:
     UPROPERTY(VisibleAnywhere)
     UStaticMeshComponent* VisualMesh;
 
-    UPROPERTY()
+   
+
+    
+
+    // 네트워크 복제 설정
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+    // 복제된 변수들
+    UPROPERTY(Replicated)
     AMyDCharacter* Caster;
 
+    UPROPERTY(Replicated)
     float Damage;
+
+    UPROPERTY(ReplicatedUsing = OnRep_ProjectileData)
+    FVector ReplicatedVelocity;
+
+    UFUNCTION()
+    void OnRep_ProjectileData();
+
+    // 서버에서만 실행되는 충돌 처리
+    UFUNCTION(Server, Reliable, WithValidation)
+    void ServerOnHit(AActor* HitActor, const FHitResult& HitResult);
+
+    // 모든 클라이언트에서 폭발 이펙트
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastPlayExplosionEffect(FVector Location);
 
 protected:
 	// Called when the game starts or when spawned

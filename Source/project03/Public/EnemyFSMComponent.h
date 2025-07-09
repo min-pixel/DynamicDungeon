@@ -89,4 +89,6 @@ private:
 	bool IsEnemyStunned() const;
 	AController* GetEnemyController() const;
 	APawn* GetEnemyPawn() const;
+
+	bool CanEnemyMove() const;
 };

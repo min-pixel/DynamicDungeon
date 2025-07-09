@@ -14,6 +14,9 @@ AOrbitEffectActor::AOrbitEffectActor()
 	NiagaraComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("NiagaraComp"));
 	RootComponent = NiagaraComp;
 
+    bReplicates = true;
+    SetReplicateMovement(false); 
+
 }
 
 // Called when the game starts or when spawned

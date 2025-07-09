@@ -20,6 +20,8 @@ UHealSpell::UHealSpell()
 		HealEffect = HealEffectAsset.Object;
 	}
 
+	/*bReplicates = true;
+	SetReplicateMovement(true);*/
 }
 
 void UHealSpell::ActivateSpell(AMyDCharacter* Caster)

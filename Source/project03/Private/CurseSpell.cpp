@@ -23,7 +23,8 @@ UCurseSpell::UCurseSpell()
     {
         CurseEffect = EffectAsset.Object;
     }
-
+    /*bReplicates = true;
+    SetReplicateMovement(true);*/
 }
 
 void UCurseSpell::ActivateSpell(AMyDCharacter* Caster)

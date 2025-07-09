@@ -112,6 +112,12 @@ void UEnemyFSMComponent::HandleIdleState()
 
 void UEnemyFSMComponent::HandleChasingState()
 {
+    // 움직일 수 없으면 리턴
+    if (!CanEnemyMove())
+    {
+        return;
+    }
+
     FVector ToPlayer;
     float Distance;
 
@@ -133,12 +139,14 @@ void UEnemyFSMComponent::HandleChasingState()
             return;
         }
 
-        // 시야에 안 보일 땐 마지막 위치로 이동
-        if (AEnemyAIController* AI = Cast<AEnemyAIController>(GetEnemyController()))
+        // 시야에 안 보일 때 마지막 위치로 이동
+        if (CanEnemyMove())  // 한 번 더 체크
         {
-            AI->MoveToLocation(LastKnownPlayerLocation, 5.0f);
+            if (AEnemyAIController* AI = Cast<AEnemyAIController>(GetEnemyController()))
+            {
+                AI->MoveToLocation(LastKnownPlayerLocation, 5.0f);
+            }
         }
-
         return;
     }
 
@@ -154,9 +162,12 @@ void UEnemyFSMComponent::HandleChasingState()
     }
 
     // 이동
-    if (AEnemyAIController* AI = Cast<AEnemyAIController>(GetEnemyController()))
+    if (CanEnemyMove())  // 이동 전 체크
     {
-        AI->MoveToActor(target, 5.0f);
+        if (AEnemyAIController* AI = Cast<AEnemyAIController>(GetEnemyController()))
+        {
+            AI->MoveToActor(target, 5.0f);
+        }
     }
 }
 
@@ -288,6 +299,12 @@ void UEnemyFSMComponent::HandleRoamingState()
 {
     if (!me) return;
 
+    // 움직일 수 없으면 리턴
+    if (!CanEnemyMove())
+    {
+        return;
+    }
+
     SightAngle = 180.0f;
 
     FVector ToPlayer;
@@ -304,28 +321,29 @@ void UEnemyFSMComponent::HandleRoamingState()
     EPathFollowingStatus::Type MoveStatus = AI->GetMoveStatus();
     if (MoveStatus == EPathFollowingStatus::Moving)
     {
-        // 이동 중이면 새로운 목적지 생성하지 않음
         return;
     }
 
-    // 도달했거나 멈췄다면 새로운 목적지 생성
-    UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
-    if (NavSys)
+    // 새로운 목적지 생성 (움직일 수 있을 때만)
+    if (CanEnemyMove())
     {
-        FVector Origin = me->GetActorLocation();
-        FNavLocation RandomLocation;
-
-        // 목적지까지 거리 제한: 최소 3000 ~ 최대 4000
-        for (int i = 0; i < 10; ++i) // 최대 10번 시도
+        UNavigationSystemV1* NavSys = UNavigationSystemV1::GetCurrent(GetWorld());
+        if (NavSys)
         {
-            float Radius = FMath::FRandRange(3000.f, 4000.f);
-            if (NavSys->GetRandomReachablePointInRadius(Origin, Radius, RandomLocation))
+            FVector Origin = me->GetActorLocation();
+            FNavLocation RandomLocation;
+
+            for (int i = 0; i < 10; ++i)
             {
-                float ActualDist = FVector::Dist(Origin, RandomLocation.Location);
-                if (ActualDist >= 3000.f && ActualDist <= 4000.f)
+                float Radius = FMath::FRandRange(3000.f, 4000.f);
+                if (NavSys->GetRandomReachablePointInRadius(Origin, Radius, RandomLocation))
                 {
-                    AI->MoveToLocation(RandomLocation.Location, 5.0f);
-                    break;
+                    float ActualDist = FVector::Dist(Origin, RandomLocation.Location);
+                    if (ActualDist >= 3000.f && ActualDist <= 4000.f)
+                    {
+                        AI->MoveToLocation(RandomLocation.Location, 5.0f);
+                        break;
+                    }
                 }
             }
         }
@@ -373,3 +391,23 @@ APawn* UEnemyFSMComponent::GetEnemyPawn() const
 {
     return Cast<APawn>(me);
 }
+
+
+// 움직일 수 있는지 체크하는 범용 함수
+bool UEnemyFSMComponent::CanEnemyMove() const
+{
+    // 기본 에네미 체크
+    if (AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(me))
+    {
+        return !Enemy->bIsStunned;  // 스턴 상태가 아닐 때만 움직임
+    }
+    // 레이지 에네미 체크
+    else if (ARageEnemyCharacter* RageEnemy = Cast<ARageEnemyCharacter>(me))
+    {
+        // 레이지 에네미는 더 많은 조건 체크
+        return RageEnemy->CanMove();  // RageEnemy의 CanMove() 함수 활용
+    }
+
+    return true;  // 기본값
+}
+

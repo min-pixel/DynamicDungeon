@@ -54,7 +54,44 @@ void AScrollItem::UseWithData(AMyDCharacter* Character, const FItemData& Data)
             Character->PlayMagicMontage();
         }
 
-        Spell->ActivateSpell(Character);
+        // 스크롤용 특별 처리 - 클래스 체크 없이 직접 서버 RPC 호출
+        FVector TargetLocation = FVector::ZeroVector;
+        FRotator TargetRotation = Character->GetControlRotation();
+
+        if (Data.SkillIndex == 0) // Fireball
+        {
+            TargetLocation = Character->GetActorLocation() + Character->GetActorForwardVector() * 200.0f + FVector(0, 0, 50.0f);
+        }
+        else if (Data.SkillIndex == 1) // Heal - 추가!
+        {
+            TargetLocation = Character->GetActorLocation(); // 힐은 자기 위치에
+        }
+        else if (Data.SkillIndex == 2) // Curse
+        {
+            // Curse 타겟 계산
+            FVector Start = Character->GetActorLocation() + Character->GetActorForwardVector() * 100.0f;
+            FVector End = Start + Character->GetActorForwardVector() * 1000.0f;
+            TargetLocation = End;
+        }
+
+        // 직접 ServerCastSpell 호출 (클래스 체크 우회)
+        if (Character->HasAuthority())
+        {
+            // 서버라면 직접 실행
+            Character->ExecuteSpellOnServer(Data.SkillIndex, TargetLocation, TargetRotation);
+            Character->MulticastPlaySpellCastAnimation();
+        }
+        else
+        {
+            // 클라이언트라면 서버 RPC
+            Character->ServerCastSpell(Data.SkillIndex, TargetLocation, TargetRotation);
+        }
+
+        //Spell->ActivateSpell(Character);
+        
+        // 스펠 인덱스를 가져와서 캐릭터의 멀티플레이어 캐스팅 함수 호출
+        //Character->TryCastSpellMultiplayer(Data.SkillIndex);
+        
         Character->Knowledge = Character->MaxKnowledge;
     }
 }
