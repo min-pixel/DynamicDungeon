@@ -1595,6 +1595,8 @@ void AMyDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AMyDCharacter, bIsSlowed);
 	DOREPLIFETIME(AMyDCharacter, OriginalWalkSpeed);
 	DOREPLIFETIME(AMyDCharacter, SpeedMultiplier);
+	DOREPLIFETIME(AMyDCharacter, Gold);
+
 }
 
 void AMyDCharacter::UpdateHUD()
@@ -3552,5 +3554,13 @@ void AMyDCharacter::PossessedBy(AController* NewController)
 	{
 		EnableInput(Cast<APlayerController>(NewController));
 
+	}
+}
+
+void AMyDCharacter::UpdateGoldUI()
+{
+	if (GoldWidgetInstance)
+	{
+		GoldWidgetInstance->UpdateGoldAmount(Gold);
 	}
 }

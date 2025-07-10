@@ -62,6 +62,14 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Network")
     bool Connect(const FString& Address, int32 Port);
 
+    // 연결 해제
+    UFUNCTION(BlueprintCallable, Category = "Network")
+    void Disconnect();
+
+    // 연결 상태 확인
+    UFUNCTION(BlueprintCallable, Category = "Network")
+    bool IsConnected() const;
+
     // 바이트 배열 송신
     UFUNCTION(BlueprintCallable, Category = "Network")
     bool Send(const TArray<uint8>& Data);
@@ -71,12 +79,17 @@ public:
     FOnDataReceived OnDataReceived;
 
 
+    // 연결 끊김 감지 시 호출
+    void OnConnectionLost();
+
    
+    FSocket* Socket = nullptr;
 
 
 private:
-    FSocket* Socket = nullptr;
+    
     FSocketReceiver* ReceiverRunnable = nullptr;
+    bool bIsConnected = false;
 
 protected:
     bool AcceptConnections(float DeltaTime);

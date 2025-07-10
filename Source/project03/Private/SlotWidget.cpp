@@ -315,73 +315,59 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         }
     }
 
-    // 상점창 → 창고창
+    // 상점창 → 인벤토리 (구매)
     else if (SourceSlot->bIsShopSlot && !this->bIsShopSlot)
     {
         if (InventoryOwner && InventoryOwner->InventoryRef)
         {
-            // 로비에서는 AMyDCharacter가 없으므로 Player가 null일 수 있음
-            AMyDCharacter* Player = Cast<AMyDCharacter>(GetOwningPlayerPawn());
+            const int32 ItemPrice = SourceSlot->StoredData.Price;
 
-            // 플레이어가 없을 경우 (로비 상황)
+            // 멀티플레이어 환경: 서버 RPC 호출
+            InventoryOwner->InventoryRef->ServerPurchaseItem(
+                SourceSlot->StoredData,
+                ToIndex,
+                ItemPrice
+            );
+
+            UE_LOG(LogTemp, Log, TEXT("Client: Requested purchase of %s for %d gold"),
+                *SourceSlot->StoredData.ItemName, ItemPrice);
+
+            // 로비에서의 로컬 처리 (싱글플레이어 또는 로비 전용)
+            AMyDCharacter* Player = Cast<AMyDCharacter>(GetOwningPlayerPawn());
             if (!Player)
             {
-                // GameInstance에서 골드 관리
+                // 로비 상황 - GameInstance에서 직접 처리
                 UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-                if (!GameInstance)
+                if (GameInstance)
                 {
-                    UE_LOG(LogTemp, Error, TEXT("GameInstance is null, cannot purchase."));
-                    return false;
-                }
-
-                const int32 ItemPrice = SourceSlot->StoredData.Price;
-
-                if (GameInstance->LobbyGold < ItemPrice)
-                {
-                    UE_LOG(LogTemp, Warning, TEXT("Not enough gold in lobby: %d needed, %d owned"), ItemPrice, GameInstance->LobbyGold);
-                    return false;
-                }
-
-                // 골드 차감 및 아이템 복사
-                GameInstance->LobbyGold -= ItemPrice;
-                InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
-
-                if (ULobbyWidget* Lobby = GetTypedOuter<ULobbyWidget>())
-                {
-                    if (Lobby->GoldWidgetInstance)
+                    if (GameInstance->LobbyGold >= ItemPrice)
                     {
-                        Lobby->GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+                        // 로비에서는 로컬로 처리 (서버가 없으므로)
+                        GameInstance->LobbyGold -= ItemPrice;
+                        InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+
+                        // 골드 UI 업데이트
+                        if (ULobbyWidget* Lobby = GetTypedOuter<ULobbyWidget>())
+                        {
+                            if (Lobby->GoldWidgetInstance)
+                            {
+                                Lobby->GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+                            }
+                        }
+
+                        UE_LOG(LogTemp, Log, TEXT("Lobby purchase successful: %s for %d gold"),
+                            *SourceSlot->StoredData.ItemName, ItemPrice);
+                    }
+                    else
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("Not enough gold in lobby"));
                     }
                 }
-
-                UE_LOG(LogTemp, Log, TEXT("Lobby purchase: %s for %d gold. Remaining: %d"),
-                    *SourceSlot->StoredData.ItemName, ItemPrice, GameInstance->LobbyGold);
             }
-            //else
-            //{
-            //    // 인게임 상황에서는 원래 로직 사용
-            //    const int32 ItemPrice = SourceSlot->StoredData.Price;
-            //    if (Player->Gold < ItemPrice)
-            //    {
-            //        UE_LOG(LogTemp, Warning, TEXT("Not enough gold: %d needed, %d owned"), ItemPrice, Player->Gold);
-            //        return false;
-            //    }
-
-            //    Player->Gold -= ItemPrice;
-            //    InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
-
-            //    if (UGoldWidget* GoldUI = Player->GetGoldWidget())
-            //    {
-            //        GoldUI->UpdateGoldAmount(Player->Gold);
-            //    }
-
-            //    UE_LOG(LogTemp, Log, TEXT("Purchased item: %s for %d gold. Remaining: %d"),
-            //        *SourceSlot->StoredData.ItemName, ItemPrice, Player->Gold);
-            //}
         }
     }
 
-    // 창고창 → 상점창
+    // 인벤토리 → 상점창 (판매)
     else if (!SourceSlot->bIsShopSlot && this->bIsShopSlot)
     {
         if (SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
@@ -389,44 +375,42 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
             const int32 ItemPrice = SourceSlot->StoredData.Price;
             const int32 SellPrice = FMath::FloorToInt(ItemPrice * 0.6f);
 
-            // 플레이어 확인
+            // 멀티플레이어 환경: 서버 RPC 호출
+            SourceSlot->InventoryOwner->InventoryRef->ServerSellItem(
+                SourceSlot->SlotIndex,
+                SellPrice
+            );
+
+            UE_LOG(LogTemp, Log, TEXT("Client: Requested sale of %s for %d gold"),
+                *SourceSlot->StoredData.ItemName, SellPrice);
+
+            // 로비에서의 로컬 처리
             AMyDCharacter* Player = Cast<AMyDCharacter>(GetOwningPlayerPawn());
             if (!Player)
             {
-                // 로비 상황
                 UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
                 if (GameInstance)
                 {
+                    // 로비에서는 로컬로 처리
                     GameInstance->LobbyGold += SellPrice;
+                    SourceSlot->SetItemData(FItemData());
 
-                    if (GameInstance->LobbyWidgetInstance && GameInstance->LobbyWidgetInstance->GoldWidgetInstance)
+                    // 골드 UI 업데이트
+                    if (GameInstance->LobbyWidgetInstance &&
+                        GameInstance->LobbyWidgetInstance->GoldWidgetInstance)
                     {
-                        GameInstance->LobbyWidgetInstance->GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+                        GameInstance->LobbyWidgetInstance->GoldWidgetInstance->UpdateGoldAmount(
+                            GameInstance->LobbyGold
+                        );
                     }
 
-
-                    //UE_LOG(LogTemp, Log, TEXT("아이템 판매 (로비): %s - %d골드 획득"), *SourceSlot->StoredData.ItemName, SellPrice);
+                    UE_LOG(LogTemp, Log, TEXT("Lobby sale successful: received %d gold"), SellPrice);
                 }
             }
-            //else
-            //{
-            //    // 메인 게임 상황 (필요 시)
-            //    Player->Gold += SellPrice;
-
-            //    if (UGoldWidget* GoldUI = Player->GetGoldWidget())
-            //    {
-            //        GoldUI->UpdateGoldAmount(Player->Gold);
-            //    }
-
-            //    UE_LOG(LogTemp, Log, TEXT("아이템 판매: %s - %d골드 획득"), *SourceSlot->StoredData.ItemName, SellPrice);
-            //}
-
-            // 아이템 제거 (창고에서만 제거)
-            SourceSlot->SetItemData(FItemData());
 
             return true;
         }
-     }
+    }
 
 
     // 같은 그룹 간 스왑

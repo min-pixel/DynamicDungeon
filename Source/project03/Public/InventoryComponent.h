@@ -9,6 +9,8 @@
 #include "InventoryComponent.generated.h"
 
 
+class AMyDCharacter;
+
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class PROJECT03_API UInventoryComponent : public UActorComponent
 {
@@ -60,6 +62,14 @@ public:
 	// 서버 RPC: 아이템 추가 처리
 	UFUNCTION(Server, Reliable)
 	void ServerAddItem(const FItemData& NewItem, int32 ToIndex);
+
+	// 서버 RPC: 아이템 구매 처리
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerPurchaseItem(const FItemData& ItemData, int32 ToIndex, int32 Price);
+
+	// 서버 RPC: 아이템 판매 처리
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSellItem(int32 FromIndex, int32 SellPrice);
 
 protected:
 	// Called when the game starts

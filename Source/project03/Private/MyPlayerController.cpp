@@ -1,14 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "MyPlayerController.h"
 #include "LobbyWidget.h"
 #include "LobbyGameMode.h"
 #include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
-
-
-
 
 AMyPlayerController::AMyPlayerController()
 {
@@ -25,31 +21,27 @@ AMyPlayerController::AMyPlayerController()
     {
         WaitWidgetClass = WaitBPClass.Class;
     }
-
 }
 
 void AMyPlayerController::BeginPlay()
 {
     Super::BeginPlay();
 
-
-
     if (!IsLocalController())
     {
         return; // 로컬 컨트롤러가 아니면 UI 생성하지 않음
     }
-    
-        LobbyWidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, TEXT("/Game/BP/UI/LobbyWidget_BP.LobbyWidget_BP_C")); 
-    
 
-        FString MapName = GetWorld()->GetMapName();
-        MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+    LobbyWidgetClass = StaticLoadClass(UUserWidget::StaticClass(), nullptr, TEXT("/Game/BP/UI/LobbyWidget_BP.LobbyWidget_BP_C"));
 
-        if (!MapName.Contains("Lobby"))
-        {
-            // 로비 맵이 아니면 UI 생성 안 함
-            return;
-        }
+    FString MapName = GetWorld()->GetMapName();
+    MapName.RemoveFromStart(GetWorld()->StreamingLevelsPrefix);
+
+    if (!MapName.Contains("Lobby"))
+    {
+        // 로비 맵이 아니면 UI 생성 안 함
+        return;
+    }
 
     if (LobbyWidgetClass)
     {
@@ -58,8 +50,8 @@ void AMyPlayerController::BeginPlay()
         {
             LobbyWidgetInstance->AddToViewport(1);
 
-            AMyDCharacter* PlayerCharacter = Cast<AMyDCharacter>(GetPawn());
-            LobbyWidgetInstance->InitializeLobby(PlayerCharacter);
+            // 수정: InitializeLobby() 호출하지 않음!
+            // 인증 후에 LobbyWidget에서 알아서 초기화할 것임
 
             bShowMouseCursor = true;
 
@@ -68,7 +60,7 @@ void AMyPlayerController::BeginPlay()
             InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
             SetInputMode(InputMode);
 
-            UE_LOG(LogTemp, Warning, TEXT("Lobby Widget successfully created on LOCAL CLIENT!"));
+            UE_LOG(LogTemp, Warning, TEXT("Lobby Widget successfully created on LOCAL CLIENT! (No early initialization)"));
         }
         else
         {
@@ -80,7 +72,6 @@ void AMyPlayerController::BeginPlay()
         UE_LOG(LogTemp, Error, TEXT("LobbyWidgetClass is null."));
     }
 }
-
 
 void AMyPlayerController::ServerRequestStart_Implementation()
 {
@@ -110,7 +101,6 @@ void AMyPlayerController::ClientUpdateWaitWidget_Implementation(int32 ReadyCount
         WaitWidgetInstance->UpdateStatus(ReadyCount, TotalCount);
     }
 }
-
 
 void AMyPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {

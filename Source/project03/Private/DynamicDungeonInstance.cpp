@@ -16,21 +16,40 @@ void UDynamicDungeonInstance::Init()
 {
     Super::Init();
 
-    // 서브시스템 얻기
+    //// 서브시스템 얻기
+    //USocketManager* SocketMgr = GetSubsystem<USocketManager>();
+    //if (SocketMgr)
+    //{
+    //    // 로컬 테스트용으로 127.0.0.1:3000 에 연결 시도
+    //    bool bConnected = SocketMgr->Connect(TEXT("127.0.0.1"), 3000);
+    //    UE_LOG(LogTemp, Log, TEXT("[SocketTest] Connect: %s"), bConnected ? TEXT("Success") : TEXT("Fail"));
+
+    //    // Dynamic Multicast Delegate 바인딩 (람다 대신 UFUNCTION)
+    //    SocketMgr->OnDataReceived.AddDynamic(this, &UDynamicDungeonInstance::OnSocketDataReceived);
+    //}
+    //else
+    //{
+    //    UE_LOG(LogTemp, Error, TEXT("[SocketTest] SocketManager 서브시스템을 찾을 수 없습니다!"));
+    //}
+
+    // SocketManager 연결은 AuthManager에서만 담당하도록 변경
+    // 여기서는 연결하지 않고, 필요시에만 참조만 얻어옴
     USocketManager* SocketMgr = GetSubsystem<USocketManager>();
     if (SocketMgr)
     {
-        // 로컬 테스트용으로 127.0.0.1:3000 에 연결 시도
-        bool bConnected = SocketMgr->Connect(TEXT("127.0.0.1"), 3000);
-        UE_LOG(LogTemp, Log, TEXT("[SocketTest] Connect: %s"), bConnected ? TEXT("Success") : TEXT("Fail"));
+        UE_LOG(LogTemp, Log, TEXT("[DynamicDungeonInstance] SocketManager found, but not connecting here"));
 
-        // Dynamic Multicast Delegate 바인딩 (람다 대신 UFUNCTION)
-        SocketMgr->OnDataReceived.AddDynamic(this, &UDynamicDungeonInstance::OnSocketDataReceived);
+        // 데이터 수신 이벤트만 바인딩 (AuthManager와 공유)
+        if (!SocketMgr->OnDataReceived.IsAlreadyBound(this, &UDynamicDungeonInstance::OnSocketDataReceived))
+        {
+            SocketMgr->OnDataReceived.AddDynamic(this, &UDynamicDungeonInstance::OnSocketDataReceived);
+        }
     }
     else
     {
-        UE_LOG(LogTemp, Error, TEXT("[SocketTest] SocketManager 서브시스템을 찾을 수 없습니다!"));
+        UE_LOG(LogTemp, Error, TEXT("[DynamicDungeonInstance] SocketManager subsystem not found!"));
     }
+
 }
 
 void UDynamicDungeonInstance::OnSocketDataReceived(const TArray<uint8>& Data)

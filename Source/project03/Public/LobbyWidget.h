@@ -11,15 +11,17 @@
 #include "Components/TextBlock.h"
 #include "PlayerCharacterData.h" 
 #include "Components/Button.h"
+#include "Components/WidgetSwitcher.h"
+#include "Components/EditableTextBox.h"
 #include "LobbyWidget.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
 class PROJECT03_API ULobbyWidget : public UUserWidget
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
     UFUNCTION(BlueprintCallable)
@@ -27,64 +29,11 @@ public:
 
     virtual void NativeConstruct() override;
 
+    // UI 상태 전환용 위젯 스위처
     UPROPERTY(meta = (BindWidget))
-    UButton* StartGameButton;
+    class UWidgetSwitcher* MainSwitcher;
 
-    UPROPERTY(meta = (BindWidget))
-    UButton* GoToShopButton;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
-    TSubclassOf<UInventoryWidget> InventoryWidgetClass;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
-    TSubclassOf<UInventoryWidget> StorageWidgetClass;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
-    TSubclassOf<UEquipmentWidget> EquipmentWidgetClass;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-    TSubclassOf<class UGoldWidget> GoldWidgetClass;
-
-    UPROPERTY(meta = (BindWidget))
-    UGoldWidget* GoldWidgetInstance;
-
-    UPROPERTY(meta = (BindWidget))
-    UInventoryWidget* InventoryWidgetInstance;
-
-    UPROPERTY(meta = (BindWidget))
-    UInventoryWidget* StorageWidgetInstance;
-
-    UPROPERTY(meta = (BindWidget))
-    UEquipmentWidget* EquipmentWidgetInstance;
-
-    UPROPERTY()
-    UInventoryComponent* StorageInventoryComponent;
-
-    UPROPERTY()
-    UInventoryComponent* InventoryComponentRef;
-
-    UPROPERTY()
-    UInventoryComponent* StorageComponentRef;
-
-    TArray<EPlayerClass> AvailableClasses = { EPlayerClass::Warrior, EPlayerClass::Rogue, EPlayerClass::Mage };
-    int32 CurrentClassIndex = 0;
-
-    UPROPERTY(meta = (BindWidget))
-    UButton* LeftArrowButton;
-
-    UPROPERTY(meta = (BindWidget))
-    UButton* RightArrowButton;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
-    TSubclassOf<class UShopWidget> ShopWidgetClass;
-
-    UPROPERTY()
-    class UShopWidget* ShopWidgetInstance;
-
-    UPROPERTY(meta = (BindWidget))
-    class UTextBlock* ClassText;
-
-    // 로그인·회원가입용 입력창 & 버튼
+    // ========== 인증 화면 UI 요소들 ==========
     UPROPERTY(meta = (BindWidget))
     class UEditableTextBox* UsernameTextBox;
 
@@ -97,6 +46,101 @@ public:
     UPROPERTY(meta = (BindWidget))
     UButton* RegisterButton;
 
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* AuthStatusText;
+
+    // ========== 메인 로비 화면 UI 요소들 ==========
+    UPROPERTY(meta = (BindWidget))
+    UButton* StartGameButton;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* GoToShopButton;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* CloseShopButton;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* LeftArrowButton;
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* RightArrowButton;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* ClassText;
+
+    UPROPERTY(meta = (BindWidget))
+    class UGoldWidget* GoldWidgetInstance;
+
+    UPROPERTY(meta = (BindWidget))
+    UInventoryWidget* InventoryWidgetInstance;
+
+    UPROPERTY(meta = (BindWidget))
+    UInventoryWidget* StorageWidgetInstance;
+
+    UPROPERTY(meta = (BindWidget))
+    UEquipmentWidget* EquipmentWidgetInstance;
+
+    // ========== 클래스 정의들 ==========
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
+    TSubclassOf<UInventoryWidget> InventoryWidgetClass;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
+    TSubclassOf<UInventoryWidget> StorageWidgetClass;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Classes")
+    TSubclassOf<UEquipmentWidget> EquipmentWidgetClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+    TSubclassOf<class UGoldWidget> GoldWidgetClass;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI")
+    TSubclassOf<class UShopWidget> ShopWidgetClass;
+
+    // ========== 컴포넌트 및 데이터 ==========
+    UPROPERTY()
+    UInventoryComponent* StorageInventoryComponent;
+
+    UPROPERTY()
+    UInventoryComponent* InventoryComponentRef;
+
+    UPROPERTY()
+    UInventoryComponent* StorageComponentRef;
+
+    UPROPERTY()
+    class UShopWidget* ShopWidgetInstance;
+
+    UPROPERTY()
+    AMyDCharacter* PlayerCharacter;
+
+    TArray<EPlayerClass> AvailableClasses = { EPlayerClass::Warrior, EPlayerClass::Rogue, EPlayerClass::Mage };
+    int32 CurrentClassIndex = 0;
+
+    // ========== 인증 관련 ==========
+    bool bWasRegister = false;
+    bool bIsAuthenticated = false;
+    UAuthManager* AuthMgr = nullptr;
+
+    // ========== 함수들 ==========
+    // 인증 화면 함수들
+    UFUNCTION()
+    void OnLoginClicked();
+
+    UFUNCTION()
+    void OnRegisterClicked();
+
+    UFUNCTION()
+    void OnAuthResponse(bool bSuccess, FCharacterLoginData CharacterData);
+
+    // 메인 로비 함수들
+    UFUNCTION()
+    void OnStartGameClicked();
+
+    UFUNCTION()
+    void OnGoToShopClicked();
+
+    UFUNCTION()
+    void OnCloseShopButtonClicked();
+
     UFUNCTION()
     void OnLeftArrowClicked();
 
@@ -105,45 +149,17 @@ public:
 
     void UpdateClassDisplay();
 
-    UFUNCTION()
-    void OnStartGameClicked();
-
-    UFUNCTION()
-    void OnGoToShopClicked();
-
-    /*UPROPERTY(meta = (BindWidget))
-    UButton* StartGameButton;
-
-    UPROPERTY(meta = (BindWidget))
-    UButton* GoToShopButton;*/
-
-    UInventoryWidget* GetInventoryWidget() const { return InventoryWidgetInstance; }
-    UEquipmentWidget* GetEquipmentWidget() const { return EquipmentWidgetInstance; }
+    // UI 상태 전환
+    UFUNCTION(BlueprintCallable)
+    void ShowAuthScreen();
 
     UFUNCTION(BlueprintCallable)
-    void OnCloseShopButtonClicked();
+    void ShowMainLobby();
 
-    UPROPERTY(meta = (BindWidget))
-    UButton* CloseShopButton;
+    UFUNCTION(BlueprintCallable)
+    void SetAuthStatusText(const FString& StatusMessage);
 
-    UPROPERTY()
-    AMyDCharacter* PlayerCharacter;
-
-
-    // 마지막에 호출한 요청 타입을 기억 (true=Register, false=Login)
-    bool bWasRegister = false;
-
-        // AuthManager 참조
-        UAuthManager* AuthMgr = nullptr;
-
-        // 버튼 클릭 핸들러
-        UFUNCTION()
-        void OnLoginClicked();
-
-        UFUNCTION()
-        void OnRegisterClicked();
-
-        // 인증 결과 콜백
-        UFUNCTION()
-        void OnAuthResponse(bool bSuccess);
+    // 유틸리티 함수들
+    UInventoryWidget* GetInventoryWidget() const { return InventoryWidgetInstance; }
+    UEquipmentWidget* GetEquipmentWidget() const { return EquipmentWidgetInstance; }
 };

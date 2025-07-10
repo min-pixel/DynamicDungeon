@@ -1,9 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "LobbyWidget.h"
 #include "Components/Button.h"
 #include "Components/EditableTextBox.h"
+#include "Components/WidgetSwitcher.h"
+#include "Components/TextBlock.h"
 #include "MyDCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/UObjectIterator.h"
@@ -12,61 +13,225 @@
 #include "MyPlayerController.h"
 #include "GameFramework/HUD.h"
 
-
 void ULobbyWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
     SetIsFocusable(true);
+    bIsAuthenticated = false;
 
-    if (StartGameButton)
-    {
-        StartGameButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnStartGameClicked);
-    }
-
-    if (GoToShopButton)
-    {
-        GoToShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnGoToShopClicked);
-    }
-
-    if (LeftArrowButton)
-    {
-        LeftArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLeftArrowClicked);
-    }
-
-    if (RightArrowButton)
-    {
-        RightArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRightArrowClicked);
-    }
-
-    if (CloseShopButton)
-    {
-        CloseShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnCloseShopButtonClicked);
-    }
-    
-    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-    if (GameInstance)
-    {
-        GameInstance->LobbyWidgetInstance = this;
-    }
-
-    // AuthManager 얻기
+    // AuthManager 가져오기
     AuthMgr = GetGameInstance()->GetSubsystem<UAuthManager>();
     if (AuthMgr)
     {
         AuthMgr->OnAuthResponse.AddDynamic(this, &ULobbyWidget::OnAuthResponse);
     }
 
-    // 위젯 바인딩
+    // ========== 인증 화면 버튼 바인딩 ==========
     if (LoginButton)
         LoginButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLoginClicked);
+
     if (RegisterButton)
         RegisterButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRegisterClicked);
 
+    // ========== 메인 로비 버튼 바인딩 ==========
+    if (StartGameButton)
+        StartGameButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnStartGameClicked);
+
+    if (GoToShopButton)
+        GoToShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnGoToShopClicked);
+
+    if (LeftArrowButton)
+        LeftArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLeftArrowClicked);
+
+    if (RightArrowButton)
+        RightArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRightArrowClicked);
+
+    if (CloseShopButton)
+        CloseShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnCloseShopButtonClicked);
+
+    // GameInstance에 위젯 참조 저장
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance)
+    {
+        GameInstance->LobbyWidgetInstance = this;
+    }
+
+    // 초기 상태: 인증 화면 표시
+    ShowAuthScreen();
 }
 
+void ULobbyWidget::ShowAuthScreen()
+{
+    if (MainSwitcher)
+    {
+        MainSwitcher->SetActiveWidgetIndex(0); // 인덱스 0: 인증 화면
+        UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Showing authentication screen"));
+    }
+
+    // 마우스 커서 표시 및 UI 모드 설정
+    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+    if (PC)
+    {
+        PC->bShowMouseCursor = true;
+        FInputModeUIOnly InputMode;
+        InputMode.SetWidgetToFocus(UsernameTextBox ? UsernameTextBox->TakeWidget() : TakeWidget());
+        InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+        PC->SetInputMode(InputMode);
+    }
+
+    //SetAuthStatusText(TEXT("로그인 또는 회원가입을 해주세요"));
+}
+
+void ULobbyWidget::ShowMainLobby()
+{
+    if (MainSwitcher)
+    {
+        MainSwitcher->SetActiveWidgetIndex(1); // 인덱스 1: 메인 로비
+        UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Showing main lobby screen"));
+    }
+
+    // 메인 로비 초기화
+    InitializeLobby(PlayerCharacter);
+}
+
+void ULobbyWidget::SetAuthStatusText(const FString& StatusMessage)
+{
+    if (AuthStatusText)
+    {
+        AuthStatusText->SetText(FText::FromString(StatusMessage));
+    }
+}
+
+// ========== 인증 관련 함수들 ==========
+void ULobbyWidget::OnLoginClicked()
+{
+    if (!AuthMgr || !UsernameTextBox || !PasswordTextBox)
+    {
+        //SetAuthStatusText(TEXT("로그인 시스템 오류"));
+        return;
+    }
+
+    const FString User = UsernameTextBox->GetText().ToString();
+    const FString Pass = PasswordTextBox->GetText().ToString();
+
+    if (User.IsEmpty() || Pass.IsEmpty())
+    {
+        //SetAuthStatusText(TEXT("아이디와 비밀번호를 입력해주세요"));
+        return;
+    }
+
+    bWasRegister = false;
+    //SetAuthStatusText(TEXT("로그인 중..."));
+
+    // 버튼 비활성화 (중복 요청 방지)
+    if (LoginButton) LoginButton->SetIsEnabled(false);
+    if (RegisterButton) RegisterButton->SetIsEnabled(false);
+
+    AuthMgr->Login(User, Pass);
+}
+
+void ULobbyWidget::OnRegisterClicked()
+{
+    if (!AuthMgr || !UsernameTextBox || !PasswordTextBox)
+    {
+        //SetAuthStatusText(TEXT("회원가입 시스템 오류"));
+        return;
+    }
+
+    const FString User = UsernameTextBox->GetText().ToString();
+    const FString Pass = PasswordTextBox->GetText().ToString();
+
+    if (User.IsEmpty() || Pass.IsEmpty())
+    {
+        //SetAuthStatusText(TEXT("아이디와 비밀번호를 입력해주세요"));
+        return;
+    }
+
+    bWasRegister = true;
+    //SetAuthStatusText(TEXT("회원가입 중..."));
+
+    // 버튼 비활성화 (중복 요청 방지)
+    if (LoginButton) LoginButton->SetIsEnabled(false);
+    if (RegisterButton) RegisterButton->SetIsEnabled(false);
+
+    AuthMgr->RegisterUser(User, Pass);
+}
+
+void ULobbyWidget::OnAuthResponse(bool bSuccess, FCharacterLoginData CharacterData)
+{
+    // 버튼 다시 활성화
+    if (LoginButton) LoginButton->SetIsEnabled(true);
+    if (RegisterButton) RegisterButton->SetIsEnabled(true);
+
+    if (bSuccess)
+    {
+        if (bWasRegister)
+        {
+            //SetAuthStatusText(TEXT("회원가입 성공! 이제 로그인해주세요"));
+            UE_LOG(LogTemp, Warning, TEXT("[Auth] Registration SUCCESS"));
+
+            // 회원가입 성공 시 입력창 초기화
+            if (PasswordTextBox) PasswordTextBox->SetText(FText::GetEmpty());
+        }
+        else
+        {
+            // 로그인 성공 - 캐릭터 데이터 활용
+            //SetAuthStatusText(FString::Printf(TEXT("환영합니다, %s! 로비로 이동 중..."), *CharacterData.CharacterName));
+            UE_LOG(LogTemp, Warning, TEXT("[Auth] Login SUCCESS - Character: %s, Class: %d, Gold: %d"),
+                *CharacterData.CharacterName, CharacterData.PlayerClass, CharacterData.Gold);
+
+            bIsAuthenticated = true;
+
+            // 받은 캐릭터 데이터를 GameInstance에 저장
+            UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+            if (GameInstance)
+            {
+                // 캐릭터 기본 정보 설정
+                GameInstance->CurrentCharacterData.PlayerName = CharacterData.CharacterName;
+                GameInstance->CurrentCharacterData.PlayerClass = static_cast<EPlayerClass>(CharacterData.PlayerClass);
+                GameInstance->CurrentCharacterData.Level = CharacterData.Level;
+                GameInstance->CurrentCharacterData.MaxHealth = CharacterData.MaxHealth;
+                GameInstance->CurrentCharacterData.MaxStamina = CharacterData.MaxStamina;
+                GameInstance->CurrentCharacterData.MaxKnowledge = CharacterData.MaxKnowledge;
+                GameInstance->LobbyGold = CharacterData.Gold;
+
+                UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Saved character data to GameInstance"));
+            }
+
+            // 잠시 후 메인 로비로 전환
+            FTimerHandle TransitionTimer;
+            GetWorld()->GetTimerManager().SetTimer(TransitionTimer, [this]()
+                {
+                    ShowMainLobby();
+                }, 1.5f, false);
+        }
+    }
+    else
+    {
+        if (bWasRegister)
+        {
+            //SetAuthStatusText(TEXT("회원가입 실패: 이미 존재하는 아이디이거나 서버 오류"));
+            UE_LOG(LogTemp, Warning, TEXT("[Auth] Registration FAILED"));
+        }
+        else
+        {
+            //SetAuthStatusText(TEXT("로그인 실패: 아이디 또는 비밀번호가 틀렸습니다"));
+            UE_LOG(LogTemp, Warning, TEXT("[Auth] Login FAILED"));
+        }
+    }
+}
+
+// ========== 메인 로비 함수들 ==========
 void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
 {
+    // 인증되지 않은 경우 초기화하지 않음
+    if (!bIsAuthenticated)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Cannot initialize lobby - not authenticated"));
+        return;
+    }
+
     PlayerCharacter = Player;
 
     // (1) 플레이어 인벤토리 컴포넌트 연결 (없으면 더미 생성)
@@ -162,150 +327,25 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
         EquipmentWidgetInstance->RefreshEquipmentSlots();
     }
 
-
+    // (6) 골드 위젯 업데이트
     if (GoldWidgetInstance && GameInstance)
     {
         GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
     }
 
-
-    UE_LOG(LogTemp, Warning, TEXT("Lobby Initialized (Dummy Safe Mode)"));
+    UE_LOG(LogTemp, Warning, TEXT("Main Lobby Initialized Successfully"));
 }
-//void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
-//{
-//    PlayerCharacter = Player;
-//    // 초기 설정 필요 시 여기에 작성
-//
-//     // 1. 인벤토리 컴포넌트 연결 (플레이어 없으면 더미 생성)
-//    if (PlayerCharacter && PlayerCharacter->InventoryComponent)
-//    {
-//        StorageInventoryComponent = PlayerCharacter->InventoryComponent;
-//    }
-//    else
-//    {
-//        // 플레이어가 없으면 가짜 인벤토리 컴포넌트 생성
-//        StorageInventoryComponent = NewObject<UInventoryComponent>(this);
-//        StorageInventoryComponent->RegisterComponent(); // 컴포넌트로 등록
-//        StorageInventoryComponent->Capacity = 20; // 임의 용량 설정
-//        StorageInventoryComponent->InventoryItemsStruct.SetNum(StorageInventoryComponent->Capacity);
-//    }
-//
-//
-//    if (InventoryWidgetClass)
-//    {
-//        InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
-//        if (InventoryWidgetInstance)
-//        {
-//            InventoryWidgetInstance->InventoryRef = PlayerCharacter->GetInventoryComponent(); // 플레이어 인벤토리 연결
-//            InventoryWidgetInstance->RefreshInventoryStruct();
-//            InventoryWidgetInstance->AddToViewport(1);
-//            InventoryWidgetInstance->SetPositionInViewport(FVector2D(100, 300), false); // 원하는 위치로 조정
-//        }
-//    }
-//
-//    if (StorageWidgetClass)
-//    {
-//        StorageInventoryComponent = NewObject<UInventoryComponent>(this); // 스토리지용 임시 인벤토리 컴포넌트 생성
-//        if (StorageInventoryComponent)
-//        {
-//            StorageInventoryComponent->Capacity = 30; // 예시: 창고는 30칸
-//            StorageInventoryComponent->RegisterComponent();
-//
-//            StorageWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), StorageWidgetClass);
-//            if (StorageWidgetInstance)
-//            {
-//                StorageWidgetInstance->InventoryRef = StorageInventoryComponent;
-//                StorageWidgetInstance->bIsChestInventory = true;
-//                StorageWidgetInstance->RefreshInventoryStruct();
-//                StorageWidgetInstance->AddToViewport(1);
-//                StorageWidgetInstance->SetPositionInViewport(FVector2D(800, 300), false); // 원하는 위치로 조정
-//            }
-//        }
-//    }
-//
-//    if (EquipmentWidgetClass)
-//    {
-//        EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
-//        if (EquipmentWidgetInstance)
-//        {
-//            if (EquipmentWidgetClass && PlayerCharacter && PlayerCharacter->GetEquipmentWidget())
-//            {
-//                EquipmentWidgetInstance = PlayerCharacter->GetEquipmentWidget();
-//            } // 플레이어 장비 연결
-//            EquipmentWidgetInstance->RefreshEquipmentSlots();
-//            EquipmentWidgetInstance->AddToViewport(1);
-//            EquipmentWidgetInstance->SetPositionInViewport(FVector2D(500, 300), false); // 원하는 위치로 조정
-//        }
-//    }
-//
-//}
-
-//void ULobbyWidget::OnStartGameClicked()
-//{
-//
-//    //UE_LOG(LogTemp, Warning, TEXT("Start Game button clicked"));
-//
-//    // 게임 준비 처리
-//    // 예: 플레이어 상태 변경, 서버에 알림 등
-//
-//    if (EquipmentWidgetInstance)
-//    {
-//        UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-//        if (GameInstance)
-//        {
-//            GameInstance->SavedInventoryItems = InventoryComponentRef->InventoryItemsStruct;
-//            GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->EquipmentSlots;
-//            GameInstance->SavedStorageItems = StorageComponentRef->InventoryItemsStruct;
-//            GameInstance->InitializeCharacterData(AvailableClasses[CurrentClassIndex]);
-//            UE_LOG(LogTemp, Warning, TEXT("Saved Equipment Slots to GameInstance"));
-//        }
-//    }
-//
-//    APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
-//    if (PC)
-//    {
-//        // 클라이언트면 그냥 레벨만 연다 (ExecuteWFC 안 함)
-//        if (!PC->HasAuthority())
-//        {
-//            UE_LOG(LogTemp, Warning, TEXT("Client: OpenLevel only, no WFC execute."));
-//            //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
-//            return;
-//        }
-//
-//        // 서버면 그대로 진행 (Awfcex BeginPlay에서 WFC 자동 실행)
-//        UE_LOG(LogTemp, Warning, TEXT("Server: OpenLevel now..."));
-//        //UGameplayStatics::OpenLevel(PC, FName("/Game/DynamicDugeon"));
-//
-//        if (PC && PC->GetPawn())
-//        {
-//            PC->GetPawn()->Destroy();
-//            PC->UnPossess();
-//        }
-//
-//        GetWorld()->ServerTravel("/Game/DynamicDugeon?listen");
-//    }
-//    else
-//    {
-//        UE_LOG(LogTemp, Error, TEXT("PlayerController is null, cannot open level."));
-//    }
-//    
-//}
 
 void ULobbyWidget::OnStartGameClicked()
 {
-
-
     AMyPlayerController* PC = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(this, 0));
-    
-    
-
 
     if (PC && PC->GetPawn())
     {
         PC->GetPawn()->Destroy();
         PC->UnPossess();
     }
-    
+
     if (PC)
     {
         PC->ServerRequestStart();
@@ -318,10 +358,8 @@ void ULobbyWidget::OnStartGameClicked()
         }
 
         PC->bShowMouseCursor = false;
-
         FInputModeGameOnly GameMode;
         PC->SetInputMode(GameMode);
-
     }
 }
 
@@ -329,17 +367,14 @@ void ULobbyWidget::OnGoToShopClicked()
 {
     UE_LOG(LogTemp, Warning, TEXT("Go to Shop button clicked"));
 
-   
-
-    // 기존 창 숨김
-    if (InventoryWidgetInstance) InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+    // 기존 창 숨기기
+    //if (InventoryWidgetInstance) InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
     if (EquipmentWidgetInstance) EquipmentWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 
     if (!ShopWidgetInstance && ShopWidgetClass)
     {
         ShopWidgetInstance = CreateWidget<UShopWidget>(GetWorld(), ShopWidgetClass);
 
-         
         if (ShopWidgetInstance)
         {
             // 상점 아이템 세팅
@@ -366,8 +401,6 @@ void ULobbyWidget::OnGoToShopClicked()
 
             ShopWidgetInstance->PopulateShopItems();
             ShopWidgetInstance->AddToViewport(2);
-
-
         }
     }
 }
@@ -394,7 +427,10 @@ void ULobbyWidget::UpdateClassDisplay()
     case EPlayerClass::Mage:    ClassName = TEXT("M"); break;
     }
 
-    ClassText->SetText(FText::FromString(ClassName));
+    if (ClassText)
+    {
+        ClassText->SetText(FText::FromString(ClassName));
+    }
 }
 
 void ULobbyWidget::OnCloseShopButtonClicked()
@@ -413,54 +449,3 @@ void ULobbyWidget::OnCloseShopButtonClicked()
 
     UE_LOG(LogTemp, Warning, TEXT("Shop closed via LobbyWidget"));
 }
-
-void ULobbyWidget::OnLoginClicked()
-{
-    if (!AuthMgr || !UsernameTextBox || !PasswordTextBox) return;
-
-    const FString User = UsernameTextBox->GetText().ToString();
-    const FString Pass = PasswordTextBox->GetText().ToString();
-    bWasRegister = false;
-    AuthMgr->Login(User, Pass);
-}
-
-void ULobbyWidget::OnRegisterClicked()
-{
-    if (!AuthMgr || !UsernameTextBox || !PasswordTextBox) return;
-
-    const FString User = UsernameTextBox->GetText().ToString();
-    const FString Pass = PasswordTextBox->GetText().ToString();
-    bWasRegister = true;
-    AuthMgr->RegisterUser(User, Pass);
-}
-
-void ULobbyWidget::OnAuthResponse(bool bSuccess)
-{
-    if (bSuccess)
-    {
-      if (bWasRegister)
-      {
-          UE_LOG(LogTemp, Warning, TEXT("[Auth] Registration SUCCESS"));
-              
-      }
-      else
-      {
-        UE_LOG(LogTemp, Warning, TEXT("[Auth] Login SUCCESS → OpenLevel"));
-        OnStartGameClicked();
-        UE_LOG(LogTemp, Warning, TEXT("[Auth] OpenLevel success"));
-      }
-    }
-    else
-    {
-      if (bWasRegister)
-      {
-            UE_LOG(LogTemp, Warning, TEXT("[Auth] Registration FAIL"));
-      }
-      else
-      {
-            UE_LOG(LogTemp, Warning, TEXT("[Auth] Login FAIL"));
-      }
-         
-    }
-}
-

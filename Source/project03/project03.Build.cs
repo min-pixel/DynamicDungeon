@@ -8,7 +8,7 @@ public class project03 : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "InputCore", "NavigationSystem", "Niagara", "Sockets", "Networking" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "InputCore", "NavigationSystem", "Niagara", "Sockets", "Networking", "Json", "JsonUtilities" });
 
         //if (Target.bBuildEditor)
         //{

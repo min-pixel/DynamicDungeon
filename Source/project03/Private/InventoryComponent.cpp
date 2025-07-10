@@ -2,6 +2,7 @@
 
 
 #include "InventoryComponent.h"
+#include "MyDCharacter.h" 
 #include "InventoryWidget.h"
 #include "Net/UnrealNetwork.h"
 
@@ -192,5 +193,93 @@ void UInventoryComponent::ServerAddItem_Implementation(const FItemData& NewItem,
     {
         InventoryItemsStruct[ToIndex] = NewItem;
         UE_LOG(LogTemp, Log, TEXT("Server: Added item to index %d"), ToIndex);
+    }
+}
+
+bool UInventoryComponent::ServerPurchaseItem_Validate(const FItemData& ItemData, int32 ToIndex, int32 Price)
+{
+    // 기본 유효성 검사
+    return ToIndex >= 0 && ToIndex < InventoryItemsStruct.Num() && Price >= 0;
+}
+
+void UInventoryComponent::ServerPurchaseItem_Implementation(const FItemData& ItemData, int32 ToIndex, int32 Price)
+{
+    // 서버에서만 실행
+    if (!GetOwner()->HasAuthority())
+    {
+        return;
+    }
+
+    // 플레이어 캐릭터 가져오기
+    AMyDCharacter* Character = Cast<AMyDCharacter>(GetOwner());
+    if (!Character)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ServerPurchaseItem: Owner is not AMyDCharacter"));
+        return;
+    }
+
+    // 골드 확인
+    if (Character->Gold < Price)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ServerPurchaseItem: Not enough gold. Need %d, have %d"), Price, Character->Gold);
+        return;
+    }
+
+    // 인벤토리 슬롯이 비어있는지 확인
+    if (InventoryItemsStruct.IsValidIndex(ToIndex) && InventoryItemsStruct[ToIndex].ItemClass == nullptr)
+    {
+        // 골드 차감
+        Character->Gold -= Price;
+
+        // 아이템 추가
+        InventoryItemsStruct[ToIndex] = ItemData;
+
+        // 클라이언트에 골드 업데이트 알림 (Gold가 Replicated 변수라면 자동으로 동기화됨)
+        UE_LOG(LogTemp, Log, TEXT("ServerPurchaseItem: Successfully purchased %s for %d gold"),
+            *ItemData.ItemName, Price);
+
+        // 골드 UI 업데이트를 위한 멀티캐스트 RPC 호출 (필요한 경우)
+        Character->UpdateGoldUI();
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ServerPurchaseItem: Invalid slot index or slot not empty"));
+    }
+}
+
+bool UInventoryComponent::ServerSellItem_Validate(int32 FromIndex, int32 SellPrice)
+{
+    return FromIndex >= 0 && FromIndex < InventoryItemsStruct.Num() && SellPrice >= 0;
+}
+
+void UInventoryComponent::ServerSellItem_Implementation(int32 FromIndex, int32 SellPrice)
+{
+    // 서버에서만 실행
+    if (!GetOwner()->HasAuthority())
+    {
+        return;
+    }
+
+    AMyDCharacter* Character = Cast<AMyDCharacter>(GetOwner());
+    if (!Character)
+    {
+        return;
+    }
+
+    // 아이템이 있는지 확인
+    if (InventoryItemsStruct.IsValidIndex(FromIndex) && InventoryItemsStruct[FromIndex].ItemClass != nullptr)
+    {
+        FString ItemName = InventoryItemsStruct[FromIndex].ItemName;
+
+        // 아이템 제거
+        InventoryItemsStruct[FromIndex] = FItemData();
+
+        // 골드 추가
+        Character->Gold += SellPrice;
+
+        UE_LOG(LogTemp, Log, TEXT("ServerSellItem: Sold %s for %d gold"), *ItemName, SellPrice);
+
+        // 골드 UI 업데이트
+        Character->UpdateGoldUI();
     }
 }
