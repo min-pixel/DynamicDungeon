@@ -36,6 +36,12 @@ public:
     UPROPERTY(BlueprintReadWrite)
     class UInventoryComponent* TargetInventory;
 
+    UPROPERTY(BlueprintReadWrite)
+    class UInventoryComponent* StorageInventory;
+
+    UPROPERTY()
+    class UInventoryWidget* ShopDummyWidget;
+
     void PopulateShopItems();
 
 };

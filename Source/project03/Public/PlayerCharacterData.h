@@ -22,13 +22,17 @@ struct FPlayerCharacterData
     GENERATED_BODY()
 
     FPlayerCharacterData()
-        : PlayerName(TEXT("Player"))
+        : CharacterId(0)
+        , PlayerName(TEXT("Player"))
         , PlayerClass(EPlayerClass::Mage)
         , MaxHealth(1000.f)
         , MaxStamina(500.f)
         , MaxKnowledge(30.f)
         , Level(1)
     {}
+
+    UPROPERTY(BlueprintReadWrite, EditAnywhere)
+    int32 CharacterId = 0;
 
     UPROPERTY(BlueprintReadWrite)
     FString PlayerName;
@@ -56,4 +60,6 @@ struct FPlayerCharacterData
 
     UPROPERTY(BlueprintReadWrite)
     int32 Level;
+
+
 };

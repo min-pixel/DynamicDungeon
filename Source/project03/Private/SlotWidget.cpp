@@ -199,7 +199,6 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
 
     
 
-
     const int32 FromIndex = SourceSlot->SlotIndex;
     const int32 ToIndex = this->SlotIndex;
 
@@ -315,59 +314,91 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         }
     }
 
-    // 상점창 → 인벤토리 (구매)
-    else if (SourceSlot->bIsShopSlot && !this->bIsShopSlot)
+    // 상점창 → 창고 (구매) 조건 안에 추가
+    else if (SourceSlot->bIsShopSlot && this->bIsChestInventory && !this->bIsShopSlot)
     {
+        UE_LOG(LogTemp, Error, TEXT("Entering Shop→Storage logic"));
+
         if (InventoryOwner && InventoryOwner->InventoryRef)
         {
+            UE_LOG(LogTemp, Error, TEXT("InventoryOwner and InventoryRef are valid"));
+
             const int32 ItemPrice = SourceSlot->StoredData.Price;
+            UE_LOG(LogTemp, Error, TEXT("Item price: %d"), ItemPrice);
 
-            // 멀티플레이어 환경: 서버 RPC 호출
-            InventoryOwner->InventoryRef->ServerPurchaseItem(
-                SourceSlot->StoredData,
-                ToIndex,
-                ItemPrice
-            );
-
-            UE_LOG(LogTemp, Log, TEXT("Client: Requested purchase of %s for %d gold"),
-                *SourceSlot->StoredData.ItemName, ItemPrice);
-
-            // 로비에서의 로컬 처리 (싱글플레이어 또는 로비 전용)
-            AMyDCharacter* Player = Cast<AMyDCharacter>(GetOwningPlayerPawn());
-            if (!Player)
+            // 로비에서 로컬 처리
+            UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+            if (GameInstance)
             {
-                // 로비 상황 - GameInstance에서 직접 처리
-                UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-                if (GameInstance)
+                UE_LOG(LogTemp, Error, TEXT("GameInstance found"));
+                UE_LOG(LogTemp, Error, TEXT("Current LobbyGold: %d"), GameInstance->LobbyGold);
+                UE_LOG(LogTemp, Error, TEXT("Required price: %d"), ItemPrice);
+
+                if (GameInstance->LobbyGold >= ItemPrice)
                 {
-                    if (GameInstance->LobbyGold >= ItemPrice)
+                    UE_LOG(LogTemp, Error, TEXT("Sufficient gold - processing purchase"));
+
+                    // 골드 차감 및 아이템 추가
+                    GameInstance->LobbyGold -= ItemPrice;
+                    UE_LOG(LogTemp, Error, TEXT("Gold after purchase: %d"), GameInstance->LobbyGold);
+
+                    // 슬롯 유효성 재확인
+                    if (InventoryOwner->InventoryRef->InventoryItemsStruct.IsValidIndex(ToIndex))
                     {
-                        // 로비에서는 로컬로 처리 (서버가 없으므로)
-                        GameInstance->LobbyGold -= ItemPrice;
+                        UE_LOG(LogTemp, Error, TEXT("ToIndex %d is valid"), ToIndex);
+
                         InventoryOwner->InventoryRef->InventoryItemsStruct[ToIndex] = SourceSlot->StoredData;
+                        UE_LOG(LogTemp, Error, TEXT("Item added to storage"));
+
+                        // UI 새로고침
+                        InventoryOwner->RefreshInventoryStruct();
+                        UE_LOG(LogTemp, Error, TEXT("Storage UI refreshed"));
 
                         // 골드 UI 업데이트
                         if (ULobbyWidget* Lobby = GetTypedOuter<ULobbyWidget>())
                         {
+                            UE_LOG(LogTemp, Error, TEXT("LobbyWidget found"));
                             if (Lobby->GoldWidgetInstance)
                             {
+                                UE_LOG(LogTemp, Error, TEXT("GoldWidget found - updating"));
                                 Lobby->GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+                                UE_LOG(LogTemp, Error, TEXT("Gold UI updated"));
+                            }
+                            else
+                            {
+                                UE_LOG(LogTemp, Error, TEXT("GoldWidget is NULL"));
                             }
                         }
+                        else
+                        {
+                            UE_LOG(LogTemp, Error, TEXT("LobbyWidget not found"));
+                        }
 
-                        UE_LOG(LogTemp, Log, TEXT("Lobby purchase successful: %s for %d gold"),
-                            *SourceSlot->StoredData.ItemName, ItemPrice);
+                        UE_LOG(LogTemp, Error, TEXT("Shop → Storage purchase COMPLETED!"));
                     }
                     else
                     {
-                        UE_LOG(LogTemp, Warning, TEXT("Not enough gold in lobby"));
+                        UE_LOG(LogTemp, Error, TEXT("ToIndex %d is INVALID"), ToIndex);
                     }
                 }
+                else
+                {
+                    UE_LOG(LogTemp, Error, TEXT("Not enough gold: have %d, need %d"),
+                        GameInstance->LobbyGold, ItemPrice);
+                }
             }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("GameInstance not found"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("InventoryOwner or InventoryRef is NULL"));
         }
     }
 
-    // 인벤토리 → 상점창 (판매)
+    //판매 - 구매 코드와 완전히 동일한 방식
     else if (!SourceSlot->bIsShopSlot && this->bIsShopSlot)
     {
         if (SourceSlot->InventoryOwner && SourceSlot->InventoryOwner->InventoryRef)
@@ -375,40 +406,43 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
             const int32 ItemPrice = SourceSlot->StoredData.Price;
             const int32 SellPrice = FMath::FloorToInt(ItemPrice * 0.6f);
 
-            // 멀티플레이어 환경: 서버 RPC 호출
-            SourceSlot->InventoryOwner->InventoryRef->ServerSellItem(
-                SourceSlot->SlotIndex,
-                SellPrice
-            );
-
-            UE_LOG(LogTemp, Log, TEXT("Client: Requested sale of %s for %d gold"),
-                *SourceSlot->StoredData.ItemName, SellPrice);
-
-            // 로비에서의 로컬 처리
-            AMyDCharacter* Player = Cast<AMyDCharacter>(GetOwningPlayerPawn());
-            if (!Player)
+            UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+            if (GameInstance)
             {
-                UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-                if (GameInstance)
+                // 구매와 동일: 골드 증가
+                GameInstance->LobbyGold += SellPrice;
+
+                // 구매와 동일: 아이템 제거
+                SourceSlot->InventoryOwner->InventoryRef->InventoryItemsStruct[SourceSlot->SlotIndex] = FItemData();
+
+                // 구매와 동일: UI 새로고침 (SourceSlot이 아닌 InventoryOwner 기준)
+                if (SourceSlot->InventoryOwner)
                 {
-                    // 로비에서는 로컬로 처리
-                    GameInstance->LobbyGold += SellPrice;
-                    SourceSlot->SetItemData(FItemData());
-
-                    // 골드 UI 업데이트
-                    if (GameInstance->LobbyWidgetInstance &&
-                        GameInstance->LobbyWidgetInstance->GoldWidgetInstance)
-                    {
-                        GameInstance->LobbyWidgetInstance->GoldWidgetInstance->UpdateGoldAmount(
-                            GameInstance->LobbyGold
-                        );
-                    }
-
-                    UE_LOG(LogTemp, Log, TEXT("Lobby sale successful: received %d gold"), SellPrice);
+                    SourceSlot->InventoryOwner->RefreshInventoryStruct();
                 }
-            }
 
-            return true;
+                // 구매와 완전히 동일: SourceSlot이 아닌 일반 슬롯에서 LobbyWidget 찾기
+                if (ULobbyWidget* Lobby = SourceSlot->InventoryOwner->GetTypedOuter<ULobbyWidget>())
+                {
+                    if (Lobby->GoldWidgetInstance)
+                    {
+                        Lobby->GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+                        UE_LOG(LogTemp, Warning, TEXT("Gold UI updated via SourceSlot->InventoryOwner"));
+                    }
+                }
+                // 백업: 기존 방식도 시도
+                /*else if (ULobbyWidget* Lobby = GetTypedOuter<ULobbyWidget>())
+                {
+                    if (Lobby->GoldWidgetInstance)
+                    {
+                        Lobby->GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+                        UE_LOG(LogTemp, Warning, TEXT("Gold UI updated via GetTypedOuter"));
+                    }
+                }*/
+
+                UE_LOG(LogTemp, Log, TEXT("Sale successful: +%d gold, total: %d"), SellPrice, GameInstance->LobbyGold);
+                return true;
+            }
         }
     }
 

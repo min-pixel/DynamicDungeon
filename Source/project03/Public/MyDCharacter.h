@@ -223,6 +223,31 @@ public:
 	virtual void Restart() override;
 	void SetupInventoryAndEquipmentUI();
 
+	UFUNCTION(BlueprintCallable)
+	void RestoreDataFromLobby();
+
+	UFUNCTION(Server, Reliable)
+	void ServerHostTravel();
+
+	FTimerHandle TimerHandle_ServerTravel;
+
+	UFUNCTION(Server, Reliable)
+	void ServerHandleDeath();
+
+	UFUNCTION(Server, Reliable)
+	void ServerTeleportToEscapeObject();
+	
+
+
+	UFUNCTION(Server, Reliable)
+	void ServerHandleEscape();
+
+	UFUNCTION(Client, Reliable)
+	void ClientEnterSpectatorMode();
+
+	// 모든 플레이어가 끝났는지 확인
+	UFUNCTION(Server, Reliable)
+	void ServerCheckAllPlayersFinished();
 
 	//맵뷰
 	UPROPERTY()
@@ -461,7 +486,7 @@ public:
 	UFUNCTION()
 	void TeleportToWFCRegen();
 
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void TeleportToEscapeObject();
 
 	UFUNCTION()

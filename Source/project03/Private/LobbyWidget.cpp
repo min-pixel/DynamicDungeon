@@ -18,7 +18,6 @@ void ULobbyWidget::NativeConstruct()
     Super::NativeConstruct();
 
     SetIsFocusable(true);
-    bIsAuthenticated = false;
 
     // AuthManager 가져오기
     AuthMgr = GetGameInstance()->GetSubsystem<UAuthManager>();
@@ -27,37 +26,53 @@ void ULobbyWidget::NativeConstruct()
         AuthMgr->OnAuthResponse.AddDynamic(this, &ULobbyWidget::OnAuthResponse);
     }
 
-    // ========== 인증 화면 버튼 바인딩 ==========
+    // 버튼 바인딩
     if (LoginButton)
         LoginButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLoginClicked);
-
     if (RegisterButton)
         RegisterButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRegisterClicked);
-
-    // ========== 메인 로비 버튼 바인딩 ==========
     if (StartGameButton)
         StartGameButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnStartGameClicked);
-
     if (GoToShopButton)
         GoToShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnGoToShopClicked);
-
     if (LeftArrowButton)
         LeftArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLeftArrowClicked);
-
     if (RightArrowButton)
         RightArrowButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnRightArrowClicked);
-
     if (CloseShopButton)
         CloseShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnCloseShopButtonClicked);
 
-    // GameInstance에 위젯 참조 저장
-    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    // GameInstance 확인
+    UDynamicDungeonInstance* GameInstance =Cast<UDynamicDungeonInstance>(GetWorld()->GetGameInstance());
     if (GameInstance)
     {
         GameInstance->LobbyWidgetInstance = this;
+
+        // 게임에서 돌아온 경우 처리
+        if (GameInstance->bIsReturningFromGame && GameInstance->bHasValidCharacterData)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Returning from game with valid data - skip login"));
+
+            // 이미 인증된 상태로 설정
+            bIsAuthenticated = true;
+
+            UE_LOG(LogTemp, Warning,
+                TEXT("[DEBUG LobbyWidget] Construct: Returning=%d, ValidData=%d"),
+                GameInstance->bIsReturningFromGame, GameInstance->bHasValidCharacterData);
+
+            // 플래그 리셋
+            GameInstance->bIsReturningFromGame = false;
+
+            // 바로 메인 로비로 이동
+            ShowMainLobby();
+            return;
+        }
+        else {
+            UE_LOG(LogTemp, Error, TEXT("[DEBUG LobbyWidget] GameInstance cast failed!"));
+        }
     }
 
-    // 초기 상태: 인증 화면 표시
+    // 처음 시작하는 경우 - 인증 화면 표시
     ShowAuthScreen();
 }
 
@@ -85,6 +100,16 @@ void ULobbyWidget::ShowAuthScreen()
 
 void ULobbyWidget::ShowMainLobby()
 {
+
+    // 인증되지 않았으면 로그인 화면으로
+    if (!bIsAuthenticated)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Not authenticated - showing auth screen"));
+        ShowAuthScreen();
+        return;
+    }
+
+
     if (MainSwitcher)
     {
         MainSwitcher->SetActiveWidgetIndex(1); // 인덱스 1: 메인 로비
@@ -181,6 +206,7 @@ void ULobbyWidget::OnAuthResponse(bool bSuccess, FCharacterLoginData CharacterDa
             UE_LOG(LogTemp, Warning, TEXT("[Auth] Login SUCCESS - Character: %s, Class: %d, Gold: %d"),
                 *CharacterData.CharacterName, CharacterData.PlayerClass, CharacterData.Gold);
 
+
             bIsAuthenticated = true;
 
             // 받은 캐릭터 데이터를 GameInstance에 저장
@@ -195,6 +221,7 @@ void ULobbyWidget::OnAuthResponse(bool bSuccess, FCharacterLoginData CharacterDa
                 GameInstance->CurrentCharacterData.MaxStamina = CharacterData.MaxStamina;
                 GameInstance->CurrentCharacterData.MaxKnowledge = CharacterData.MaxKnowledge;
                 GameInstance->LobbyGold = CharacterData.Gold;
+                GameInstance->bHasValidCharacterData = true;
 
                 UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Saved character data to GameInstance"));
             }
@@ -231,6 +258,8 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
         UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Cannot initialize lobby - not authenticated"));
         return;
     }
+
+    
 
     PlayerCharacter = Player;
 
@@ -323,6 +352,12 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
     // (5) 장비창 위젯 설정
     if (EquipmentWidgetInstance)
     {
+        UE_LOG(LogTemp, Error, TEXT("=== EQUIPMENT WIDGET CONNECTION DEBUG ==="));
+
+        EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
+
+        
+
         EquipmentWidgetInstance->AddToViewport(1);
         EquipmentWidgetInstance->RefreshEquipmentSlots();
     }
@@ -333,11 +368,103 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
         GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
     }
 
+    // 플레이어 인벤토리 컴포넌트 검증
+    if (InventoryComponentRef)
+    {
+        UE_LOG(LogTemp, Error, TEXT("=== PLAYER INVENTORY COMPONENT CHECK ==="));
+        UE_LOG(LogTemp, Error, TEXT("InventoryComponentRef: VALID"));
+        UE_LOG(LogTemp, Error, TEXT("IsValidLowLevel: %s"), InventoryComponentRef->IsValidLowLevel() ? TEXT("TRUE") : TEXT("FALSE"));
+        UE_LOG(LogTemp, Error, TEXT("Array Size: %d"), InventoryComponentRef->InventoryItemsStruct.Num());
+        UE_LOG(LogTemp, Error, TEXT("Capacity: %d"), InventoryComponentRef->Capacity);
+        UE_LOG(LogTemp, Error, TEXT("Owner: %s"), InventoryComponentRef->GetOwner() ? TEXT("VALID") : TEXT("NULL"));
+    }
+
+    // 창고 컴포넌트 검증
+    if (StorageComponentRef)
+    {
+        UE_LOG(LogTemp, Error, TEXT("=== STORAGE COMPONENT CHECK ==="));
+        UE_LOG(LogTemp, Error, TEXT("StorageComponentRef: VALID"));
+        UE_LOG(LogTemp, Error, TEXT("IsValidLowLevel: %s"), StorageComponentRef->IsValidLowLevel() ? TEXT("TRUE") : TEXT("FALSE"));
+        UE_LOG(LogTemp, Error, TEXT("Array Size: %d"), StorageComponentRef->InventoryItemsStruct.Num());
+        UE_LOG(LogTemp, Error, TEXT("Capacity: %d"), StorageComponentRef->Capacity);
+        UE_LOG(LogTemp, Error, TEXT("Owner: %s"), StorageComponentRef->GetOwner() ? TEXT("VALID") : TEXT("NULL"));
+    }
+
+    // 위젯 연결 상태 검증
+    if (InventoryWidgetInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("=== INVENTORY WIDGET CHECK ==="));
+        UE_LOG(LogTemp, Error, TEXT("InventoryWidgetInstance: VALID"));
+        UE_LOG(LogTemp, Error, TEXT("InventoryRef: %s"), InventoryWidgetInstance->InventoryRef ? TEXT("VALID") : TEXT("NULL"));
+        if (InventoryWidgetInstance->InventoryRef)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Widget's InventoryRef Size: %d"), InventoryWidgetInstance->InventoryRef->InventoryItemsStruct.Num());
+        }
+    }
+
+    if (StorageWidgetInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("=== STORAGE WIDGET CHECK ==="));
+        UE_LOG(LogTemp, Error, TEXT("StorageWidgetInstance: VALID"));
+        UE_LOG(LogTemp, Error, TEXT("InventoryRef: %s"), StorageWidgetInstance->InventoryRef ? TEXT("VALID") : TEXT("NULL"));
+        if (StorageWidgetInstance->InventoryRef)
+        {
+            UE_LOG(LogTemp, Error, TEXT("Widget's InventoryRef Size: %d"), StorageWidgetInstance->InventoryRef->InventoryItemsStruct.Num());
+        }
+    }
+
+
     UE_LOG(LogTemp, Warning, TEXT("Main Lobby Initialized Successfully"));
 }
 
 void ULobbyWidget::OnStartGameClicked()
 {
+
+    if (ShopWidgetInstance) ShopWidgetInstance->RemoveFromParent();
+
+    // GameInstance에 현재 로비 상태 저장
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance)
+    {
+        // 인벤토리 데이터 저장
+        if (InventoryComponentRef && InventoryComponentRef->InventoryItemsStruct.Num() > 0)
+        {
+            GameInstance->SavedInventoryItems = InventoryComponentRef->InventoryItemsStruct;
+            UE_LOG(LogTemp, Warning, TEXT("Saved %d inventory items"), GameInstance->SavedInventoryItems.Num());
+
+            // 저장된 아이템들 로그 출력
+            for (int32 i = 0; i < GameInstance->SavedInventoryItems.Num(); ++i)
+            {
+                if (GameInstance->SavedInventoryItems[i].ItemClass)
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("  Slot %d: %s"), i, *GameInstance->SavedInventoryItems[i].ItemName);
+                }
+            }
+        }
+
+        // 창고 데이터 저장
+        if (StorageComponentRef && StorageComponentRef->InventoryItemsStruct.Num() > 0)
+        {
+            GameInstance->SavedStorageItems = StorageComponentRef->InventoryItemsStruct;
+            UE_LOG(LogTemp, Warning, TEXT("Saved %d storage items"), GameInstance->SavedStorageItems.Num());
+        }
+
+        // 장비 데이터 저장
+        if (EquipmentWidgetInstance)
+        {
+            GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->GetAllEquipmentData();
+            UE_LOG(LogTemp, Warning, TEXT("Saved equipment data"));
+        }
+
+        // 로비 골드를 캐릭터 데이터에 동기화
+        GameInstance->CurrentCharacterData.Gold = GameInstance->LobbyGold;
+        UE_LOG(LogTemp, Warning, TEXT("Synchronized gold: %d"), GameInstance->LobbyGold);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("GameInstance not found - data will be lost!"));
+    }
+
     AMyPlayerController* PC = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(this, 0));
 
     if (PC && PC->GetPawn())
@@ -368,7 +495,7 @@ void ULobbyWidget::OnGoToShopClicked()
     UE_LOG(LogTemp, Warning, TEXT("Go to Shop button clicked"));
 
     // 기존 창 숨기기
-    //if (InventoryWidgetInstance) InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+    if (InventoryWidgetInstance) InventoryWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
     if (EquipmentWidgetInstance) EquipmentWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 
     if (!ShopWidgetInstance && ShopWidgetClass)
@@ -397,6 +524,7 @@ void ULobbyWidget::OnGoToShopClicked()
 
             ShopWidgetInstance->ShopItemList = Items;
             ShopWidgetInstance->TargetInventory = InventoryComponentRef;
+            ShopWidgetInstance->StorageInventory = StorageComponentRef;
             ShopWidgetInstance->SlotWidgetClass = InventoryWidgetInstance->SlotWidgetClass;
 
             ShopWidgetInstance->PopulateShopItems();

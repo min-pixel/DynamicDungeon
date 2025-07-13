@@ -104,12 +104,16 @@ bool USocketManager::Connect(const FString& Address, int32 Port)
     // 이미 연결되어 있으면 기존 연결 유지
     if (IsConnected())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[SocketManager] Already connected - keeping existing connection"));
+        UE_LOG(LogTemp, Warning, TEXT("[SocketManager] Already connected to %s:%d - keeping existing connection"), *Address, Port);
         return true;
     }
 
-    // 이전 연결 정리
-    Disconnect();
+    // 기존 연결이 있다면 정리 후 새로 연결
+    if (Socket)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[SocketManager] Cleaning up existing socket before new connection"));
+        Disconnect();
+    }
 
     UE_LOG(LogTemp, Warning, TEXT("[SocketManager] Connecting to %s:%d..."), *Address, Port);
 

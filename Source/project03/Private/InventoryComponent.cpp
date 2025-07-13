@@ -163,7 +163,7 @@ void UInventoryComponent::ServerMoveItem_Implementation(UInventoryComponent* Sou
         InventoryItemsStruct.IsValidIndex(ToIndex))
     {
         FItemData Moved = SourceInv->InventoryItemsStruct[FromIndex];
-        SourceInv->InventoryItemsStruct.RemoveAt(FromIndex);
+        SourceInv->InventoryItemsStruct[FromIndex] = FItemData();
         InventoryItemsStruct[ToIndex] = Moved;
     }
 

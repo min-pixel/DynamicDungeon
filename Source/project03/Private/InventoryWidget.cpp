@@ -80,6 +80,8 @@ void UInventoryWidget::RefreshInventoryStruct()
 {
     if (!ItemContainer || !InventoryRef) return;
 
+
+
     ItemContainer->ClearChildren();
 
     const int32 SlotCount = InventoryRef->InventoryItemsStruct.Num();

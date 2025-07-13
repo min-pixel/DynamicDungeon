@@ -10,6 +10,9 @@
 
 void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
 {
+
+
+
     if (!EquipmentSlots.IsValidIndex(Index))
     {
         return;
@@ -111,6 +114,7 @@ void UEquipmentWidget::RefreshEquipmentSlots()
 {
     EquipmentSlots.SetNum(9);
     EquipmentSlotContainer->ClearChildren();
+
     for (int32 i = 0; i < EquipmentSlots.Num(); ++i)
     {
         USlotWidget* NewSlot = CreateWidget<USlotWidget>(this, SlotWidgetClass);
@@ -146,6 +150,8 @@ void UEquipmentWidget::RefreshEquipmentSlots()
         }
     }
 }
+
+
 
 TArray<FItemData> UEquipmentWidget::GetAllEquipmentData() const
 {

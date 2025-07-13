@@ -78,7 +78,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Spawn")
 	FVector GetFallbackSpawnLocation() const;
 
+	void CheckAllPlayersStatus();
+
+
+
 private:
+
+	FTimerHandle AllPlayersFinishedTimer;
 
     UPROPERTY()
     TArray<AActor*> CachedPlayerStarts;

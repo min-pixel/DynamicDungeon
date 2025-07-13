@@ -21,7 +21,77 @@ ADynamicDungeonModeBase::ADynamicDungeonModeBase() {
 
     PlayerControllerClass = AMyPlayerController::StaticClass();
 
+    bUseSeamlessTravel = true;
+
 }
+
+void ADynamicDungeonModeBase::CheckAllPlayersStatus()
+{
+    int32 ActivePlayers = 0;
+    int32 SpectatingPlayers = 0;
+
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        APlayerController* PC = It->Get();
+        if (PC)
+        {
+            if (PC->GetStateName() == NAME_Spectating)
+            {
+                SpectatingPlayers++;
+            }
+            else if (PC->GetPawn() && PC->GetPawn()->IsA<AMyDCharacter>())
+            {
+                ActivePlayers++;
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("GameMode: Player Status - Active: %d, Spectating: %d"),
+        ActivePlayers, SpectatingPlayers);
+
+    if (ActivePlayers == 0 && SpectatingPlayers > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("GameMode: All players finished! Returning to lobby..."));
+
+        for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+        {
+            APlayerController* PC = It->Get();
+            if (!PC) continue;
+
+            if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(PC))
+            {
+                MyPC->ClientReturnToLobby();
+            }
+        }
+
+        // 잠시 후 ServerTravel로 모든 플레이어 이동
+        FTimerHandle TravelTimer;
+        GetWorld()->GetTimerManager().SetTimer(TravelTimer, [this]()
+            {
+                UWorld* World = GetWorld();
+                if (World)
+                {
+                    World->ServerTravel("LobbyMap?listen");
+                }
+            }, 0.2f, false);
+
+        //// 각 플레이어 개별 이동
+        //for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+        //{
+        //    APlayerController* PC = It->Get();
+        //    if (!PC) continue;
+
+        //    // APlayerController → AMyPlayerController 로 캐스팅
+        //    if (AMyPlayerController* MyPC = Cast<AMyPlayerController>(PC))
+        //    {
+        //        // 이제 멤버 함수 호출 가능
+        //        MyPC->ClientReturnToLobby();
+        //    }
+        //}
+    }
+}
+
+
 
 void ADynamicDungeonModeBase::BeginPlay()
 {

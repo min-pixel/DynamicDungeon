@@ -46,7 +46,30 @@ public:
     UFUNCTION(Client, Reliable)
     void ClientUpdateWaitWidget(int32 ReadyCount, int32 TotalCount);
 
+    // Seamless Travel 관련 함수들 - 올바른 매개변수 타입
+    virtual void GetSeamlessTravelActorList(bool bToTransition, TArray<AActor*>& ActorList) override;
+    virtual void SeamlessTravelTo(APlayerController* NewPC) override;
+    virtual void SeamlessTravelFrom(APlayerController* OldPC) override;
+
+    // 개별 플레이어 이동을 위한 함수 추가
+    UFUNCTION(Server, Reliable)
+    void ServerRequestIndividualTravel(const FString& LevelName);
+
+    FTimerHandle TimerHandle_ShowLobby;
+
+    UFUNCTION(Client, Reliable)
+    void ClientReturnToLobby();
 
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+    // 게임 종료 관련
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+    // ESC 키 처리
+    UFUNCTION()
+    void OnEscapePressed();
+
+protected:
+    virtual void SetupInputComponent() override;
 	
 };

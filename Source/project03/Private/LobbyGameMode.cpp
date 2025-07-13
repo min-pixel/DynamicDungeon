@@ -13,7 +13,7 @@ ALobbyGameMode::ALobbyGameMode()
 	//PlayerControllerClass = APlayerController::StaticClass();
 
 	PlayerControllerClass = AMyPlayerController::StaticClass();
-
+	bUseSeamlessTravel = true;
 }
 
 

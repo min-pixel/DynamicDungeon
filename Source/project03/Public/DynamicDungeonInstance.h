@@ -59,7 +59,7 @@ public:
     TArray<FItemData> SavedStorageItems;
 
     UPROPERTY(BlueprintReadWrite, EditAnywhere)
-    int32 LobbyGold = 10340;
+    int32 LobbyGold = 1000;
 
     FPlayerCharacterData CurrentCharacterData;
 
@@ -69,8 +69,55 @@ public:
     int32 GetLobbyGold() const { return LobbyGold; }
 
     UPROPERTY()
+    bool bIsReturningFromGame = false;
+
+    UPROPERTY()
+    bool bHasValidCharacterData = false;
+
+    // 게임 종료 시 데이터 저장
+    UFUNCTION(BlueprintCallable, Category = "Save")
+    void SaveAllDataToServer();
+
+    // JSON 형태로 모든 게임 데이터 수집
+    FString CollectAllGameData();
+
+    UPROPERTY()
     class ULobbyWidget* LobbyWidgetInstance;
 
+
+    void OnPreLoadMap(const FString& MapName);
+    void OnPostLoadMap(UWorld* LoadedWorld);
    
+    UFUNCTION(BlueprintCallable, Category = "Save")
+    void SaveDataAndShutdown();
+
+    // 저장 상태 추적
+    UPROPERTY()
+    bool bIsSaving = false;
+
+    UPROPERTY()
+    bool bSaveCompleted = false;
+
+    // 저장 완료 콜백
+    UFUNCTION()
+    void OnSaveDataCompleted(bool bSuccess);
+
+    // 안전한 종료 처리
+    void SafeShutdown();
+
+    void WaitForSaveCompletion();
+
+    bool bShutdownRequested = false;
+
+
+
+private:
+    // 저장 대기 타이머
+    FTimerHandle SaveWaitTimer;
+
+    FTimerHandle CheckSaveTimer;
+
+    // 최대 저장 대기 시간 (초)
+    float MaxSaveWaitTime = 5.0f;
 
 };

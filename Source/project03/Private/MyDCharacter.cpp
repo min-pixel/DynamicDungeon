@@ -8,6 +8,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "DynamicDungeonInstance.h"
+#include "DynamicDungeonModeBase.h"
 #include "Animation/AnimInstance.h"  // 애니메이션 관련 클래스 추가
 #include "Components/BoxComponent.h"  // 콜리전 박스 추가
 #include "Weapon.h"
@@ -19,6 +20,7 @@
 #include "Armor.h"
 #include "Hat.h"
 #include "Mask.h"
+#include "GameFramework/PlayerState.h"
 #include "RobeTop.h"
 #include "RobeBottom.h"
 #include "StaminaPotion.h"
@@ -511,17 +513,30 @@ void AMyDCharacter::BeginPlay()
 		EscapeDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
 	}
 
-	if (GoldWidgetClass)
+	if (IsLocallyControlled() && GoldWidgetClass)
 	{
+		// 기존 위젯이 있으면 제거
+		if (GoldWidgetInstance)
+		{
+			GoldWidgetInstance->RemoveFromParent();
+			GoldWidgetInstance = nullptr;
+			UE_LOG(LogTemp, Warning, TEXT("Removed existing Gold Widget"));
+		}
+
+		// 새로 생성
 		GoldWidgetInstance = CreateWidget<UGoldWidget>(GetWorld(), GoldWidgetClass);
 		if (GoldWidgetInstance)
 		{
 			GoldWidgetInstance->AddToViewport();
 			GoldWidgetInstance->UpdateGoldAmount(Gold);
-			//GoldWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
+			UE_LOG(LogTemp, Warning, TEXT("Gold Widget created successfully"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to create Gold Widget"));
 		}
 	}
-
+	
 
 
 	//UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
@@ -577,6 +592,7 @@ void AMyDCharacter::BeginPlay()
 		}
 	}
 
+	RestoreDataFromLobby();
 
 }
 
@@ -627,7 +643,35 @@ void AMyDCharacter::Restart()
 				EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
 			}
 		}
+
+		if (GoldWidgetClass)
+		{
+			// 기존 위젯이 있으면 제거
+			if (GoldWidgetInstance)
+			{
+				GoldWidgetInstance->RemoveFromParent();
+				GoldWidgetInstance = nullptr;
+				UE_LOG(LogTemp, Warning, TEXT("Removed existing Gold Widget"));
+			}
+
+			// 새로 생성
+			GoldWidgetInstance = CreateWidget<UGoldWidget>(GetWorld(), GoldWidgetClass);
+			if (GoldWidgetInstance)
+			{
+				GoldWidgetInstance->AddToViewport();
+				GoldWidgetInstance->UpdateGoldAmount(Gold);
+				UE_LOG(LogTemp, Warning, TEXT("Gold Widget created successfully"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Failed to create Gold Widget"));
+			}
+		}
+
 	}
+
+	RestoreDataFromLobby();
+
 }
 
 void AMyDCharacter::SetupInventoryAndEquipmentUI()
@@ -2185,30 +2229,116 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 
 	if (Health <= 0)
 	{
-
-		// 랙돌 활성화
 		DoRagDoll();
-
-		// 컨트롤러 비활성화 (입력 차단)
-		AController* PlayerController = GetController();
-		if (PlayerController)
+		if (IsLocallyControlled())
 		{
-			PlayerController->UnPossess();
+			ExecuteEscape();       // 인벤토리·플래그
 		}
-
-		// 애니메이션 중지
-		GetMesh()->bPauseAnims = true;
-		GetMesh()->bNoSkeletonUpdate = true;
-
-		// 이동 멈추기
-		GetCharacterMovement()->DisableMovement();
-
-		Die();
-		return;
-
+		if (HasAuthority())
+		{
+			ServerHandleEscape();  // 서버 RPC · 파괴 타이머
+		}
 	}
 
 }
+
+void AMyDCharacter::ServerHandleDeath_Implementation()
+{
+	if (!HasAuthority()) return;
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
+
+	UE_LOG(LogTemp, Warning, TEXT("ServerHandleDeath - Player %s died"), *PC->GetPlayerState<APlayerState>()->GetPlayerName());
+
+	// 데이터 저장
+	//UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	//if (GameInstance)
+	//{
+	//	// 인벤토리, 장비 등 저장
+	//	//SaveDataToGameInstance();
+
+	//}
+
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	if (GameInstance)
+	{
+		GameInstance->bIsReturningFromGame = true;
+		if (!GameInstance->CurrentCharacterData.PlayerName.IsEmpty())
+		{
+			GameInstance->bHasValidCharacterData = true;
+		}
+	}
+	// 관전자 모드로 전환
+	PC->UnPossess();
+	PC->ChangeState(NAME_Spectating);
+	PC->ClientGotoState(NAME_Spectating);
+
+	// 클라이언트에게 관전자 UI 표시
+	ClientEnterSpectatorMode();
+
+	// 캐릭터 제거 (일정 시간 후)
+	FTimerHandle DestroyTimer;
+	GetWorldTimerManager().SetTimer(DestroyTimer, [this]()
+		{
+			if (IsValid(this))
+			{
+				Destroy();
+			}
+		}, 3.0f, false);
+
+	// GameMode에서 체크하도록 변경
+	ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(GetWorld()->GetAuthGameMode());
+	if (GameMode)
+	{
+		// 타이머로 딜레이 후 체크
+		FTimerHandle CheckTimer;
+		GetWorld()->GetTimerManager().SetTimer(CheckTimer, [GameMode]()
+			{
+				if (IsValid(GameMode))
+				{
+					GameMode->CheckAllPlayersStatus();
+				}
+			}, 1.0f, false);
+	}
+}
+
+void AMyDCharacter::ClientEnterSpectatorMode_Implementation()
+{
+	UE_LOG(LogTemp, Warning, TEXT("ClientEnterSpectatorMode - Entering spectator mode"));
+
+	/*if (IsLocallyControlled())
+	{*/
+		UDynamicDungeonInstance* GI = Cast<UDynamicDungeonInstance>(GetGameInstance());
+		if (GI)
+		{
+			GI->bIsReturningFromGame = true;
+			if (!GI->CurrentCharacterData.PlayerName.IsEmpty())
+				GI->bHasValidCharacterData = true;
+		}
+	//}
+
+	// 게임 UI 숨기기
+	if (HUDWidget) HUDWidget->SetVisibility(ESlateVisibility::Hidden);
+	if (InventoryWidgetInstance) InventoryWidgetInstance->RemoveFromParent();
+	if (EquipmentWidgetInstance) EquipmentWidgetInstance->RemoveFromParent();
+
+	// 관전자 UI 표시
+	APlayerController* PC = GetController<APlayerController>();
+	if (PC)
+	{
+		// 간단한 관전자 메시지
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Yellow,
+				TEXT("You are now spectating. Waiting for other players to finish..."));
+		}
+
+		
+	}
+}
+
+
 
 void AMyDCharacter::DoRagDoll() 
 {
@@ -2338,6 +2468,21 @@ void AMyDCharacter::TriggerDelayedWFC()
 
 void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 {
+
+	// 유효성 검사 강화
+	if (!IsValid(this) || !GetWorld())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ShowWFCFadeAndRegenSequence - Invalid state"));
+		return;
+	}
+
+	// 관전자가 아닌 경우만 처리
+	APlayerController* PC = GetController<APlayerController>();
+	if (!PC || PC->GetStateName() == NAME_Spectating)
+	{
+		return;
+	}
+
 	if (WFCWarningWidgetInstance)
 	{
 		if (!WFCWarningWidgetInstance->IsInViewport())
@@ -2862,17 +3007,197 @@ void AMyDCharacter::FadeAndEscape()
 void AMyDCharacter::ExecuteEscape()
 {
 
-	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-	if (GameInstance && InventoryComponent)
+	// 로컬 플레이어인지 확인
+	if (IsLocallyControlled())
 	{
-		GameInstance->SavedInventoryItems = InventoryComponent->InventoryItemsStruct;
-		GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->GetAllEquipmentData();
+
+
+
+
+		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+		if (GameInstance)
+		{
+			// 1. 장비창의 모든 아이템을 인벤토리/창고로 이동
+			if (EquipmentWidgetInstance && InventoryComponent)
+			{
+				TArray<FItemData> EquipmentItems = EquipmentWidgetInstance->GetAllEquipmentData();
+
+				for (int32 i = 0; i < EquipmentItems.Num(); ++i)
+				{
+					if (EquipmentItems[i].ItemClass)
+					{
+						bool bAddedToInventory = false;
+
+						// 인벤토리에 빈 슬롯 찾기
+						for (int32 j = 0; j < InventoryComponent->InventoryItemsStruct.Num(); ++j)
+						{
+							if (!InventoryComponent->InventoryItemsStruct[j].ItemClass)
+							{
+								InventoryComponent->InventoryItemsStruct[j] = EquipmentItems[i];
+								bAddedToInventory = true;
+								UE_LOG(LogTemp, Warning, TEXT("Moved %s from equipment slot %d to inventory slot %d"),
+									*EquipmentItems[i].ItemName, i, j);
+
+								EquipmentWidgetInstance->ClearSlot(i);
+								break;
+							}
+						}
+
+						// 인벤토리가 꽉 찼다면 창고로
+						if (!bAddedToInventory)
+						{
+							if (GameInstance->SavedStorageItems.Num() == 0)
+							{
+								GameInstance->SavedStorageItems.SetNum(50);
+							}
+
+							for (int32 k = 0; k < GameInstance->SavedStorageItems.Num(); ++k)
+							{
+								if (!GameInstance->SavedStorageItems[k].ItemClass)
+								{
+									GameInstance->SavedStorageItems[k] = EquipmentItems[i];
+									UE_LOG(LogTemp, Warning, TEXT("Moved %s from equipment slot %d to storage slot %d"),
+										*EquipmentItems[i].ItemName, i, k);
+
+									EquipmentWidgetInstance->ClearSlot(i);
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// 2. 현재 인벤토리 저장
+			if (InventoryComponent)
+			{
+				GameInstance->SavedInventoryItems = InventoryComponent->InventoryItemsStruct;
+			}
+
+			// 3. 수정된 장비창 저장
+			if (EquipmentWidgetInstance)
+			{
+				GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->GetAllEquipmentData();
+			}
+
+			//// 4. 탈출 플래그 설정
+			GameInstance->bIsReturningFromGame = true;
+			if (!GameInstance->CurrentCharacterData.PlayerName.IsEmpty())
+			{
+				GameInstance->bHasValidCharacterData = true;
+				UE_LOG(LogTemp, Warning,
+					TEXT("[DEBUG ExecuteEscape] bIsReturningFromGame=%d, bHasValidCharacterData=%d"),
+					GameInstance->bIsReturningFromGame, GameInstance->bHasValidCharacterData);
+			}
+		}
 	}
 
-	UGameplayStatics::OpenLevel(this, FName("LobbyMap")); // 로비로 이동
+	// 5. Seamless Travel 사용
+	//APlayerController* PC = Cast<APlayerController>(GetController());
+	//if (PC && IsLocallyControlled())
+	//{
+	//	// Seamless Travel - TRAVEL_Relative 사용
+	//	PC->ClientTravel(TEXT("/Game/Maps/LobbyMap"), ETravelType::TRAVEL_Relative);
+	//}
+
+	// 서버에 탈출 요청
+	ServerHandleEscape();
 
 	bIsEscapeCountdownActive = false;
 	PendingEscapeActor = nullptr;
+}
+
+void AMyDCharacter::ServerHandleEscape_Implementation()
+{
+	if (!HasAuthority()) return;
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
+
+	UE_LOG(LogTemp, Warning, TEXT("ServerHandleEscape - Player %s escaped"), *PC->GetPlayerState<APlayerState>()->GetPlayerName());
+
+	// 데이터 저장
+	//SaveDataToGameInstance();
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	if (GameInstance)
+	{
+		GameInstance->bIsReturningFromGame = true;
+		if (!GameInstance->CurrentCharacterData.PlayerName.IsEmpty())
+		{
+			GameInstance->bHasValidCharacterData = true;
+		}
+	}
+
+	// 관전자 모드로 전환
+	PC->UnPossess();
+	PC->ChangeState(NAME_Spectating);
+	PC->ClientGotoState(NAME_Spectating);
+
+	// 클라이언트에게 관전자 UI 표시
+	ClientEnterSpectatorMode();
+
+	
+	//// 캐릭터 제거 (일정 시간 후)
+	 if (HasAuthority())
+	 { 
+		FTimerHandle DestroyTimer;
+		GetWorldTimerManager().SetTimer(DestroyTimer, [this]()
+			{
+				if (IsValid(this))
+				{
+					Destroy();
+				}
+			}, 3.0f, false);
+	 }
+	// GameMode에서 체크하도록 변경
+	ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(GetWorld()->GetAuthGameMode());
+	if (GameMode)
+	{
+		FTimerHandle CheckTimer;
+		GetWorld()->GetTimerManager().SetTimer(CheckTimer, [GameMode]()
+			{
+				if (IsValid(GameMode))
+				{
+					GameMode->CheckAllPlayersStatus();
+				}
+			}, 1.0f, false);
+	}
+}
+
+void AMyDCharacter::ServerCheckAllPlayersFinished_Implementation()
+{
+	if (!HasAuthority()) return;
+
+	int32 ActivePlayers = 0;
+	int32 SpectatingPlayers = 0;
+
+	// 모든 플레이어 상태 확인
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (PC)
+		{
+			if (PC->GetStateName() == NAME_Spectating)
+			{
+				SpectatingPlayers++;
+			}
+			else if (PC->GetPawn() && PC->GetPawn()->IsA<AMyDCharacter>())
+			{
+				ActivePlayers++;
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Player Status - Active: %d, Spectating: %d"), ActivePlayers, SpectatingPlayers);
+
+	// 모든 플레이어가 관전자가 되었거나 활성 플레이어가 없으면
+	if (ActivePlayers == 0 && SpectatingPlayers > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("All players finished! Returning everyone to lobby..."));
+
+		// 모든 플레이어를 로비로 이동
+		GetWorld()->ServerTravel("/Game/Maps/LobbyMap?listen");
+	}
 }
 
 void AMyDCharacter::UpdateEscapeProgressBar()
@@ -3117,14 +3442,94 @@ void AMyDCharacter::Die()
 	//// 인벤토리 리셋
 	//if (InventoryComponent)
 	//{
-	//	InventoryComponent->ClearInventory(); // 너가 정의한 초기화 함수로 교체
+	//	InventoryComponent->ClearInventory();
 	//}
 
 	// 레벨 이동 (예: LobbyMap이라는 이름의 레벨로 전환)
-	UGameplayStatics::OpenLevel(this, FName("LobbyMap"));
+	//UGameplayStatics::OpenLevel(this, FName("LobbyMap"));
 
-	// 필요시 로그
-	UE_LOG(LogTemp, Warning, TEXT("Player died. Returning to lobby..."));
+	//if (!IsLocallyControlled()) return;
+
+	////// GameInstance에 플래그 설정
+	//UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	//if (GameInstance)
+	//{
+	//	GameInstance->bIsReturningFromGame = true;
+	//	if (!GameInstance->CurrentCharacterData.PlayerName.IsEmpty())
+	//	{
+	//		GameInstance->bHasValidCharacterData = true;
+	//	}
+	//}
+
+	////// ClientTravel로 개별 이동
+	////APlayerController* PC = Cast<APlayerController>(GetController());
+	////if (PC && IsLocallyControlled())
+	////{
+	////	// Seamless Travel - TRAVEL_Relative 사용
+	////	PC->ClientTravel(TEXT("/Game/Maps/LobbyMap"), ETravelType::TRAVEL_Relative);
+	////}
+
+	//if (HasAuthority())
+	//{
+	//	ServerHandleDeath();
+	//}
+
+	// 캐릭터 제거 (일정 시간 후)
+	/*if (HasAuthority())
+	{
+		FTimerHandle DestroyTimer;
+		GetWorldTimerManager().SetTimer(DestroyTimer, [this]()
+			{
+				if (IsValid(this))
+				{
+					Destroy();
+				}
+			}, 3.0f, false);
+	}*/
+	ExecuteEscape();
+
+	//// 필요시 로그
+	//UE_LOG(LogTemp, Warning, TEXT("Player died. Returning to lobby..."));
+}
+
+void AMyDCharacter::ServerHostTravel_Implementation()
+{
+	// 서버에서만 실행
+	if (!HasAuthority()) return;
+
+	// 현재 플레이어 컨트롤러 가져오기
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
+
+	// 게임모드에서 이 플레이어만 제거
+	AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+	if (GameMode)
+	{
+		// 플레이어를 관전자로 전환
+		PC->ChangeState(NAME_Spectating);
+		PC->ClientGotoState(NAME_Spectating);
+
+		// 캐릭터 제거
+		if (PC->GetPawn())
+		{
+			PC->GetPawn()->Destroy();
+		}
+	}
+
+	// 서버 플레이어만 로비로 이동
+	GetWorld()->GetTimerManager().SetTimer(
+		TimerHandle_ServerTravel,
+		[PC]()
+		{
+			if (PC && PC->IsLocalController())
+			{
+				// 서버 컨트롤러만 이동
+				PC->ClientTravel(TEXT("LobbyMap"), ETravelType::TRAVEL_Absolute);
+			}
+		},
+		0.5f,
+		false
+	);
 }
 
 void AMyDCharacter::ServerTeleportToWFCRegen_Implementation()
@@ -3175,41 +3580,51 @@ void AMyDCharacter::TeleportToWFCRegen()
 	ServerTeleportToWFCRegen();
 }
 
+// 클라이언트가 호출하면 서버 RPC로 위임
 void AMyDCharacter::TeleportToEscapeObject()
 {
-	UWorld* World = GetWorld();
+	if (!IsLocallyControlled()) return;
+	ServerTeleportToEscapeObject();
+}
+
+// 서버에서 모든 플레이어의 위치를 변경 → 이동 정보가 네트워크로 자동 전파됩니다
+void AMyDCharacter::ServerTeleportToEscapeObject_Implementation()
+ {
+	UWorld * World = GetWorld();
 	if (!World) return;
-
-	TArray<AActor*> EscapeActors;
+	
+		    // 태그 "Escape"가 붙은 액터 찾기
+		TArray<AActor*> EscapeActors;
 	UGameplayStatics::GetAllActorsWithTag(World, FName("Escape"), EscapeActors);
-
 	if (EscapeActors.Num() == 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("No escape objects found!"));
 		return;
 	}
-
-	// 가장 가까운 Escape 오브젝트 찾기
-	AActor* ClosestEscape = nullptr;
-	float MinDistanceSq = FLT_MAX;
-	FVector MyLocation = GetActorLocation();
-
-	for (AActor* EscapeActor : EscapeActors)
+	
+		    // 가장 가까운 오브젝트 선택
+		AActor * Closest = nullptr;
+	float MinDistSq = TNumericLimits<float>::Max();
+	const FVector MyLoc = GetActorLocation();
+	for (AActor* A : EscapeActors)
 	{
-		float DistSq = FVector::DistSquared(MyLocation, EscapeActor->GetActorLocation());
-		if (DistSq < MinDistanceSq)
+		const float DSq = FVector::DistSquared(MyLoc, A->GetActorLocation());
+		if (DSq < MinDistSq)
 		{
-			MinDistanceSq = DistSq;
-			ClosestEscape = EscapeActor;
+			MinDistSq = DSq;
+			Closest = A;
 		}
 	}
-
-	if (ClosestEscape)
-	{
-		SetActorLocation(ClosestEscape->GetActorLocation() + FVector(0, 0, 100)); // 살짝 위로 띄워서 이동
-		UE_LOG(LogTemp, Log, TEXT("Teleported to escape object: %s"), *ClosestEscape->GetName());
-	}
+	
+		if (Closest)
+		{
+			const FVector Dest = Closest->GetActorLocation() +  FVector(0, 0, 100);
+		        // 순간이동 (물리 텔레포트)
+			SetActorLocation(Dest, false, nullptr, ETeleportType::TeleportPhysics);
+			UE_LOG(LogTemp, Log, TEXT("Teleported to escape object at %s"), *Dest.ToString());
+		}
 }
+
 
 void AMyDCharacter::HealPlayer(int32 Amount)
 {
@@ -3563,4 +3978,108 @@ void AMyDCharacter::UpdateGoldUI()
 	{
 		GoldWidgetInstance->UpdateGoldAmount(Gold);
 	}
+}
+
+void AMyDCharacter::RestoreDataFromLobby()
+{
+	if (!IsLocallyControlled()) return; // 로컬 플레이어만
+
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	if (!GameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GameInstance not found for data restoration"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Restoring data from lobby..."));
+
+	// 1. 골드 복원
+	if (GameInstance->CurrentCharacterData.Gold > 0)
+	{
+		Gold = GameInstance->CurrentCharacterData.Gold;
+		UE_LOG(LogTemp, Warning, TEXT("Restored gold: %d"), Gold);
+
+		// 골드 UI 업데이트
+		if (GoldWidgetInstance)
+		{
+			GoldWidgetInstance->UpdateGoldAmount(Gold);
+		}
+	}
+	else if (GameInstance->LobbyGold > 0)
+	{
+		Gold = GameInstance->LobbyGold;
+		UE_LOG(LogTemp, Warning, TEXT("Restored gold from LobbyGold: %d"), Gold);
+
+		if (GoldWidgetInstance)
+		{
+			GoldWidgetInstance->UpdateGoldAmount(Gold);
+		}
+	}
+
+	// 2. 인벤토리 복원
+	if (InventoryComponent && GameInstance->SavedInventoryItems.Num() > 0)
+	{
+		// 인벤토리 크기 확보
+		InventoryComponent->InventoryItemsStruct.SetNum(InventoryComponent->Capacity);
+
+		// 저장된 아이템들 복원
+		for (int32 i = 0; i < GameInstance->SavedInventoryItems.Num() && i < InventoryComponent->Capacity; ++i)
+		{
+			InventoryComponent->InventoryItemsStruct[i] = GameInstance->SavedInventoryItems[i];
+
+			if (GameInstance->SavedInventoryItems[i].ItemClass)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Restored item to slot %d: %s"),
+					i, *GameInstance->SavedInventoryItems[i].ItemName);
+			}
+		}
+
+		// 인벤토리 UI 새로고침
+		if (InventoryWidgetInstance)
+		{
+			InventoryWidgetInstance->RefreshInventoryStruct();
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("Restored %d inventory items"), GameInstance->SavedInventoryItems.Num());
+	}
+
+	// 3. 장비 복원
+	if (EquipmentWidgetInstance && GameInstance->SavedEquipmentItems.Num() > 0)
+	{
+		EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
+		UE_LOG(LogTemp, Warning, TEXT("Restored equipment data"));
+
+		//// 각 장비 아이템을 실제 캐릭터에 장착
+		//for (int32 i = 0; i < GameInstance->SavedEquipmentItems.Num(); ++i)
+		//{
+		//	const FItemData& EquipData = GameInstance->SavedEquipmentItems[i];
+
+		//	if (EquipData.ItemClass)
+		//	{
+		//		if (EquipData.ItemType == EItemType::Weapon && i == EQUIP_SLOT_WEAPON)
+		//		{
+		//			// 무기 장착
+		//			EquipWeaponFromClass(EquipData.ItemClass, static_cast<EWeaponGrade>(EquipData.Grade));
+		//			UE_LOG(LogTemp, Warning, TEXT("Restored weapon: %s"), *EquipData.ItemName);
+		//		}
+		//		else if (EquipData.ItemType == EItemType::Armor)
+		//		{
+		//			// 방어구 장착
+		//			EquipArmorFromClass(i, EquipData.ItemClass, EquipData.Grade);
+		//			UE_LOG(LogTemp, Warning, TEXT("Restored armor to slot %d: %s"), i, *EquipData.ItemName);
+		//		}
+		//	}
+		//}
+		EquipmentWidgetInstance->RefreshEquipmentSlots();
+	}
+
+	// 4. 캐릭터 스탯 복원 (기존 ApplyCharacterData 함수 활용)
+	if (GameInstance->CurrentCharacterData.PlayerName != TEXT("DefaultName"))
+	{
+		ApplyCharacterData(GameInstance->CurrentCharacterData);
+		UE_LOG(LogTemp, Warning, TEXT("Applied character data: %s"),
+			*GameInstance->CurrentCharacterData.PlayerName);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Data restoration completed!"));
 }

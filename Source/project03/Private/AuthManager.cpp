@@ -5,7 +5,15 @@
 #include "Async/Async.h"
 #include "Json.h"
 #include "JsonObjectConverter.h"
+#include "DynamicDungeonInstance.h"  
+#include "PlayerCharacterData.h"
 #include "Engine/Engine.h"
+#include "Item.h"
+#include "ItemDataD.h"
+#include "Armor.h"
+#include "ScrollItem.h"
+#include "Weapon.h"
+#include "Potion.h"
 
 void UAuthManager::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -71,35 +79,35 @@ bool UAuthManager::EnsureConnection()
         }
     }
 
-    // 연결 상태 확인
-    if (!SocketMgr->IsConnected())
+    // 이미 연결되어 있으면 재연결하지 않음
+    if (SocketMgr->IsConnected())
     {
-        UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Connection lost, attempting to reconnect..."));
-
-        // 재연결 시도
-        bool bReconnected = SocketMgr->Connect(TEXT("192.168.0.12"), 3000);
-        if (bReconnected)
-        {
-            // 이벤트 재바인딩 (혹시 모르니)
-            if (!SocketMgr->OnDataReceived.IsAlreadyBound(this, &UAuthManager::HandleSocketData))
-            {
-                SocketMgr->OnDataReceived.AddDynamic(this, &UAuthManager::HandleSocketData);
-            }
-            bIsConnected = true;
-            UE_LOG(LogTemp, Log, TEXT("[AuthManager] Reconnection successful"));
-        }
-        else
-        {
-            bIsConnected = false;
-            UE_LOG(LogTemp, Error, TEXT("[AuthManager] Reconnection failed"));
-        }
-
-        return bReconnected;
+        UE_LOG(LogTemp, Log, TEXT("[AuthManager] Already connected - skipping reconnection"));
+        bIsConnected = true;
+        return true;
     }
 
-    // 이미 연결됨
-    bIsConnected = true;
-    return true;
+    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Connection lost, attempting to reconnect..."));
+
+    // 재연결 시도
+    bool bReconnected = SocketMgr->Connect(TEXT("192.168.0.12"), 3000);
+    if (bReconnected)
+    {
+        // 이벤트 재바인딩 (혹시 모르니)
+        if (!SocketMgr->OnDataReceived.IsAlreadyBound(this, &UAuthManager::HandleSocketData))
+        {
+            SocketMgr->OnDataReceived.AddDynamic(this, &UAuthManager::HandleSocketData);
+        }
+        bIsConnected = true;
+        UE_LOG(LogTemp, Log, TEXT("[AuthManager] Reconnection successful"));
+    }
+    else
+    {
+        bIsConnected = false;
+        UE_LOG(LogTemp, Error, TEXT("[AuthManager] Reconnection failed"));
+    }
+
+    return bReconnected;
 }
 
 FString UAuthManager::HashPassword(const FString& Password) const
@@ -209,6 +217,15 @@ void UAuthManager::HandleSocketData(const TArray<uint8>& Data)
     // 첫 바이트로 응답 타입 확인
     uint8 ResponseType = Data[0];
 
+    // SaveDataResponse 처리 추가
+    if (ResponseType == 2) // SaveDataResponse
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Save data response received"));
+        bool bSuccess = (Data.Num() > 0 && Data[0] > 0);
+        OnSaveDataResponse.Broadcast(bSuccess);
+        return;
+    }
+
     if (ResponseType == 0)
     {
         // 로그인/회원가입 실패
@@ -288,6 +305,19 @@ void UAuthManager::HandleSocketData(const TArray<uint8>& Data)
             UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Warning: CharacterId is 0, parsing may have failed"));
         }
 
+        if (UDynamicDungeonInstance* GI = Cast<UDynamicDungeonInstance>(GetGameInstance()))
+        {
+            GI->CurrentCharacterData.CharacterId = CharacterData.CharacterId;
+            GI->CurrentCharacterData.PlayerName = CharacterData.CharacterName;
+            GI->CurrentCharacterData.PlayerClass = static_cast<EPlayerClass>(CharacterData.PlayerClass);
+            GI->CurrentCharacterData.Level = CharacterData.Level;
+            GI->CurrentCharacterData.MaxHealth = CharacterData.MaxHealth;
+            GI->CurrentCharacterData.MaxStamina = CharacterData.MaxStamina;
+            GI->CurrentCharacterData.MaxKnowledge = CharacterData.MaxKnowledge;
+            GI->CurrentCharacterData.Gold = CharacterData.Gold;
+        }
+
+
         // UI에 결과 전달
         OnAuthResponse.Broadcast(true, CharacterData);
         return;
@@ -338,6 +368,115 @@ FCharacterLoginData UAuthManager::ParseCharacterData(const FString& JsonString)
 
         JsonObject->TryGetNumberField(TEXT("gold"), Result.Gold);
 
+        if (UDynamicDungeonInstance* GI = Cast<UDynamicDungeonInstance>(GetGameInstance()))
+        {
+            const TArray<TSharedPtr<FJsonValue>>* InventoryArray;
+            if (JsonObject->TryGetArrayField(TEXT("inventory_items"), InventoryArray))
+            {
+                GI->SavedInventoryItems.Empty();
+
+                for (const auto& ItemValue : *InventoryArray)
+                {
+                    const TSharedPtr<FJsonObject>* ItemObject;
+                    if (ItemValue->TryGetObject(ItemObject))
+                    {
+                        FItemData NewItem;
+                        int32 SlotIndex;
+                        (*ItemObject)->TryGetNumberField(TEXT("slot_index"), SlotIndex);
+
+                        FString ItemClassName;
+                        (*ItemObject)->TryGetStringField(TEXT("item_class"), ItemClassName);
+
+                        // 3번 방법: 모든 UClass 객체를 순회하여 이름으로 찾기
+                        UClass* ItemClass = nullptr;
+                        for (TObjectIterator<UClass> It; It; ++It)
+                        {
+                            UClass* Class = *It;
+                            if (Class && Class->IsChildOf(AItem::StaticClass()))
+                            {
+                                FString ClassName = Class->GetName();
+
+                                // 정확한 클래스 이름 매칭
+                                if (ClassName.Equals(ItemClassName))
+                                {
+                                    ItemClass = Class;
+                                    UE_LOG(LogTemp, Log, TEXT("Found exact match for class: %s"), *ItemClassName);
+                                    break;
+                                }
+
+                                // "A" 접두사가 있는 경우도 체크 (예: "RobeTop" -> "ARobeTop")
+                                if (ClassName.Equals(FString("A") + ItemClassName))
+                                {
+                                    ItemClass = Class;
+                                    UE_LOG(LogTemp, Log, TEXT("Found class with A prefix: A%s"), *ItemClassName);
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!ItemClass)
+                        {
+                            UE_LOG(LogTemp, Error, TEXT("Failed to find item class: %s"), *ItemClassName);
+                        }
+
+                        NewItem.ItemClass = ItemClass;
+
+                        if (!NewItem.ItemIcon && ItemClass)
+                        {
+                            // 해당 클래스의 DefaultObject 에서 아이콘을 복사
+                            if (const AItem* DefObj = ItemClass->GetDefaultObject<AItem>())
+                            {
+                                NewItem.ItemIcon = DefObj->ItemIcon;
+                               
+                                
+                            }
+
+                        }
+
+                        // 나머지 필드 파싱
+                        (*ItemObject)->TryGetStringField(TEXT("item_name"), NewItem.ItemName);
+
+                        int32 ItemType;
+                        (*ItemObject)->TryGetNumberField(TEXT("item_type"), ItemType);
+                        NewItem.ItemType = static_cast<EItemType>(ItemType);
+
+                        (*ItemObject)->TryGetNumberField(TEXT("grade"), NewItem.Grade);
+                        (*ItemObject)->TryGetNumberField(TEXT("count"), NewItem.Count);
+
+                        if (NewItem.Price == 0 && ItemClass)
+                        {
+                            const AItem* DefObj = ItemClass->GetDefaultObject<AItem>();
+                            if (DefObj)
+                            {
+                                const int32 BasePrice = DefObj->Price;          // C-등급 기준
+                                static const float GradeMul[3] = { 1.0f, 1.5f, 2.0f };   // C, B, A
+                                int32 G = FMath::Clamp<int32>(NewItem.Grade, 0, 2);
+                                NewItem.Price = FMath::RoundToInt(BasePrice * GradeMul[G]);
+                            }
+                        }
+
+                        int32 PotionEffect;
+                        (*ItemObject)->TryGetNumberField(TEXT("potion_effect"), PotionEffect);
+                        NewItem.PotionEffect = static_cast<EPotionEffectType>(PotionEffect);
+
+                        // 배열 크기 조정
+                        if (GI->SavedInventoryItems.Num() <= SlotIndex)
+                        {
+                            GI->SavedInventoryItems.SetNum(SlotIndex + 1);
+                        }
+
+                        GI->SavedInventoryItems[SlotIndex] = NewItem;
+
+                        UE_LOG(LogTemp, Warning, TEXT("Loaded item: %s at slot %d (Class: %s)"),
+                            *NewItem.ItemName, SlotIndex, ItemClass ? TEXT("Found") : TEXT("Not Found"));
+                    }
+                }
+
+                UE_LOG(LogTemp, Warning, TEXT("Total inventory items loaded: %d"),
+                    GI->SavedInventoryItems.Num());
+            }
+        }
+
         UE_LOG(LogTemp, Warning, TEXT("[AuthManager] JSON Parse Success: ID=%d, Name=%s, Class=%d, Level=%d, Gold=%d"),
             Result.CharacterId, *Result.CharacterName, Result.PlayerClass, Result.Level, Result.Gold);
     }
@@ -347,4 +486,47 @@ FCharacterLoginData UAuthManager::ParseCharacterData(const FString& JsonString)
     }
 
     return Result;
+}
+
+//데이터 저장 함수
+void UAuthManager::SaveGameData(int32 CharacterId, const FString& JsonData)
+{
+    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Save data request for character: %d"), CharacterId);
+
+    // 연결 상태 확인
+    if (!EnsureConnection())
+    {
+        UE_LOG(LogTemp, Error, TEXT("[AuthManager] Cannot save data - connection failed"));
+        OnSaveDataResponse.Broadcast(false);
+        return;
+    }
+
+    // JSON 데이터를 UTF-8로 변환
+    FTCHARToUTF8 U8Json(*JsonData);
+    uint32 JsonLen = U8Json.Length();
+
+    // 패킷 조립: [RequestType][DataSize][JsonData]
+    TArray<uint8> Packet;
+    Packet.Add((uint8)EAuthRequestType::SaveData);
+
+    // 데이터 크기 (4바이트, 리틀 엔디안)
+    Packet.Add((JsonLen >> 0) & 0xFF);
+    Packet.Add((JsonLen >> 8) & 0xFF);
+    Packet.Add((JsonLen >> 16) & 0xFF);
+    Packet.Add((JsonLen >> 24) & 0xFF);
+
+    // JSON 데이터
+    Packet.Append((uint8*)U8Json.Get(), JsonLen);
+
+    // 패킷 전송
+    bool bSent = SocketMgr->Send(Packet);
+    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Save data packet sent: %s (size: %d bytes)"),
+        bSent ? TEXT("SUCCESS") : TEXT("FAILED"), Packet.Num());
+
+    if (!bSent)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[AuthManager] Failed to send save data packet"));
+        OnSaveDataResponse.Broadcast(false);
+    }
+    // 성공적으로 전송했다면 HandleSocketData에서 서버 응답 대기
 }

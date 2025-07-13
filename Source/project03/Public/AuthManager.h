@@ -15,7 +15,8 @@ UENUM(BlueprintType)
 enum class EAuthRequestType : uint8
 {
     Login = 0,
-    Register = 1
+    Register = 1,
+    SaveData = 2
 };
 
 // 서버에서 받은 캐릭터 데이터 구조체
@@ -48,6 +49,7 @@ struct FCharacterLoginData
     UPROPERTY(BlueprintReadWrite)
     int32 Gold = 0;
 
+
     // 기본 생성자
     FCharacterLoginData()
     {
@@ -59,11 +61,15 @@ struct FCharacterLoginData
         MaxStamina = 100.0f;
         MaxKnowledge = 100.0f;
         Gold = 0;
+
+
     }
 };
 
 // 기존 이벤트에 캐릭터 데이터 추가
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAuthResponse, bool, bSuccess, FCharacterLoginData, CharacterData);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSaveDataResponse, bool, bSuccess);
 
 UCLASS()
 class PROJECT03_API UAuthManager : public UGameInstanceSubsystem
@@ -83,9 +89,18 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Auth")
     void RegisterUser(const FString& Username, const FString& Password);
 
+    //데이터 저장 요청
+    UFUNCTION(BlueprintCallable, Category = "Auth")
+    void SaveGameData(int32 CharacterId, const FString& JsonData);
+
+    //데이터 저장 완료 이벤트
+    UPROPERTY(BlueprintAssignable, Category = "Auth")
+    FOnSaveDataResponse OnSaveDataResponse;
+
     // 성공/실패 + 캐릭터 데이터 알림
     UPROPERTY(BlueprintAssignable, Category = "Auth")
     FOnAuthResponse OnAuthResponse;
+
 
 private:
     // 소켓 매니저 참조

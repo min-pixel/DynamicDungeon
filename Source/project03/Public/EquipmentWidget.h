@@ -26,6 +26,10 @@ public:
     UPROPERTY(meta = (BindWidget))
     class UWrapBox* EquipmentSlotContainer;
 
+    TArray<FItemData>& GetEquipmentSlotsRef() { return EquipmentSlots; }
+
+
+
     //// 무기 슬롯 (양손 무기 포함)
     //UPROPERTY(meta = (BindWidget))
     //USlotWidget* WeaponSlot;
