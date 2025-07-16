@@ -19,7 +19,7 @@ ALegs::ALegs()
 
 	
 
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/armour/Mesh/platemailpants.platemailpants"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/Clothing/Meshes/Weighted/Male/SKM_Male_Armor_Boots.SKM_Male_Armor_Boots"));
 	if (MeshAsset.Succeeded())
 	{
 		//ArmorVisualMesh는 컴포넌트니까, 여기서는 SkeletalMesh를 넣어야 함

@@ -77,6 +77,34 @@ public:
 	void DropWeapon();
 	virtual void PossessedBy(AController* NewController) override;
 
+
+
+	// === 모듈러 메쉬 컴포넌트들 ===
+	/** Body (기본 스켈레탈 메쉬) */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	USkeletalMeshComponent* BodyMesh;
+
+	/** Face 모듈 */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	USkeletalMeshComponent* FaceMesh;
+
+	/** Legs 모듈 */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	USkeletalMeshComponent* LegsMeshmetha;
+
+	/** Torso 모듈 */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	USkeletalMeshComponent* TorsoMesh;
+
+	/** Feet 모듈 */
+	UPROPERTY(VisibleAnywhere, Category = "Components")
+	USkeletalMeshComponent* FeetMesh;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Combat")
+	bool bIsInvulnerable = false;
+
+
+
 	//서버
 	UFUNCTION(Server, Reliable)
 	void ServerTeleportToWFCRegen();
@@ -600,6 +628,7 @@ public:
 
 
 	void PlayMagicMontage();
+
 
 
 private:

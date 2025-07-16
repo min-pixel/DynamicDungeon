@@ -162,4 +162,71 @@ public:
     // 유틸리티 함수들
     UInventoryWidget* GetInventoryWidget() const { return InventoryWidgetInstance; }
     UEquipmentWidget* GetEquipmentWidget() const { return EquipmentWidgetInstance; }
+
+    // ========== 스탯 업그레이드 관련 ==========
+    // 스탯 업그레이드 비용
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stat Upgrade")
+    int32 HealthUpgradeCost = 100;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stat Upgrade")
+    int32 StaminaUpgradeCost = 100;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stat Upgrade")
+    int32 KnowledgeUpgradeCost = 100;
+
+    // 스탯 증가량
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stat Upgrade")
+    float HealthUpgradeAmount = 10.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stat Upgrade")
+    float StaminaUpgradeAmount = 10.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stat Upgrade")
+    float KnowledgeUpgradeAmount = 10.0f;
+
+    // 스탯 업그레이드 함수들
+    UFUNCTION(BlueprintCallable, Category = "Stat Upgrade")
+    void UpgradeHealth();
+
+    UFUNCTION(BlueprintCallable, Category = "Stat Upgrade")
+    void UpgradeStamina();
+
+    UFUNCTION(BlueprintCallable, Category = "Stat Upgrade")
+    void UpgradeKnowledge();
+
+    // 현재 스탯 표시용 함수
+    UFUNCTION(BlueprintCallable, Category = "Stat Upgrade")
+    FString GetCurrentStats() const;
+
+    // 골드 충분한지 체크
+    UFUNCTION(BlueprintCallable, Category = "Stat Upgrade")
+    bool CanAffordUpgrade(int32 Cost) const;
+
+    // UI 요소들 (블루프린트에서 바인딩)
+    UPROPERTY(meta = (BindWidget))
+    class UButton* UpgradeHealthButton;
+
+    UPROPERTY(meta = (BindWidget))
+    class UButton* UpgradeStaminaButton;
+
+    UPROPERTY(meta = (BindWidget))
+    class UButton* UpgradeKnowledgeButton;
+
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* CurrentStatsText;
+
+    // 버튼 클릭 이벤트
+    UFUNCTION()
+    void OnUpgradeHealthClicked();
+
+    UFUNCTION()
+    void OnUpgradeStaminaClicked();
+
+    UFUNCTION()
+    void OnUpgradeKnowledgeClicked();
+
+    // UI 업데이트
+    void UpdateStatsDisplay();
+    void UpdateGoldDisplay();
+
 };

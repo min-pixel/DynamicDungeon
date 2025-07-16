@@ -11,7 +11,7 @@
 
 AMyPlayerController::AMyPlayerController()
 {
-    bAutoManageActiveCameraTarget = false;
+    bAutoManageActiveCameraTarget = true;
 
     static ConstructorHelpers::FClassFinder<ULobbyWidget> WidgetBPClass(TEXT("/Game/BP/UI/LobbyWidget_BP.LobbyWidget_BP_C"));
     if (WidgetBPClass.Succeeded())

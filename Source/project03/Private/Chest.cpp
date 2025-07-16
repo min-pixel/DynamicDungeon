@@ -20,7 +20,7 @@ AChest::AChest()
 
 	
 	///Game/BP/armour/Mesh/platemailchest.platemailchest
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/BP/armour/Mesh/platemailchest.platemailchest"));  ///Script/Engine.SkeletalMesh''
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/Clothing/Meshes/Weighted/Male/SKM_Male_Armor_Chest.SKM_Male_Armor_Chest"));
 	if (MeshAsset.Succeeded())
 	{
 		if (ArmorVisualMesh)

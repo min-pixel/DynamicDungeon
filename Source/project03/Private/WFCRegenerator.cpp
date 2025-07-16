@@ -256,6 +256,7 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 		return;
 	}
 
+
 	// 기존 WFC 액터 제거
 	ClearPreviousWFCActors();
 	UE_LOG(LogTemp, Warning, TEXT("Previous WFC actors cleared"));

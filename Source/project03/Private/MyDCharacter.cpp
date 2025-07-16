@@ -29,6 +29,8 @@
 #include "CurseSpell.h"
 #include "GoldWidget.h"
 #include "InventoryWidget.h"
+#include "GameFramework/SpectatorPawn.h"
+#include "GameFramework/FloatingPawnMovement.h"
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
@@ -68,15 +70,16 @@ AMyDCharacter::AMyDCharacter()
 	MaxStamina = 100.0f;
 	Stamina = MaxStamina;
 
-	//스프링암(SprintArm) 생성 (메쉬와 카메라를 독립적으로 배치하기 위해)
-	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
-	SpringArm->SetupAttachment(RootComponent);
-	SpringArm->TargetArmLength = 0.0f; // 1인칭이므로 거리 없음
-	SpringArm->bUsePawnControlRotation = false; // 카메라 회전에 영향을 주지 않음
+	////스프링암(SprintArm) 생성 (메쉬와 카메라를 독립적으로 배치하기 위해)
+	//SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
+	//SpringArm->SetupAttachment(RootComponent);
+	//SpringArm->TargetArmLength = 0.0f; // 1인칭이므로 거리 없음
+	//SpringArm->bUsePawnControlRotation = false; // 카메라 회전에 영향을 주지 않음
 
-	// 캐릭터 메쉬 생성
+	
+// 캐릭터 메쉬 생성
 	CharacterMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("CharacterMesh"));
-	CharacterMesh->SetupAttachment(SpringArm);
+	CharacterMesh->SetupAttachment(RootComponent);
 
 	// 충돌 설정: 래그돌 전환을 위한 기본 설정
 	CharacterMesh->SetCollisionProfileName(TEXT("CharacterMesh")); // 나중에 Ragdoll로 바꿀 수 있도록
@@ -91,9 +94,93 @@ AMyDCharacter::AMyDCharacter()
 		CharacterMesh->SetSkeletalMesh(MeshAsset.Object);
 	}
 
+	/*static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/MetaHumans/Trey/Male/Tall/NormalWeight/Body/m_tal_nrw_body.m_tal_nrw_body"));
+	if (MeshAsset.Succeeded())
+	{
+		CharacterMesh->SetSkeletalMesh(MeshAsset.Object);
+	}*/
+
+	//// --- 1) BodyMesh 생성 ---
+	BodyMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("BodyMesh"));
+	BodyMesh->SetupAttachment(CharacterMesh);
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> BodyAsset(
+		TEXT("/Game/MetaHumans/Trey/Male/Tall/NormalWeight/Body/m_tal_nrw_body.m_tal_nrw_body")
+	);
+	if (BodyAsset.Succeeded())
+	{
+		BodyMesh->SetSkeletalMesh(BodyAsset.Object);
+	}
+	BodyMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceUpdate=*/true, /*bInFollowerShouldTickPose=*/true);
+
+	CharacterMesh->SetRelativeLocation(FVector(0.f, 0.f, -98.35042f));
+	CharacterMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+	CharacterMesh->SetRelativeScale3D(FVector(1.f));
+	CharacterMesh->SetVisibility(false);
+
+	// --- 2) FaceMesh 생성 & 동기화 ---
+	FaceMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FaceMesh"));
+	FaceMesh->SetupAttachment(CharacterMesh);
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> FaceAsset(
+		TEXT("/Game/MetaHumans/Trey/Face/Trey_FaceMesh.Trey_FaceMesh")
+	);
+	if (FaceAsset.Succeeded())
+	{
+		FaceMesh->SetSkeletalMesh(FaceAsset.Object);
+	}
+	// CharacterMesh의 애니메이션을 FaceMesh가 따라가도록 설정
+	FaceMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceUpdate=*/true, /*bInFollowerShouldTickPose=*/true);
+
+	// --- 3) LegsMeshmetha 생성 & 동기화 ---
+	LegsMeshmetha = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LegsMeshmetha"));
+	LegsMeshmetha->SetupAttachment(CharacterMesh);
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> LegsAsset(
+		TEXT("/Game/MetaHumans/Common/Male/Tall/NormalWeight/Bottoms/Cargopants/m_tal_nrw_btm_cargopants.m_tal_nrw_btm_cargopants")
+	);
+	if (LegsAsset.Succeeded())
+	{
+		LegsMeshmetha->SetSkeletalMesh(LegsAsset.Object);
+	}
+	LegsMeshmetha->SetLeaderPoseComponent(CharacterMesh, true, true);
+
+
+
+	// --- 4) TorsoMesh 생성 & 동기화 ---
+	TorsoMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("TorsoMesh"));
+	TorsoMesh->SetupAttachment(CharacterMesh);
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> TorsoAsset(
+		TEXT("/Game/MetaHumans/Common/Male/Tall/NormalWeight/Tops/Crewneckt/m_tal_nrw_top_crewneckt_nrm.m_tal_nrw_top_crewneckt_nrm")
+	);
+	if (TorsoAsset.Succeeded())
+	{
+		TorsoMesh->SetSkeletalMesh(TorsoAsset.Object);
+	}
+	TorsoMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+
+	// --- 5) FeetMesh 생성 & 동기화 ---
+	FeetMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FeetMesh"));
+	FeetMesh->SetupAttachment(CharacterMesh);
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> FeetAsset(
+		TEXT("/Game/MetaHumans/Common/Male/Tall/NormalWeight/Shoes/CasualSneakers/m_tal_nrw_shs_casualsneakers.m_tal_nrw_shs_casualsneakers")
+	);
+	if (FeetAsset.Succeeded())
+	{
+		FeetMesh->SetSkeletalMesh(FeetAsset.Object);
+	}
+	FeetMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+
 
 	// 애니메이션 블루프린트 로드
-	static ConstructorHelpers::FClassFinder<UAnimInstance> AnimBP(TEXT("/Game/Characters/Mannequins/Animations/ABP_Manny.ABP_Manny_C"));
+	/*static ConstructorHelpers::FClassFinder<UAnimInstance> AnimBP(TEXT("/Game/Characters/Mannequins/Animations/ABP_Manny.ABP_Manny_C"));
+	if (AnimBP.Succeeded())
+	{
+		UE_LOG(LogTemp, Log, TEXT("Animation Blueprint Loaded Successfully: %s"), *AnimBP.Class->GetName());
+		CharacterMesh->SetAnimInstanceClass(AnimBP.Class);
+	}
+	else {
+		UE_LOG(LogTemp, Error, TEXT("Failed to load Animation Blueprint!"));
+	}*/
+
+	static ConstructorHelpers::FClassFinder<UAnimInstance> AnimBP(TEXT("/Game/BP/character/Retarget/RTA_ABP_Manny.RTA_ABP_Manny_C"));
 	if (AnimBP.Succeeded())
 	{
 		UE_LOG(LogTemp, Log, TEXT("Animation Blueprint Loaded Successfully: %s"), *AnimBP.Class->GetName());
@@ -102,6 +189,7 @@ AMyDCharacter::AMyDCharacter()
 	else {
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Animation Blueprint!"));
 	}
+
 
 	// 맨주먹 콤보 공격 몽타주 로드
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> PunchMontage(TEXT("/Game/BP/character/Retarget/RTA_Punching_Anim_mixamo_com_Montage1.RTA_Punching_Anim_mixamo_com_Montage1"));
@@ -172,26 +260,37 @@ AMyDCharacter::AMyDCharacter()
 		UE_LOG(LogTemp, Error, TEXT("Failed to load Roll Montage!"));
 	}
 
+
 	// 상의
 	ChestMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ChestMesh"));
-	ChestMesh->SetupAttachment(GetMesh());
-	ChestMesh->SetLeaderPoseComponent(CharacterMesh);
-	ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
-	ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-	ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-	//ChestMesh->SetRelativeLocation(FVector(12.5f, 0.f, -95.f));  // 원하는 위치로 조절
-	//ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-	//ChestMesh->SetRelativeScale3D(FVector(1.1f, 1.5f, 1.0f));
+	ChestMesh->SetupAttachment(CharacterMesh);
+	ChestMesh->SetMasterPoseComponent(CharacterMesh);
+	//ChestMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceTickThisFrame=*/true, /*bFollowerShouldTickPose=*/true);
+	// --- 3) LeaderPoseComponent 설정 (TorsoMesh와 동일) ---
+	//ChestMesh->SetLeaderPoseComponent(CharacterMesh,
+	//	/*bForceTickThisFrame=*/ true,
+	//	/*bFollowerShouldTickPose=*/ true);
+
+	// --- 4) Transform, Visibility 설정 ---
 	ChestMesh->SetVisibility(true);
+	//ChestMesh->bUseBoundsFromMasterPoseComponent = true;
 
 	// 하의
 	LegsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LegsMesh"));
-	LegsMesh->SetupAttachment(GetMesh());
-	LegsMesh->SetLeaderPoseComponent(CharacterMesh);
-	LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
-	LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-	LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-	LegsMesh->SetVisibility(false);
+	LegsMesh->SetupAttachment(CharacterMesh);
+
+	LegsMesh->SetMasterPoseComponent(nullptr); // 먼저 해제
+	LegsMesh->SetMasterPoseComponent(CharacterMesh); // 다시 설정
+		
+
+	//LegsMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceTickThisFrame=*/true, /*bFollowerShouldTickPose=*/true);
+	//LegsMesh->SetMasterPoseComponent(CharacterMesh);
+	/*LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
+	LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));*/
+	//LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+	LegsMesh->SetVisibility(true);
+	LegsMesh->bNoSkeletonUpdate = false;
+	LegsMesh->bUpdateJointsFromAnimation = true;
 
 	// 투구
 	HelmetMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HelmetMesh"));
@@ -220,7 +319,7 @@ AMyDCharacter::AMyDCharacter()
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;  // 컨트롤러 회전 적용
 
 	//**카메라 위치 및 방향 유지**
-	FirstPersonCameraComponent->SetRelativeLocation(FVector(20.0f, 0.0f, 50.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
+	FirstPersonCameraComponent->SetRelativeLocation(FVector(-100.0f, 0.0f, 80.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
 	FirstPersonCameraComponent->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f)); // 정면 유지
 
 	//몸체 숨기기 (1인칭에서 보이지 않게)
@@ -351,6 +450,17 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("FirstPersonCameraComponent is null!"));
 	}
 	
+	//if (ChestMesh && CharacterMesh)
+	//{
+	//	// ChestMesh가 매 Tick마다 CharacterMesh의 Pose를 복사하게 만듭니다.
+	//	ChestMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceTickThisFrame=*/true, /*bFollowerShouldTickPose=*/true);
+	//}
+
+	//if (LegsMesh && CharacterMesh)
+	//{
+	//	LegsMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+	//}
+
 	if (HUDWidgetClass)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("HUDWidgetClass is valid, attempting to create widget..."));
@@ -705,7 +815,24 @@ void AMyDCharacter::Tick(float DeltaTime)
 
 	// 구르는 동안 카메라 부드럽게 이동
 	//moothCameraFollow();
+	static float AccumulatedTime = 0.0f;
+	AccumulatedTime += DeltaTime;
 
+	if (AccumulatedTime >= 0.2f)
+	{
+		if (GetMesh())
+		{
+			GetMesh()->ResetAllBodiesSimulatePhysics();
+		}
+
+		// Armor도 동시에
+		if (LegsMesh)
+		{
+			LegsMesh->ResetAllBodiesSimulatePhysics();
+		}
+
+		AccumulatedTime = 0.0f;
+	}
 }
 
 // 이동 함수 (W/S)
@@ -1256,12 +1383,12 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 
 		if (ChestMesh)
 		{
-			ChestMesh->SetMasterPoseComponent(CharacterMesh);
+			//ChestMesh->SetMasterPoseComponent(CharacterMesh);
 			ChestMesh->SetSkeletalMesh(NewMesh);
 			ChestMesh->SetVisibility(true);
 			// 필요 시 상대 위치 조정
-			ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
-			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+			/*ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
+			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));*/
 			if (Armor && Armor->IsA(ARobeTop::StaticClass()))
 			{
 				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
@@ -1289,7 +1416,7 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 			{
 				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			}
-
+			ChestMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
 			ResetToDefaultMaterials(ChestMesh);
 
 			// 머티리얼 적용
@@ -1310,19 +1437,30 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 		{
 			//LegsMesh->SetMasterPoseComponent(CharacterMesh);
 			LegsMesh->SetSkeletalMesh(NewMesh);
+
+			LegsMesh->SetMasterPoseComponent(nullptr); // 먼저 해제
+			LegsMesh->SetMasterPoseComponent(CharacterMesh); // 다시 설정
+			// 애니메이션 인스턴스 동기화 강제
+			if (CharacterMesh->GetAnimInstance())
+			{
+				LegsMesh->SetAnimInstanceClass(nullptr); // 먼저 클리어
+				LegsMesh->bNoSkeletonUpdate = false;
+				LegsMesh->bUpdateJointsFromAnimation = true;
+				LegsMesh->RefreshBoneTransforms();
+			}
 			LegsMesh->SetVisibility(true);
 			// 하의 루트 위치가 캐릭터보다 너무 위에 있음 → 보정 필요
-			LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
-			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+			/*LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
+			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));*/
 			if (Armor && Armor->IsA(ARobeBottom::StaticClass()))
 			{
-				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.25f, 1.0f));
+				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			}
 			else
 			{
 				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 			}
-			//LegsMesh->SetLeaderPoseComponent(CharacterMesh);
+			//LegsMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
 
 			ResetToDefaultMaterials(LegsMesh);
 
@@ -1348,6 +1486,172 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 
 
 }
+
+////2025 - 07 - 15
+////void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor)
+////{
+////	if (!NewMesh) return;
+////
+////	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
+////		SlotIndex, *NewMesh->GetName());
+////
+////	// 기본 머티리얼 오버라이드 제거 함수
+////	auto ResetToDefaultMaterials = [&](USkeletalMeshComponent* MeshComp) {
+////		if (!MeshComp) return;
+////		int32 NumMats = MeshComp->GetNumMaterials();
+////		for (int32 i = 0; i < NumMats; ++i)
+////		{
+////			MeshComp->SetMaterial(i, nullptr);
+////		}
+////		};
+////
+////	switch (SlotIndex)
+////	{
+////	case EQUIP_SLOT_CHEST:
+////		if (ChestMesh)
+////		{
+////			// 갑옷 메쉬 설정
+////			ChestMesh->SetMasterPoseComponent(CharacterMesh);
+////			ChestMesh->SetSkeletalMesh(NewMesh);
+////			ChestMesh->SetVisibility(true);
+////			ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
+////			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+////
+////			// 상의 장착 시 Body와 Torso만 숨기기
+////			if (CharacterMesh) CharacterMesh->SetVisibility(false);  // Body 메쉬 숨기기
+////			if (TorsoMesh) TorsoMesh->SetVisibility(false);         // Torso 메쉬 숨기기
+////
+////			// 하의는 그대로 보이게 유지
+////			// LegsMeshmetha와 FeetMesh는 건드리지 않음
+////
+////			// 갑옷 머티리얼 적용
+////			ResetToDefaultMaterials(ChestMesh);
+////			if (Grade == EArmorGrade::B && SilverMat)
+////			{
+////				ChestMesh->SetMaterial(0, SilverMat);
+////			}
+////			else if (Grade == EArmorGrade::A && GoldMat)
+////			{
+////				ChestMesh->SetMaterial(0, GoldMat);
+////			}
+////
+////			// 로브인 경우 스케일 조정
+////			if (Armor && Armor->IsA(ARobeTop::StaticClass()))
+////			{
+////				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+////			}
+////		}
+////		break;
+////
+////	case EQUIP_SLOT_LEG:
+////		if (LegsMesh)
+////		{
+////			// 갑옷 메쉬 설정
+////			LegsMesh->SetSkeletalMesh(NewMesh);
+////			LegsMesh->SetVisibility(true);
+////			LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
+////			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+////
+////			// 하의 장착 시 LegsMeshmetha와 FeetMesh만 숨기기
+////			if (LegsMeshmetha) LegsMeshmetha->SetVisibility(false);  // 기본 바지 숨기기
+////			if (FeetMesh) FeetMesh->SetVisibility(false);            // 기본 신발 숨기기
+////
+////			// 상체는 그대로 보이게 유지
+////			// CharacterMesh(Body)와 TorsoMesh는 건드리지 않음
+////
+////			// 갑옷 머티리얼 적용
+////			ResetToDefaultMaterials(LegsMesh);
+////			if (Grade == EArmorGrade::B && SilverMat)
+////			{
+////				LegsMesh->SetMaterial(0, SilverMat);
+////			}
+////			else if (Grade == EArmorGrade::A && GoldMat)
+////			{
+////				LegsMesh->SetMaterial(0, GoldMat);
+////			}
+////
+////			// 로브인 경우 스케일 조정
+////			if (Armor && Armor->IsA(ARobeBottom::StaticClass()))
+////			{
+////				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.25f, 1.0f));
+////			}
+////		}
+////		break;
+////	}
+////}
+//
+////2025 - 07 - 15 버전 2
+//void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor)
+//{
+//	if (!NewMesh) return;
+//
+//	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
+//		SlotIndex, *NewMesh->GetName());
+//
+//	// --- 기본 머티리얼 오버라이드 제거 헬퍼 람다
+//	auto ResetToDefaultMaterials = [&](USkeletalMeshComponent* MeshComp) {
+//		if (!MeshComp) return;
+//		int32 NumMats = MeshComp->GetNumMaterials();
+//		for (int32 i = 0; i < NumMats; ++i)
+//		{
+//			MeshComp->SetMaterial(i, nullptr);
+//		}
+//		};
+//
+//	switch (SlotIndex)
+//	{
+//	case EQUIP_SLOT_CHEST:
+//		if (TorsoMesh)  // <-- ChestMesh 대신 TorsoMesh 사용
+//		{
+//			// 1) 새 메시 적용
+//			TorsoMesh->SetSkeletalMesh(NewMesh);
+//			TorsoMesh->SetVisibility(true);
+//
+//			// 2) 위치/회전/스케일 보정 (원래 ChestMesh 값에서 조금 바꿀 수도 있음)
+//			/*TorsoMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -90.f));
+//			TorsoMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+//			TorsoMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));*/
+//
+//			// 3) Bone Transform 복사
+//			TorsoMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+//			//TorsoMesh->SetMasterPoseComponent(CharacterMesh, true);
+//			// 4) 머티리얼 리셋 → 등급별 머티리얼 적용
+//			ResetToDefaultMaterials(TorsoMesh);
+//			int32 NumMaterials = TorsoMesh->GetNumMaterials();
+//			for (int32 i = 0; i < NumMaterials; ++i)
+//			{
+//				if (Grade == EArmorGrade::B && SilverMat)
+//					TorsoMesh->SetMaterial(i, SilverMat);
+//				else if (Grade == EArmorGrade::A && GoldMat)
+//					TorsoMesh->SetMaterial(i, GoldMat);
+//			}
+//		}
+//		break;
+//
+//	case EQUIP_SLOT_LEG:
+//		if (LegsMesh)
+//		{
+//			// 기존 로직 유지
+//			LegsMesh->SetSkeletalMesh(NewMesh);
+//			LegsMesh->SetVisibility(true);
+//			LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
+//			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+//			LegsMesh->SetRelativeScale3D(Armor && Armor->IsA(ARobeBottom::StaticClass())
+//				? FVector(1.0f, 1.25f, 1.0f)
+//				: FVector(1.0f, 1.0f, 1.0f));
+//			LegsMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+//			ResetToDefaultMaterials(LegsMesh);
+//			if (Grade == EArmorGrade::B && SilverMat)
+//				LegsMesh->SetMaterial(0, SilverMat);
+//			else if (Grade == EArmorGrade::A && GoldMat)
+//				LegsMesh->SetMaterial(0, GoldMat);
+//
+//			UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh SlotIndex=%d, Mesh=%s"), SlotIndex, *NewMesh->GetName());
+//		}
+//		break;
+//	}
+//}
+
 
 
 void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass, uint8 Grade)
@@ -1510,6 +1814,58 @@ void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
 		EquippedArmors.Remove(SlotIndex);
 	}
 }
+
+//2025 - 07 -15
+//void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
+//{
+//	if (EquippedArmors.Contains(SlotIndex))
+//	{
+//		AArmor* Armor = EquippedArmors[SlotIndex];
+//		if (Armor)
+//		{
+//			Armor->RemoveArmorStats(this);
+//			Armor->Destroy();
+//		}
+//
+//		// 시각적으로도 제거
+//		switch (SlotIndex)
+//		{
+//		case EQUIP_SLOT_CHEST:
+//			if (ChestMesh)
+//			{
+//				ChestMesh->SetSkeletalMesh(nullptr);
+//				ChestMesh->SetVisibility(false);
+//			}
+//			// 상의 해제 시 Body와 Torso만 다시 보이기
+//			if (CharacterMesh) CharacterMesh->SetVisibility(true);  // Body 메쉬 복구
+//			if (TorsoMesh) TorsoMesh->SetVisibility(true);         // Torso 메쉬 복구
+//			break;
+//
+//		case EQUIP_SLOT_LEG:
+//			if (LegsMesh)
+//			{
+//				LegsMesh->SetSkeletalMesh(nullptr);
+//				LegsMesh->SetVisibility(false);
+//			}
+//			// 하의 해제 시 LegsMeshmetha와 FeetMesh만 다시 보이기
+//			if (LegsMeshmetha) LegsMeshmetha->SetVisibility(true);  // 기본 바지 복구
+//			if (FeetMesh) FeetMesh->SetVisibility(true);            // 기본 신발 복구
+//			break;
+//
+//		case EQUIP_SLOT_HELMET:
+//			if (HelmetMesh)
+//			{
+//				HelmetMesh->SetStaticMesh(nullptr);
+//				HelmetMesh->SetVisibility(false);
+//			}
+//			// 투구는 다른 메쉬에 영향 없음
+//			break;
+//		}
+//
+//		EquippedArmors.Remove(SlotIndex);
+//	}
+//}
+
 
 void AMyDCharacter::ServerRequestEquipWeapon_Implementation(const FItemData& WeaponData)
 {
@@ -2034,6 +2390,11 @@ void AMyDCharacter::PlayRollAnimation()
 void AMyDCharacter::ResetRoll()
 {
 	bIsRolling = false;
+	bIsInvulnerable = false;
+
+	// 구르기 시작 시 충돌 비활성화
+	//SetActorEnableCollision(true);
+
 	bIsAttacking = false;  // 구르기가 끝나면 공격 상태도 초기화
 	GetCharacterMovement()->SetMovementMode(EMovementMode::MOVE_Walking);
 }
@@ -2078,6 +2439,9 @@ void AMyDCharacter::ExecuteRoll(float ForwardValue, float RightValue)
 	}
 
 	bIsRolling = true;
+	bIsInvulnerable = true;
+	// 구르기 시작 시 충돌 비활성화
+	//SetActorEnableCollision(false);
 
 	FVector RollDirection;
 	FName SelectedSection = "RollF";
@@ -2206,6 +2570,13 @@ void AMyDCharacter::RegenerateStamina() // 스태미나 회복 진행
 void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* InstigatorActor, float Damage)
 {
 
+	// 무적 상태면 데미지 무시
+	if (bIsInvulnerable)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Damage ignored - Player is invulnerable"));
+		return;
+	}
+
 	Health -= Damage;
 	Health = FMath::Clamp(Health, 0.0f, MaxHealth);
 
@@ -2327,6 +2698,9 @@ void AMyDCharacter::ClientEnterSpectatorMode_Implementation()
 	APlayerController* PC = GetController<APlayerController>();
 	if (PC)
 	{
+
+
+
 		// 간단한 관전자 메시지
 		if (GEngine)
 		{
@@ -2483,17 +2857,43 @@ void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 		return;
 	}
 
-	if (WFCWarningWidgetInstance)
+	// WFCWarningWidgetInstance 안전 검사 및 생성
+	if (!IsValid(WFCWarningWidgetInstance))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WFCWarningWidgetInstance is invalid, attempting to recreate"));
+
+		// 위젯 클래스가 설정되어 있다면 다시 생성 시도
+		if (WFCWarningWidgetClass)
+		{
+			WFCWarningWidgetInstance = CreateWidget<UUserWidget>(PC, WFCWarningWidgetClass);
+			if (!IsValid(WFCWarningWidgetInstance))
+			{
+				UE_LOG(LogTemp, Error, TEXT("Failed to create WFCWarningWidgetInstance"));
+				return; // 위젯 생성 실패시 함수 종료
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("WFCWarningWidgetClass is not set"));
+			return; // 위젯 클래스가 없으면 함수 종료
+		}
+	}
+
+	
+	if (IsValid(WFCWarningWidgetInstance))
 	{
 		if (!WFCWarningWidgetInstance->IsInViewport())
 		{
 			WFCWarningWidgetInstance->AddToViewport(20);
 		}
 		WFCWarningWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+		// 5초 후에 암전 및 재생성 진행
+		GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFade, this, &AMyDCharacter::FadeAndRegenWFC, 2.0f, false);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("WFCWarningWidgetInstance is NULL!"));
+		UE_LOG(LogTemp, Error, TEXT("WFCWarningWidgetInstance is still invalid after creation attempt"));
 	}
 
 	// 5초 후에 암전 및 재생성 진행
@@ -3132,6 +3532,26 @@ void AMyDCharacter::ServerHandleEscape_Implementation()
 	PC->UnPossess();
 	PC->ChangeState(NAME_Spectating);
 	PC->ClientGotoState(NAME_Spectating);
+
+	// 관전 카메라 속도 설정
+	FTimerHandle SpectatorSpeedTimer;
+	GetWorldTimerManager().SetTimer(SpectatorSpeedTimer, [PC]()
+		{
+			if (PC && PC->GetSpectatorPawn())
+			{
+				ASpectatorPawn* SpectatorPawn = PC->GetSpectatorPawn();
+
+				
+				if (UFloatingPawnMovement* FloatingMovement = Cast<UFloatingPawnMovement>(SpectatorPawn->GetMovementComponent()))
+				{
+					FloatingMovement->MaxSpeed = 16000.0f;  
+					FloatingMovement->Acceleration = 10000.0f;
+					FloatingMovement->Deceleration = 10000.0f;
+
+					UE_LOG(LogTemp, Warning, TEXT("Spectator camera speed increased!"));
+				}
+			}
+		}, 0.1f, false);
 
 	// 클라이언트에게 관전자 UI 표시
 	ClientEnterSpectatorMode();
@@ -4083,3 +4503,4 @@ void AMyDCharacter::RestoreDataFromLobby()
 
 	UE_LOG(LogTemp, Warning, TEXT("Data restoration completed!"));
 }
+

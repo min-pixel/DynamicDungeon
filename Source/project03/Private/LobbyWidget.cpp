@@ -42,6 +42,14 @@ void ULobbyWidget::NativeConstruct()
     if (CloseShopButton)
         CloseShopButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnCloseShopButtonClicked);
 
+    // 스탯 업그레이드 버튼 바인딩
+    if (UpgradeHealthButton)
+        UpgradeHealthButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnUpgradeHealthClicked);
+    if (UpgradeStaminaButton)
+        UpgradeStaminaButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnUpgradeStaminaClicked);
+    if (UpgradeKnowledgeButton)
+        UpgradeKnowledgeButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnUpgradeKnowledgeClicked);
+
     // GameInstance 확인
     UDynamicDungeonInstance* GameInstance =Cast<UDynamicDungeonInstance>(GetWorld()->GetGameInstance());
     if (GameInstance)
@@ -118,6 +126,8 @@ void ULobbyWidget::ShowMainLobby()
 
     // 메인 로비 초기화
     InitializeLobby(PlayerCharacter);
+    // 스탯 표시 업데이트
+    UpdateStatsDisplay();
 }
 
 void ULobbyWidget::SetAuthStatusText(const FString& StatusMessage)
@@ -576,4 +586,128 @@ void ULobbyWidget::OnCloseShopButtonClicked()
         EquipmentWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 
     UE_LOG(LogTemp, Warning, TEXT("Shop closed via LobbyWidget"));
+}
+
+// 스탯 업그레이드 구현
+void ULobbyWidget::UpgradeHealth()
+{
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (!GameInstance) return;
+
+    if (!CanAffordUpgrade(HealthUpgradeCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough gold for health upgrade!"));
+        return;
+    }
+
+    // 골드 차감
+    GameInstance->LobbyGold -= HealthUpgradeCost;
+
+    // 스탯 증가
+    GameInstance->CurrentCharacterData.MaxHealth += HealthUpgradeAmount;
+
+    // UI 업데이트
+    UpdateGoldDisplay();
+    UpdateStatsDisplay();
+
+    // 서버에 저장
+    GameInstance->SaveAllDataToServer();
+
+    UE_LOG(LogTemp, Log, TEXT("Health upgraded! New MaxHealth: %.0f"),
+        GameInstance->CurrentCharacterData.MaxHealth);
+}
+
+void ULobbyWidget::UpgradeStamina()
+{
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (!GameInstance) return;
+
+    if (!CanAffordUpgrade(StaminaUpgradeCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough gold for stamina upgrade!"));
+        return;
+    }
+
+    GameInstance->LobbyGold -= StaminaUpgradeCost;
+    GameInstance->CurrentCharacterData.MaxStamina += StaminaUpgradeAmount;
+
+    UpdateGoldDisplay();
+    UpdateStatsDisplay();
+    GameInstance->SaveAllDataToServer();
+
+    UE_LOG(LogTemp, Log, TEXT("Stamina upgraded! New MaxStamina: %.0f"),
+        GameInstance->CurrentCharacterData.MaxStamina);
+}
+
+void ULobbyWidget::UpgradeKnowledge()
+{
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (!GameInstance) return;
+
+    if (!CanAffordUpgrade(KnowledgeUpgradeCost))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Not enough gold for knowledge upgrade!"));
+        return;
+    }
+
+    GameInstance->LobbyGold -= KnowledgeUpgradeCost;
+    GameInstance->CurrentCharacterData.MaxKnowledge += KnowledgeUpgradeAmount;
+
+    UpdateGoldDisplay();
+    UpdateStatsDisplay();
+    GameInstance->SaveAllDataToServer();
+
+    UE_LOG(LogTemp, Log, TEXT("Knowledge upgraded! New MaxKnowledge: %.0f"),
+        GameInstance->CurrentCharacterData.MaxKnowledge);
+}
+
+// 헬퍼 함수들
+bool ULobbyWidget::CanAffordUpgrade(int32 Cost) const
+{
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    return GameInstance && GameInstance->LobbyGold >= Cost;
+}
+
+FString ULobbyWidget::GetCurrentStats() const
+{
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (!GameInstance) return TEXT("No Data");
+
+    return FString::Printf(TEXT("Health: %.0f\nStamina: %.0f\nKnowledge: %.0f"),
+        GameInstance->CurrentCharacterData.MaxHealth,
+        GameInstance->CurrentCharacterData.MaxStamina,
+        GameInstance->CurrentCharacterData.MaxKnowledge);
+}
+
+void ULobbyWidget::UpdateStatsDisplay()
+{
+    if (CurrentStatsText)
+    {
+        CurrentStatsText->SetText(FText::FromString(GetCurrentStats()));
+    }
+}
+
+void ULobbyWidget::UpdateGoldDisplay()
+{
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance && GoldWidgetInstance)
+    {
+        GoldWidgetInstance->UpdateGoldAmount(GameInstance->LobbyGold);
+    }
+}
+
+// 버튼 클릭 이벤트
+void ULobbyWidget::OnUpgradeHealthClicked()
+{
+    UpgradeHealth();
+}
+
+void ULobbyWidget::OnUpgradeStaminaClicked()
+{
+    UpgradeStamina();
+}
+
+void ULobbyWidget::OnUpgradeKnowledgeClicked()
+{
+    UpgradeKnowledge();
 }
