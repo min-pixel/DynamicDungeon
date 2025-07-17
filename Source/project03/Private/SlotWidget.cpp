@@ -164,6 +164,8 @@ void USlotWidget::SetItemData(const FItemData& NewData)
         UE_LOG(LogTemp, Warning, TEXT("[SlotWidget] Empty slot or TooltipWidgetClass is NULL, tooltip removed"));
     }
 
+    
+
 }
 
 void USlotWidget::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent, UDragDropOperation*& OutOperation)

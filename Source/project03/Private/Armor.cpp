@@ -36,69 +36,67 @@ void AArmor::ApplyArmorStats(AMyDCharacter* Character)
 {
     if (!Character) return;
 
+    // 등급별 배수 계산
     float Multiplier = 1.0f;
     switch (ArmorGrade)
     {
     case EArmorGrade::B:
         Multiplier = 1.25f;
-
-        /// 실버 머티리얼 적용 (투구 제외)
-        if (ArmorVisualMesh && SilverMaterial)
-        {
-            ArmorVisualMesh->SetMaterial(0, SilverMaterial);
-        }
-        
-
         break;
     case EArmorGrade::A:
         Multiplier = 1.5f;
-
-        // 골드 머티리얼 적용 (투구 제외)
-        if (ArmorVisualMesh && GoldMaterial)
-        {
-            ArmorVisualMesh->SetMaterial(0, GoldMaterial);
-        }
-        
         break;
     case EArmorGrade::C:
-
-        
     default:
+        Multiplier = 1.0f;
         break;
     }
 
+    // 실제 적용될 보너스 계산 및 캐시 (이게 핵심!)
     CachedAppliedBonus = FMath::RoundToInt(BonusHealth * Multiplier);
-
-    Character->MaxHealth += CachedAppliedBonus;
-    Character->Health = FMath::Clamp(Character->Health + CachedAppliedBonus, 0.0f, Character->MaxHealth);
-
-
     StaminaBonus = FMath::RoundToInt(BonusStamina * Multiplier);
-    Character->MaxStamina += StaminaBonus;
-    Character->Stamina = FMath::Clamp(Character->Stamina + StaminaBonus, 0.0f, Character->MaxStamina);
-
     ManaBonus = FMath::RoundToInt(BonusMana * Multiplier);
+
+    // 최대 스탯 증가
+    Character->MaxHealth += CachedAppliedBonus;
+    Character->MaxStamina += StaminaBonus;
     Character->MaxKnowledge += ManaBonus;
+
+    // 현재 스탯도 증가 (최대값 넘지 않도록)
+    Character->Health = FMath::Clamp(Character->Health + CachedAppliedBonus, 0.0f, Character->MaxHealth);
+    Character->Stamina = FMath::Clamp(Character->Stamina + StaminaBonus, 0.0f, Character->MaxStamina);
     Character->Knowledge = FMath::Clamp(Character->Knowledge + ManaBonus, 0.0f, Character->MaxKnowledge);
-    
 
-
-
-
+    UE_LOG(LogTemp, Warning, TEXT("Applied armor stats (Grade %s, Multiplier %.2f) - Health: +%d (base %d), Stamina: +%d (base %d), Mana: +%d (base %d)"),
+        *UEnum::GetValueAsString(ArmorGrade), Multiplier,
+        CachedAppliedBonus, BonusHealth,
+        StaminaBonus, BonusStamina,
+        ManaBonus, BonusMana);
 }
 
 void AArmor::RemoveArmorStats(AMyDCharacter* Character)
 {
     if (!Character) return;
 
+    UE_LOG(LogTemp, Warning, TEXT("Removing armor stats - Health: -%d, Stamina: -%d, Mana: -%d"),
+        CachedAppliedBonus, StaminaBonus, ManaBonus);
+
+    // 최대 스탯에서 정확히 적용되었던 보너스만큼 차감
     Character->MaxHealth -= CachedAppliedBonus;
-    Character->Health = FMath::Clamp(Character->Health, 0.0f, Character->MaxHealth);
-
-
     Character->MaxStamina -= StaminaBonus;
-    Character->Stamina = FMath::Clamp(Character->Stamina, 0.0f, Character->MaxStamina);
-
     Character->MaxKnowledge -= ManaBonus;
+
+    // 현재 스탯이 새로운 최대값을 넘지 않도록 조정
+    Character->Health = FMath::Clamp(Character->Health, 0.0f, Character->MaxHealth);
+    Character->Stamina = FMath::Clamp(Character->Stamina, 0.0f, Character->MaxStamina);
     Character->Knowledge = FMath::Clamp(Character->Knowledge, 0.0f, Character->MaxKnowledge);
+
+    UE_LOG(LogTemp, Warning, TEXT("After removal - MaxHealth: %f, Health: %f"),
+        Character->MaxHealth, Character->Health);
+
+    // 캐시된 값들 초기화
+    CachedAppliedBonus = 0;
+    StaminaBonus = 0;
+    ManaBonus = 0;
 }
 

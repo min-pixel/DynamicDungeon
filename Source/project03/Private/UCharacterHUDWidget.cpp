@@ -9,29 +9,23 @@
 void UUCharacterHUDWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
 {
 
+    if (!IsValid(this))
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateHealth: HUD Widget is not valid"));
+        return;
+    }
 
     if (HealthProgressBar)
     {
         float HealthPercent = CurrentHealth / MaxHealth;
         HealthProgressBar->SetPercent(HealthPercent);
     }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("HealthProgressBar is NULL in UpdateHealth"));
+    }
 
-    //if (!Image_HitOverlay) return;
-
-    //// 실제로 체력이 줄어든 경우에만 피격 효과 발생
-    //if (PreviousHealth < 0.0f || CurrentHealth < PreviousHealth)
-    //{
-    //    float NormalizedHealth = CurrentHealth / MaxHealth;
-    //    float OverlayAlpha = FMath::Clamp(1.0f - NormalizedHealth, 0.0f, 0.6f);
-
-    //    Image_HitOverlay->SetColorAndOpacity(FLinearColor(1.0f, 1.0f, 1.0f, OverlayAlpha));
-    //    Image_HitOverlay->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-
-    //    StartHitOverlayFadeOut(); // 이때만 페이드 시작
-    //}
-
-    //PreviousHealth = CurrentHealth;
-
+    // WFC 위젯 생성 로직은 그대로...
     if (WFCWarningWidgetClass)
     {
         WFCWarningWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCWarningWidgetClass);
@@ -41,25 +35,45 @@ void UUCharacterHUDWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
     {
         WFCDoneWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCDoneWidgetClass);
     }
-
-
 }
 
 void UUCharacterHUDWidget::UpdateMana(float CurrentMana, float MaxMana)
 {
+
+    if (!IsValid(this))
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateHealth: HUD Widget is not valid"));
+        return;
+    }
+
     if (ManaProgressBar)
     {
         float ManaPercent = CurrentMana / MaxMana;
         ManaProgressBar->SetPercent(ManaPercent);
     }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ManaProgressBar is NULL in UpdateMana"));
+    }
 }
 
 void UUCharacterHUDWidget::UpdateStamina(float CurrentStamina, float MaxStamina)
 {
+
+    if (!IsValid(this))
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateHealth: HUD Widget is not valid"));
+        return;
+    }
+
     if (StaminaProgressBar)
     {
         float StaminaPercent = CurrentStamina / MaxStamina;
         StaminaProgressBar->SetPercent(StaminaPercent);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("StaminaProgressBar is NULL in UpdateStamina"));
     }
 }
 
@@ -105,31 +119,31 @@ void UUCharacterHUDWidget::UpdateHotkeySlot(int32 Index, const FItemData& ItemDa
     case 2: TargetIcon = HotkeyIcon_3; break;
     case 3: TargetIcon = HotkeyIcon_4; break;
     case 4: TargetIcon = HotkeyIcon_5; break;
-    default: return;
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("UpdateHotkeySlot Index = %d"), Index);
-
-
-    if (!TargetIcon)
-    {
+    default: 
+        UE_LOG(LogTemp, Warning, TEXT("UpdateHotkeySlot: Invalid Index = %d"), Index);
         return;
     }
 
-    if (TargetIcon)
+    if (!TargetIcon)
     {
-        if (ItemData.ItemIcon)
-        {
-            TargetIcon->SetBrushFromTexture(ItemData.ItemIcon);
-        }
-        else
-        {
-            FSlateBrush GrayBrush;
-            GrayBrush.TintColor = FSlateColor(FLinearColor::White); 
-            GrayBrush.DrawAs = ESlateBrushDrawType::Box;           
+        UE_LOG(LogTemp, Error, TEXT("UpdateHotkeySlot: TargetIcon is null for Index = %d"), Index);
+        return;
+    }
 
-            TargetIcon->SetBrush(GrayBrush);
-        }
+    // 아이템이 있는 경우
+    if (ItemData.ItemClass && ItemData.ItemIcon)
+    {
+        TargetIcon->SetBrushFromTexture(ItemData.ItemIcon);
+        TargetIcon->SetVisibility(ESlateVisibility::Visible);
+        UE_LOG(LogTemp, Log, TEXT("UpdateHotkeySlot: Set icon for slot %d - %s"), Index, *ItemData.ItemName);
+    }
+    else
+    {
+        // 빈 슬롯인 경우 - 투명하게 만들거나 기본 이미지 설정
+        TargetIcon->SetBrushFromTexture(nullptr);
+        TargetIcon->SetColorAndOpacity(FLinearColor::White); // 회색 반투명
+        TargetIcon->SetVisibility(ESlateVisibility::Visible);
+        UE_LOG(LogTemp, Log, TEXT("UpdateHotkeySlot: Cleared slot %d"), Index);
     }
 }
 

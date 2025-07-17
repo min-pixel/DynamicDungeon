@@ -139,6 +139,7 @@ AMyDCharacter::AMyDCharacter()
 	if (LegsAsset.Succeeded())
 	{
 		LegsMeshmetha->SetSkeletalMesh(LegsAsset.Object);
+		DefaultLegsMesh = LegsAsset.Object;
 	}
 	LegsMeshmetha->SetLeaderPoseComponent(CharacterMesh, true, true);
 
@@ -153,6 +154,7 @@ AMyDCharacter::AMyDCharacter()
 	if (TorsoAsset.Succeeded())
 	{
 		TorsoMesh->SetSkeletalMesh(TorsoAsset.Object);
+		DefaultTorsoMesh = TorsoAsset.Object;
 	}
 	TorsoMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
 
@@ -169,6 +171,7 @@ AMyDCharacter::AMyDCharacter()
 	FeetMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
 
 
+	
 	// 애니메이션 블루프린트 로드
 	/*static ConstructorHelpers::FClassFinder<UAnimInstance> AnimBP(TEXT("/Game/Characters/Mannequins/Animations/ABP_Manny.ABP_Manny_C"));
 	if (AnimBP.Succeeded())
@@ -468,8 +471,13 @@ void AMyDCharacter::BeginPlay()
 		HUDWidget = CreateWidget<UUCharacterHUDWidget>(GetWorld(), HUDWidgetClass);
 		if (HUDWidget)
 		{
+
 			UE_LOG(LogTemp, Warning, TEXT("Widget successfully created, adding to viewport..."));
-			HUDWidget->AddToViewport(1);
+			if (IsLocallyControlled())
+			{
+				HUDWidget->AddToViewport(1);
+
+			}
 		}
 		else
 		{
@@ -480,6 +488,8 @@ void AMyDCharacter::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is NULL!"));
 	}
+
+	
 
 	//if (IsLocallyControlled())
 	//{
@@ -1363,295 +1373,155 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
 		SlotIndex, *NewMesh->GetName());
 
-	// --- 기본 머티리얼 오버라이드 제거 헬퍼 람다
+	// 기본 머티리얼 오버라이드 제거 헬퍼 람다
 	auto ResetToDefaultMaterials = [&](USkeletalMeshComponent* MeshComp) {
 		if (!MeshComp) return;
 		int32 NumMats = MeshComp->GetNumMaterials();
 		for (int32 i = 0; i < NumMats; ++i)
 		{
-			// nullptr을 넘기면 에셋에 설정된 머티리얼로 자동 복구됩니다
+			// nullptr을 넣기면 에셋에 설정된 머티리얼로 자동 복구됩니다
 			MeshComp->SetMaterial(i, nullptr);
 		}
-	};
+		};
 
 	switch (SlotIndex)
 	{
 	case EQUIP_SLOT_CHEST:
+	{
+		bool bIsRobe = Armor && Armor->IsA(ARobeTop::StaticClass());
 
-
-
-
-		if (ChestMesh)
+		if (bIsRobe)
 		{
-			//ChestMesh->SetMasterPoseComponent(CharacterMesh);
-			ChestMesh->SetSkeletalMesh(NewMesh);
-			ChestMesh->SetVisibility(true);
-			// 필요 시 상대 위치 조정
-			/*ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
-			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));*/
-			if (Armor && Armor->IsA(ARobeTop::StaticClass()))
+			// Robe상의: TorsoMesh를 사용
+			if (TorsoMesh)
 			{
-				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-				// 머티리얼 적용 (상의는 모든 슬롯 반복)
-				if (SlotIndex == EQUIP_SLOT_CHEST && ChestMesh)
+				TorsoMesh->SetSkeletalMesh(NewMesh);
+				TorsoMesh->SetVisibility(true);
+				TorsoMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+				ResetToDefaultMaterials(TorsoMesh);
+
+				// 머티리얼 적용
+				if (Grade == EArmorGrade::B && SilverMat)
 				{
-					int32 NumMaterials = ChestMesh->GetNumMaterials();
-
-					for (int32 i = 0; i < NumMaterials; ++i)
-					{
-						if (Grade == EArmorGrade::B && SilverMat)
-						{
-							ChestMesh->SetMaterial(i, SilverMat);
-						}
-						else if (Grade == EArmorGrade::A && GoldMat)
-						{
-							ChestMesh->SetMaterial(i, GoldMat);
-						}
-					}
+					TorsoMesh->SetMaterial(0, SilverMat);
 				}
-
-				
-			}
-			else
-			{
-				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-			}
-			ChestMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
-			ResetToDefaultMaterials(ChestMesh);
-
-			// 머티리얼 적용
-			if (Grade == EArmorGrade::B && SilverMat)
-			{
-				ChestMesh->SetMaterial(0, SilverMat);
-			}
-			else if (Grade == EArmorGrade::A && GoldMat)
-			{
-				ChestMesh->SetMaterial(0, GoldMat);
+				else if (Grade == EArmorGrade::A && GoldMat)
+				{
+					TorsoMesh->SetMaterial(0, GoldMat);
+				}
 			}
 
+			// ChestMesh는 숨기기
+			if (ChestMesh)
+			{
+				ChestMesh->SetVisibility(false);
+			}
 		}
-		break;
+		else
+		{
+			// 일반 갑옷(Chest): ChestMesh를 사용, TorsoMesh는 그대로 보이게!
+			if (ChestMesh)
+			{
+				ChestMesh->SetSkeletalMesh(NewMesh);
+				ChestMesh->SetVisibility(true);
+				ChestMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+				ResetToDefaultMaterials(ChestMesh);
+
+				// 머티리얼 적용
+				if (Grade == EArmorGrade::B && SilverMat)
+				{
+					ChestMesh->SetMaterial(0, SilverMat);
+				}
+				else if (Grade == EArmorGrade::A && GoldMat)
+				{
+					ChestMesh->SetMaterial(0, GoldMat);
+				}
+			}
+
+			// TorsoMesh는 그대로 보이게 유지 (숨기지 않음!)
+			if (TorsoMesh)
+			{
+				TorsoMesh->SetVisibility(true);
+			}
+		}
+	}
+	break;
 
 	case EQUIP_SLOT_LEG:
-		if (LegsMesh)
+	{
+		bool bIsRobe = Armor && Armor->IsA(ARobeBottom::StaticClass());
+
+		if (bIsRobe)
 		{
-			//LegsMesh->SetMasterPoseComponent(CharacterMesh);
-			LegsMesh->SetSkeletalMesh(NewMesh);
+			// Robe하의: LegsMeshmetha를 사용
+			if (LegsMeshmetha)
+			{
+				LegsMeshmetha->SetSkeletalMesh(NewMesh);
+				LegsMeshmetha->SetVisibility(true);
+				LegsMeshmetha->SetLeaderPoseComponent(CharacterMesh, true, true);
+				ResetToDefaultMaterials(LegsMeshmetha);
 
-			LegsMesh->SetMasterPoseComponent(nullptr); // 먼저 해제
-			LegsMesh->SetMasterPoseComponent(CharacterMesh); // 다시 설정
-			// 애니메이션 인스턴스 동기화 강제
-			if (CharacterMesh->GetAnimInstance())
-			{
-				LegsMesh->SetAnimInstanceClass(nullptr); // 먼저 클리어
-				LegsMesh->bNoSkeletonUpdate = false;
-				LegsMesh->bUpdateJointsFromAnimation = true;
-				LegsMesh->RefreshBoneTransforms();
-			}
-			LegsMesh->SetVisibility(true);
-			// 하의 루트 위치가 캐릭터보다 너무 위에 있음 → 보정 필요
-			/*LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
-			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));*/
-			if (Armor && Armor->IsA(ARobeBottom::StaticClass()))
-			{
-				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-			}
-			else
-			{
-				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-			}
-			//LegsMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
-
-			ResetToDefaultMaterials(LegsMesh);
-
-			// 머티리얼 적용
-			if (Grade == EArmorGrade::B && SilverMat)
-			{
-				LegsMesh->SetMaterial(0, SilverMat);
-			}
-			else if (Grade == EArmorGrade::A && GoldMat)
-			{
-				LegsMesh->SetMaterial(0, GoldMat);
+				// 머티리얼 적용
+				if (Grade == EArmorGrade::B && SilverMat)
+				{
+					LegsMeshmetha->SetMaterial(0, SilverMat);
+				}
+				else if (Grade == EArmorGrade::A && GoldMat)
+				{
+					LegsMeshmetha->SetMaterial(0, GoldMat);
+				}
 			}
 
-
-			UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with2222 SlotIndex = %d, Mesh = %s"),
-				SlotIndex, *NewMesh->GetName());
+			// LegsMesh는 숨기기
+			if (LegsMesh)
+			{
+				LegsMesh->SetVisibility(false);
+			}
 		}
-		break;
+		else
+		{
+			// 일반 갑옷(Legs): LegsMesh를 사용, LegsMeshmetha는 그대로 보이게
+			if (LegsMesh)
+			{
+				LegsMesh->SetSkeletalMesh(NewMesh);
+				LegsMesh->SetMasterPoseComponent(nullptr); // 먼저 해제
+				LegsMesh->SetMasterPoseComponent(CharacterMesh); // 다시 설정
+
+				// 애니메이션 인스턴스 동기화 강제
+				if (CharacterMesh->GetAnimInstance())
+				{
+					LegsMesh->SetAnimInstanceClass(nullptr); // 먼저 클리어
+					LegsMesh->bNoSkeletonUpdate = false;
+					LegsMesh->bUpdateJointsFromAnimation = true;
+					LegsMesh->RefreshBoneTransforms();
+				}
+
+				LegsMesh->SetVisibility(true);
+				ResetToDefaultMaterials(LegsMesh);
+
+				// 머티리얼 적용
+				if (Grade == EArmorGrade::B && SilverMat)
+				{
+					LegsMesh->SetMaterial(0, SilverMat);
+				}
+				else if (Grade == EArmorGrade::A && GoldMat)
+				{
+					LegsMesh->SetMaterial(0, GoldMat);
+				}
+			}
+
+			// LegsMeshmetha는 그대로 보이게 유지 (숨기지 않음!)
+			if (LegsMeshmetha)
+			{
+				LegsMeshmetha->SetVisibility(true);
+			}
+		}
+	}
+	break;
 	}
 
-
-
-
-
+	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh completed for SlotIndex = %d"), SlotIndex);
 }
-
-////2025 - 07 - 15
-////void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor)
-////{
-////	if (!NewMesh) return;
-////
-////	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
-////		SlotIndex, *NewMesh->GetName());
-////
-////	// 기본 머티리얼 오버라이드 제거 함수
-////	auto ResetToDefaultMaterials = [&](USkeletalMeshComponent* MeshComp) {
-////		if (!MeshComp) return;
-////		int32 NumMats = MeshComp->GetNumMaterials();
-////		for (int32 i = 0; i < NumMats; ++i)
-////		{
-////			MeshComp->SetMaterial(i, nullptr);
-////		}
-////		};
-////
-////	switch (SlotIndex)
-////	{
-////	case EQUIP_SLOT_CHEST:
-////		if (ChestMesh)
-////		{
-////			// 갑옷 메쉬 설정
-////			ChestMesh->SetMasterPoseComponent(CharacterMesh);
-////			ChestMesh->SetSkeletalMesh(NewMesh);
-////			ChestMesh->SetVisibility(true);
-////			ChestMesh->SetRelativeLocation(FVector(0.0f, 0.f, -90.f));
-////			ChestMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-////
-////			// 상의 장착 시 Body와 Torso만 숨기기
-////			if (CharacterMesh) CharacterMesh->SetVisibility(false);  // Body 메쉬 숨기기
-////			if (TorsoMesh) TorsoMesh->SetVisibility(false);         // Torso 메쉬 숨기기
-////
-////			// 하의는 그대로 보이게 유지
-////			// LegsMeshmetha와 FeetMesh는 건드리지 않음
-////
-////			// 갑옷 머티리얼 적용
-////			ResetToDefaultMaterials(ChestMesh);
-////			if (Grade == EArmorGrade::B && SilverMat)
-////			{
-////				ChestMesh->SetMaterial(0, SilverMat);
-////			}
-////			else if (Grade == EArmorGrade::A && GoldMat)
-////			{
-////				ChestMesh->SetMaterial(0, GoldMat);
-////			}
-////
-////			// 로브인 경우 스케일 조정
-////			if (Armor && Armor->IsA(ARobeTop::StaticClass()))
-////			{
-////				ChestMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
-////			}
-////		}
-////		break;
-////
-////	case EQUIP_SLOT_LEG:
-////		if (LegsMesh)
-////		{
-////			// 갑옷 메쉬 설정
-////			LegsMesh->SetSkeletalMesh(NewMesh);
-////			LegsMesh->SetVisibility(true);
-////			LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
-////			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-////
-////			// 하의 장착 시 LegsMeshmetha와 FeetMesh만 숨기기
-////			if (LegsMeshmetha) LegsMeshmetha->SetVisibility(false);  // 기본 바지 숨기기
-////			if (FeetMesh) FeetMesh->SetVisibility(false);            // 기본 신발 숨기기
-////
-////			// 상체는 그대로 보이게 유지
-////			// CharacterMesh(Body)와 TorsoMesh는 건드리지 않음
-////
-////			// 갑옷 머티리얼 적용
-////			ResetToDefaultMaterials(LegsMesh);
-////			if (Grade == EArmorGrade::B && SilverMat)
-////			{
-////				LegsMesh->SetMaterial(0, SilverMat);
-////			}
-////			else if (Grade == EArmorGrade::A && GoldMat)
-////			{
-////				LegsMesh->SetMaterial(0, GoldMat);
-////			}
-////
-////			// 로브인 경우 스케일 조정
-////			if (Armor && Armor->IsA(ARobeBottom::StaticClass()))
-////			{
-////				LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.25f, 1.0f));
-////			}
-////		}
-////		break;
-////	}
-////}
-//
-////2025 - 07 - 15 버전 2
-//void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor)
-//{
-//	if (!NewMesh) return;
-//
-//	UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh called with SlotIndex = %d, Mesh = %s"),
-//		SlotIndex, *NewMesh->GetName());
-//
-//	// --- 기본 머티리얼 오버라이드 제거 헬퍼 람다
-//	auto ResetToDefaultMaterials = [&](USkeletalMeshComponent* MeshComp) {
-//		if (!MeshComp) return;
-//		int32 NumMats = MeshComp->GetNumMaterials();
-//		for (int32 i = 0; i < NumMats; ++i)
-//		{
-//			MeshComp->SetMaterial(i, nullptr);
-//		}
-//		};
-//
-//	switch (SlotIndex)
-//	{
-//	case EQUIP_SLOT_CHEST:
-//		if (TorsoMesh)  // <-- ChestMesh 대신 TorsoMesh 사용
-//		{
-//			// 1) 새 메시 적용
-//			TorsoMesh->SetSkeletalMesh(NewMesh);
-//			TorsoMesh->SetVisibility(true);
-//
-//			// 2) 위치/회전/스케일 보정 (원래 ChestMesh 값에서 조금 바꿀 수도 있음)
-//			/*TorsoMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -90.f));
-//			TorsoMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-//			TorsoMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));*/
-//
-//			// 3) Bone Transform 복사
-//			TorsoMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
-//			//TorsoMesh->SetMasterPoseComponent(CharacterMesh, true);
-//			// 4) 머티리얼 리셋 → 등급별 머티리얼 적용
-//			ResetToDefaultMaterials(TorsoMesh);
-//			int32 NumMaterials = TorsoMesh->GetNumMaterials();
-//			for (int32 i = 0; i < NumMaterials; ++i)
-//			{
-//				if (Grade == EArmorGrade::B && SilverMat)
-//					TorsoMesh->SetMaterial(i, SilverMat);
-//				else if (Grade == EArmorGrade::A && GoldMat)
-//					TorsoMesh->SetMaterial(i, GoldMat);
-//			}
-//		}
-//		break;
-//
-//	case EQUIP_SLOT_LEG:
-//		if (LegsMesh)
-//		{
-//			// 기존 로직 유지
-//			LegsMesh->SetSkeletalMesh(NewMesh);
-//			LegsMesh->SetVisibility(true);
-//			LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
-//			LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
-//			LegsMesh->SetRelativeScale3D(Armor && Armor->IsA(ARobeBottom::StaticClass())
-//				? FVector(1.0f, 1.25f, 1.0f)
-//				: FVector(1.0f, 1.0f, 1.0f));
-//			LegsMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
-//			ResetToDefaultMaterials(LegsMesh);
-//			if (Grade == EArmorGrade::B && SilverMat)
-//				LegsMesh->SetMaterial(0, SilverMat);
-//			else if (Grade == EArmorGrade::A && GoldMat)
-//				LegsMesh->SetMaterial(0, GoldMat);
-//
-//			UE_LOG(LogTemp, Warning, TEXT("EquipArmorMesh SlotIndex=%d, Mesh=%s"), SlotIndex, *NewMesh->GetName());
-//		}
-//		break;
-//	}
-//}
-
 
 
 void AMyDCharacter::EquipArmorFromClass(int32 SlotIndex, TSubclassOf<AItem> ArmorClass, uint8 Grade)
@@ -1771,7 +1641,6 @@ void AMyDCharacter::EquipHelmetMesh(UStaticMesh* NewMesh, EArmorGrade Grade, UMa
 
 }
 
-
 void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
 {
 	if (EquippedArmors.Contains(SlotIndex))
@@ -1779,92 +1648,149 @@ void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
 		AArmor* Armor = EquippedArmors[SlotIndex];
 		if (Armor)
 		{
+			// 스탯 제거 (이게 핵심! - 실제 적용된 보너스만큼 제거)
 			Armor->RemoveArmorStats(this);
 			Armor->Destroy();
 		}
+
 		// 시각적으로도 제거
 		switch (SlotIndex)
 		{
 		case EQUIP_SLOT_CHEST:
-			if (ChestMesh)
+		{
+			bool bWasRobe = Armor && Armor->IsA(ARobeTop::StaticClass());
+
+			if (bWasRobe)
 			{
-				ChestMesh->SetSkeletalMesh(nullptr);
-				ChestMesh->SetVisibility(false);
+				// Robe였다면: TorsoMesh를 기본으로 복구
+				if (TorsoMesh && DefaultTorsoMesh)
+				{
+					TorsoMesh->SetSkeletalMesh(DefaultTorsoMesh);
+					TorsoMesh->SetVisibility(true);
+					TorsoMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
+
+					// 기본 머티리얼로 복구 (모든 머티리얼 오버라이드 제거)
+					int32 NumMats = TorsoMesh->GetNumMaterials();
+					for (int32 i = 0; i < NumMats; ++i)
+					{
+						TorsoMesh->SetMaterial(i, nullptr);
+					}
+
+					UE_LOG(LogTemp, Log, TEXT("Restored default torso mesh from robe"));
+				}
+
+				// ChestMesh는 그대로
+				if (ChestMesh)
+				{
+					ChestMesh->SetVisibility(false);
+				}
 			}
-			break;
+			else
+			{
+				// 일반 갑옷이었다면: ChestMesh만 숨기기, TorsoMesh는 그대로
+				if (ChestMesh)
+				{
+					ChestMesh->SetSkeletalMesh(nullptr);
+					ChestMesh->SetVisibility(false);
+
+					// ChestMesh 머티리얼 초기화
+					int32 NumMats = ChestMesh->GetNumMaterials();
+					for (int32 i = 0; i < NumMats; ++i)
+					{
+						ChestMesh->SetMaterial(i, nullptr);
+					}
+				}
+
+				// TorsoMesh는 이미 보이는 상태로 유지
+				if (TorsoMesh)
+				{
+					TorsoMesh->SetVisibility(true);
+				}
+			}
+		}
+		break;
 
 		case EQUIP_SLOT_LEG:
-			if (LegsMesh)
+		{
+			bool bWasRobe = Armor && Armor->IsA(ARobeBottom::StaticClass());
+
+			if (bWasRobe)
 			{
-				LegsMesh->SetSkeletalMesh(nullptr);
-				LegsMesh->SetVisibility(false);
+				// Robe였다면: LegsMeshmetha를 기본으로 복구
+				if (LegsMeshmetha && DefaultLegsMesh)
+				{
+					LegsMeshmetha->SetSkeletalMesh(DefaultLegsMesh);
+					LegsMeshmetha->SetVisibility(true);
+					LegsMeshmetha->SetLeaderPoseComponent(CharacterMesh, true, true);
+
+					// 기본 머티리얼로 복구
+					int32 NumMats = LegsMeshmetha->GetNumMaterials();
+					for (int32 i = 0; i < NumMats; ++i)
+					{
+						LegsMeshmetha->SetMaterial(i, nullptr);
+					}
+
+					UE_LOG(LogTemp, Log, TEXT("Restored default legs mesh from robe"));
+				}
+
+				// LegsMesh는 그대로
+				if (LegsMesh)
+				{
+					LegsMesh->SetVisibility(false);
+				}
 			}
-			break;
+			else
+			{
+				// 일반 갑옷이었다면: LegsMesh만 숨기기, LegsMeshmetha는 그대로
+				if (LegsMesh)
+				{
+					LegsMesh->SetSkeletalMesh(nullptr);
+					LegsMesh->SetVisibility(false);
+
+					// LegsMesh 머티리얼 초기화
+					int32 NumMats = LegsMesh->GetNumMaterials();
+					for (int32 i = 0; i < NumMats; ++i)
+					{
+						LegsMesh->SetMaterial(i, nullptr);
+					}
+				}
+
+				// LegsMeshmetha는 이미 보이는 상태로 유지
+				if (LegsMeshmetha)
+				{
+					LegsMeshmetha->SetVisibility(true);
+				}
+			}
+		}
+		break;
 
 		case EQUIP_SLOT_HELMET:
 			if (HelmetMesh)
 			{
 				HelmetMesh->SetStaticMesh(nullptr);
 				HelmetMesh->SetVisibility(false);
+
+				// 헬멧 머티리얼 초기화
+				int32 NumMats = HelmetMesh->GetNumMaterials();
+				for (int32 i = 0; i < NumMats; ++i)
+				{
+					HelmetMesh->SetMaterial(i, nullptr);
+				}
 			}
 			break;
 		}
 
-
 		EquippedArmors.Remove(SlotIndex);
+
+		// HUD 업데이트 (체력 변화 반영)
+		UpdateHUD();
+
+		UE_LOG(LogTemp, Warning, TEXT("Successfully unequipped armor at slot %d"), SlotIndex);
 	}
 }
 
-//2025 - 07 -15
-//void AMyDCharacter::UnequipArmorAtSlot(int32 SlotIndex)
-//{
-//	if (EquippedArmors.Contains(SlotIndex))
-//	{
-//		AArmor* Armor = EquippedArmors[SlotIndex];
-//		if (Armor)
-//		{
-//			Armor->RemoveArmorStats(this);
-//			Armor->Destroy();
-//		}
-//
-//		// 시각적으로도 제거
-//		switch (SlotIndex)
-//		{
-//		case EQUIP_SLOT_CHEST:
-//			if (ChestMesh)
-//			{
-//				ChestMesh->SetSkeletalMesh(nullptr);
-//				ChestMesh->SetVisibility(false);
-//			}
-//			// 상의 해제 시 Body와 Torso만 다시 보이기
-//			if (CharacterMesh) CharacterMesh->SetVisibility(true);  // Body 메쉬 복구
-//			if (TorsoMesh) TorsoMesh->SetVisibility(true);         // Torso 메쉬 복구
-//			break;
-//
-//		case EQUIP_SLOT_LEG:
-//			if (LegsMesh)
-//			{
-//				LegsMesh->SetSkeletalMesh(nullptr);
-//				LegsMesh->SetVisibility(false);
-//			}
-//			// 하의 해제 시 LegsMeshmetha와 FeetMesh만 다시 보이기
-//			if (LegsMeshmetha) LegsMeshmetha->SetVisibility(true);  // 기본 바지 복구
-//			if (FeetMesh) FeetMesh->SetVisibility(true);            // 기본 신발 복구
-//			break;
-//
-//		case EQUIP_SLOT_HELMET:
-//			if (HelmetMesh)
-//			{
-//				HelmetMesh->SetStaticMesh(nullptr);
-//				HelmetMesh->SetVisibility(false);
-//			}
-//			// 투구는 다른 메쉬에 영향 없음
-//			break;
-//		}
-//
-//		EquippedArmors.Remove(SlotIndex);
-//	}
-//}
+
+
 
 
 void AMyDCharacter::ServerRequestEquipWeapon_Implementation(const FItemData& WeaponData)
@@ -2001,6 +1927,12 @@ void AMyDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 
 void AMyDCharacter::UpdateHUD()
 {
+
+	if (!IsLocallyControlled() || !HUDWidget)
+	{
+		return; // 조용히 리턴
+	}
+
 	if (HUDWidget)
 	{
 		HUDWidget->UpdateHealth(Health, MaxHealth);
@@ -2842,6 +2774,12 @@ void AMyDCharacter::TriggerDelayedWFC()
 
 void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 {
+	/*if (!IsLocallyControlled())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ShowWFCFadeAndRegenSequence - Not locally controlled, skipping UI"));
+		return;
+	}*/
+
 
 	// 유효성 검사 강화
 	if (!IsValid(this) || !GetWorld())
@@ -2851,107 +2789,159 @@ void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 	}
 
 	// 관전자가 아닌 경우만 처리
-	APlayerController* PC = GetController<APlayerController>();
+	/*APlayerController* PC = GetController<APlayerController>();
 	if (!PC || PC->GetStateName() == NAME_Spectating)
 	{
 		return;
-	}
-
-	// WFCWarningWidgetInstance 안전 검사 및 생성
-	if (!IsValid(WFCWarningWidgetInstance))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("WFCWarningWidgetInstance is invalid, attempting to recreate"));
-
-		// 위젯 클래스가 설정되어 있다면 다시 생성 시도
-		if (WFCWarningWidgetClass)
-		{
-			WFCWarningWidgetInstance = CreateWidget<UUserWidget>(PC, WFCWarningWidgetClass);
-			if (!IsValid(WFCWarningWidgetInstance))
-			{
-				UE_LOG(LogTemp, Error, TEXT("Failed to create WFCWarningWidgetInstance"));
-				return; // 위젯 생성 실패시 함수 종료
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("WFCWarningWidgetClass is not set"));
-			return; // 위젯 클래스가 없으면 함수 종료
-		}
-	}
+	}*/
 
 	
-	if (IsValid(WFCWarningWidgetInstance))
+
+	
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// (1) 이 Pawn이 '내가 조종하는' Pawn 이 아니면 건너뛰기
+	/*if (!IsLocallyControlled())
 	{
-		if (!WFCWarningWidgetInstance->IsInViewport())
+		return;
+	}*/
+
+	// (2) 항상 내 PC 를 가져오기
+
+	
+	// 각 클라이언트에서 자신의 로컬 플레이어 컨트롤러 찾기
+	APlayerController* LocalPC = nullptr;
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (PC && PC->IsLocalController())
 		{
-			WFCWarningWidgetInstance->AddToViewport(20);
+			LocalPC = PC;
+			break;
 		}
-		WFCWarningWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 
-		// 5초 후에 암전 및 재생성 진행
-		GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFade, this, &AMyDCharacter::FadeAndRegenWFC, 2.0f, false);
+		// WFCWarningWidgetInstance 안전 검사 및 생성
+		if (!IsValid(WFCWarningWidgetInstance))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("WFCWarningWidgetInstance is invalid, attempting to recreate"));
+
+			// 위젯 클래스가 설정되어 있다면 다시 생성 시도
+			if (WFCWarningWidgetClass)
+			{
+				//WFCWarningWidgetInstance = CreateWidget<UUserWidget>(PC, WFCWarningWidgetClass);
+				//if (!IsValid(WFCWarningWidgetInstance))
+				//{
+				//	UE_LOG(LogTemp, Error, TEXT("Failed to create WFCWarningWidgetInstance"));
+				//	return; // 위젯 생성 실패시 함수 종료
+				//}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("WFCWarningWidgetClass is not set"));
+				return; // 위젯 클래스가 없으면 함수 종료
+			}
+		}
+
 	}
-	else
+
+
+
+	/*APlayerController* LocalPC = UGameplayStatics::GetPlayerController(World, 0);
+	if (!LocalPC || !WFCWarningWidgetClass)
 	{
-		UE_LOG(LogTemp, Error, TEXT("WFCWarningWidgetInstance is still invalid after creation attempt"));
-	}
+		UE_LOG(LogTemp, Error, TEXT("Cannot show WFC warning: Missing PC or WidgetClass"));
+		return;
+	}*/
 
-	// 5초 후에 암전 및 재생성 진행
-	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFade, this, &AMyDCharacter::FadeAndRegenWFC, 2.0f, false);
+	// (3) 새로 생성해서 바로 띄우기
+	DelayedWarningWidget = CreateWidget<UUserWidget>(LocalPC, WFCWarningWidgetClass);
+	if (!DelayedWarningWidget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to create WFCWarningWidget"));
+		return;
+	}
+	DelayedWarningWidget->AddToViewport(20);
+
+	// (4) 2초 뒤에 페이드 & 재생성 호출
+	FTimerHandle TimerHandle;
+	World->GetTimerManager().SetTimer(
+		TimerHandle,
+		this,
+		&AMyDCharacter::FadeAndRegenWFC,
+		2.0f,   // 연출 지속 시간
+		false
+	);
 }
 
 void AMyDCharacter::FadeAndRegenWFC()
 {
-	if (WFCWarningWidgetInstance)
+	UWorld* World = GetWorld();
+	if (!World) return;
+	/*if (!World || !IsLocallyControlled())
 	{
-		WFCWarningWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
-	}
+		return;
+	}*/
 
-	if (WFCDoneWidgetInstance)
+	APlayerController* LocalPC = nullptr;
+
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 	{
-		if (!WFCDoneWidgetInstance->IsInViewport())
+		APlayerController* PC = It->Get();
+		if (PC && PC->IsLocalController())
 		{
-			WFCDoneWidgetInstance->AddToViewport(21);
+			LocalPC = PC;
+			break;
 		}
-		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Visible);
 	}
-	else
+
+	// (5) WFC 완료 위젯 띄우기
+	 // 1) 항상 내 로컬 PC
+	
+	if (WFCDoneWidgetClass && LocalPC)
 	{
-		UE_LOG(LogTemp, Error, TEXT("WFCDoneWidgetInstance is NULL in FadeAndRegenWFC"));
+		UUserWidget* DoneWidget = CreateWidget<UUserWidget>(LocalPC, WFCDoneWidgetClass);
+		DoneWidget->AddToViewport(21);
+
+		//5초 뒤 자동 제거
+		FTimerHandle HideHandle;
+		World->GetTimerManager().SetTimer(
+			HideHandle,
+			[DoneWidget]()
+			{
+				if (DoneWidget)
+				{
+					DoneWidget->RemoveFromParent();
+				}
+			},
+			15.0f,
+			false
+		);
 	}
 
-	// 재생성 전에 플레이어가 고정된 방타일 근처에 있는지 확인
+	// (6) 실제 WFC 재생성 로직
 	bool bPlayerInFixedRoom = IsPlayerInFixedRoomTile();
-
 	if (bPlayerInFixedRoom)
 	{
-		// 플레이어 중력 비활성화
 		ServerSetPlayerGravity(0.0f);
 		TeleportToWFCRegen();
 	}
 
-
-	// 0.5초 후에 재생성 시작 (연출이 먼저 보이도록)
-	GetWorldTimerManager().SetTimer(TimerHandle_StartWFC, [this]() 
-		{
-			// UI 상태 확인 후 실행
-			
-				ExecuteWFCNow();
-			
-		}, 0.5f, false);
-
-	// 5초 후 위젯 숨기기 (람다 사용)
-	GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, [this]()
-		{
-			if (WFCDoneWidgetInstance)
-			{
-				WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
-			}
-		}, 5.0f, false);
-
-	//ExecuteWFCNow();
-	//GetWorldTimerManager().SetTimer(TimerHandle_DelayedWFCFinal, this, &AMyDCharacter::ExecuteWFCNow, 5.0f, false);
+	// (7) 0.5초 뒤에 맵 재생성
+	FTimerHandle RegenHandle;
+	World->GetTimerManager().SetTimer(
+		RegenHandle,
+		this,
+		&AMyDCharacter::ExecuteWFCNow,
+		0.5f,
+		false
+	);
 }
+
+
+
+
 
 void AMyDCharacter::ServerSetPlayerGravity_Implementation(float GravityScale)
 {
@@ -3001,14 +2991,21 @@ void AMyDCharacter::ExecuteWFCNow()
 		}
 	}
 
-	/*if (WFCDoneWidgetInstance)
+	if (DelayedWarningWidget && IsValid(DelayedWarningWidget))
+	{
+		DelayedWarningWidget->RemoveFromParent();
+		DelayedWarningWidget = nullptr;
+		UE_LOG(LogTemp, Log, TEXT("Removed DelayedWarningWidget"));
+	}
+
+	if (WFCDoneWidgetInstance)
 	{
 		WFCDoneWidgetInstance->SetVisibility(ESlateVisibility::Hidden);
-	}*/
+	}
 
 	bIsWFCCountdownActive = false;
 	PendingRegenActor = nullptr;
-
+	
 }
 
 bool AMyDCharacter::ServerRequestWFCRegen_Validate(AWFCRegenerator* RegenActor)
@@ -3044,10 +3041,77 @@ void AMyDCharacter::ServerPlayWFCRegenEffects_Implementation()
 // RPC: 서버→모든 클라이언트
 void AMyDCharacter::MulticastPlayWFCRegenEffects_Implementation()
 {
-	// 모든 인스턴스에서 실행
-	PlayWFCRegenCameraShake();
-	TriggerDelayedWFC();
+
+	////if (IsLocallyControlled())
+	////{
+	//	// 모든 인스턴스에서 실행
+	//	PlayWFCRegenCameraShake();
+	//	//if (IsLocallyControlled())
+	//	
+	//		TriggerDelayedWFC();
+	//	//}
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	/*if (bIsWFCCountdownActive)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WFC already in progress, ignoring duplicate call"));
+		return;
+	}*/
+
+	// 각 클라이언트에서 자신의 로컬 플레이어 컨트롤러 찾기
+	APlayerController* LocalPC = nullptr;
+
+	// 현재 이 함수를 실행하는 클라이언트의 로컬 플레이어 컨트롤러 찾기
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (PC && PC->IsLocalController())
+		{
+			LocalPC = PC;
+			break;
+		}
+	}
+
+	if (!LocalPC)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MulticastPlayWFCRegenEffects: No local player controller found"));
+		return;
+	}
+
+	// 1) 카메라 셰이크
+	TSubclassOf<UCameraShakeBase> ShakeClass =
+		LoadClass<UCameraShakeBase>(nullptr, TEXT("/Game/BP/BP_WFCShake.BP_WFCShake_C"));
+	if (LocalPC->PlayerCameraManager && ShakeClass)
+	{
+		LocalPC->PlayerCameraManager->StartCameraShake(ShakeClass);
+		UE_LOG(LogTemp, Log, TEXT("Multicast: Camera Shake Played on LocalPC"));
+	}
+
+	// 2) UI 연출 (경고 위젯 등)
+	if (WFCWarningWidgetClass && (!WFCWarningWidgetInstance || !WFCWarningWidgetInstance->IsInViewport()))
+	{
+		UUserWidget* Widget = CreateWidget<UUserWidget>(LocalPC, WFCWarningWidgetClass);
+		if (Widget)
+		{
+			Widget->AddToViewport(20);
+			UE_LOG(LogTemp, Log, TEXT("Multicast: WFC Warning Widget Added"));
+		}
+	}
+
+	// 3) 딜레이 후 실제 재생성 로직 호출
+	FTimerHandle TimerHandle;
+	World->GetTimerManager().SetTimer(
+		TimerHandle,
+		this,
+		&AMyDCharacter::TriggerDelayedWFC,
+		2.0f,    // 딜레이 시간
+		false
+	);
+
 }
+
 
 bool AMyDCharacter::ServerCastSpell_Validate(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation)
 {
@@ -4054,47 +4118,74 @@ void AMyDCharacter::HealPlayer(int32 Amount)
 
 void AMyDCharacter::UseHotkey(int32 Index)
 {
+	// 안전성 검사 1: EquipmentWidgetInstance 유효성 확인
+	if (!EquipmentWidgetInstance)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UseHotkey: EquipmentWidgetInstance is null"));
+		return;
+	}
 
-	const int32 EquipSlotIndex = 4 + Index;
-	FItemData& Item = EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]; 
+	// 안전성 검사 2: Index 범위 확인
+	if (Index < 0 || Index >= 5)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UseHotkey: Invalid index %d"), Index);
+		return;
+	}
 
+	const int32 EquipSlotIndex = 4 + Index; // 핫키 슬롯은 4~8번
 
-	UE_LOG(LogTemp, Warning, TEXT("gpt bbbbbyu"));
+	// 안전성 검사 3: EquipmentSlots 배열 크기 확인
+	if (!EquipmentWidgetInstance->EquipmentSlots.IsValidIndex(EquipSlotIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UseHotkey: EquipmentSlots index %d is invalid"), EquipSlotIndex);
+		return;
+	}
 
-	if (!Item.ItemClass) return;
+	FItemData& Item = EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex];
+
+	// 안전성 검사 4: 아이템이 실제로 있는지 확인
+	if (!Item.ItemClass)
+	{
+		UE_LOG(LogTemp, Log, TEXT("UseHotkey %d: No item in slot %d"), Index, EquipSlotIndex);
+		return; // 크래시 대신 조용히 리턴
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Using hotkey %d: %s"), Index, *Item.ItemName);
 
 	AItem* DefaultItem = Item.ItemClass->GetDefaultObject<AItem>();
-	if (!DefaultItem) return;
+	if (!DefaultItem)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UseHotkey: Failed to get default object for item"));
+		return;
+	}
 
+	// 소비성 아이템 처리 (스크롤 등)
 	if (Item.ItemType == EItemType::Consumable)
 	{
-		DefaultItem->Use(this);  // AScrollItem이면 스킬 발동됨
+		DefaultItem->Use(this);  // AScrollItem이면 스펠 발동됨
 
-		// 공통 처리
+		// 개수 차감
 		Item.Count--;
 		if (Item.Count <= 0)
 		{
 			EquipmentWidgetInstance->ClearSlot(EquipSlotIndex);
 		}
-		EquipmentWidgetInstance->RefreshEquipmentSlots();
 
-		if (HUDWidget)
-		{
-			HUDWidget->UpdateHotkeySlot(Index, EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]);
-		}
+		// UI 업데이트
+		EquipmentWidgetInstance->RefreshEquipmentSlots();
 		return;
 	}
 
-
+	// 포션 타입으로 강제 설정 (기존 로직 유지)
 	if (Item.ItemClass && Item.ItemType != EItemType::Potion)
 	{
 		Item.ItemType = EItemType::Potion;
-		UE_LOG(LogTemp, Warning, TEXT("ItemType hhhhh: Potion"));
+		UE_LOG(LogTemp, Log, TEXT("ItemType changed to Potion for %s"), *Item.ItemName);
 	}
 
+	// 포션 사용 처리
 	if (Item.ItemType == EItemType::Potion && Item.ItemClass)
 	{
-		//AItem* DefaultItem = Item.ItemClass->GetDefaultObject<AItem>();
 		const EPotionEffectType EffectType = Item.PotionEffect;
 
 		switch (EffectType)
@@ -4102,7 +4193,11 @@ void AMyDCharacter::UseHotkey(int32 Index)
 		case EPotionEffectType::Health:
 		{
 			APotion* Potion = Cast<APotion>(DefaultItem);
-			if (Potion) HealPlayer(Potion->GetHealAmount());
+			if (Potion)
+			{
+				HealPlayer(Potion->GetHealAmount());
+				UE_LOG(LogTemp, Log, TEXT("Used health potion: +%d HP"), Potion->GetHealAmount());
+			}
 			break;
 		}
 		case EPotionEffectType::Mana:
@@ -4113,6 +4208,7 @@ void AMyDCharacter::UseHotkey(int32 Index)
 				Knowledge += ManaPotion->ManaAmount;
 				Knowledge = FMath::Clamp(Knowledge, 0.0f, MaxKnowledge);
 				UpdateHUD();
+				UE_LOG(LogTemp, Log, TEXT("Used mana potion: +%d MP"), ManaPotion->ManaAmount);
 			}
 			break;
 		}
@@ -4123,26 +4219,25 @@ void AMyDCharacter::UseHotkey(int32 Index)
 			{
 				Stamina += StaminaPotion->StaminaAmount;
 				Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
-				UpdateHUD(); 
+				UpdateHUD();
+				UE_LOG(LogTemp, Log, TEXT("Used stamina potion: +%d SP"), StaminaPotion->StaminaAmount);
 			}
 			break;
 		}
 		default:
-			UE_LOG(LogTemp, Warning, TEXT("Unknown potion effect type."));
-			break;
+			UE_LOG(LogTemp, Warning, TEXT("Unknown potion effect type for %s"), *Item.ItemName);
+			return; // 알 수 없는 타입이면 사용하지 않음
 		}
 
-		// 공통 처리
+		// 개수 차감
 		Item.Count--;
 		if (Item.Count <= 0)
 		{
 			EquipmentWidgetInstance->ClearSlot(EquipSlotIndex);
 		}
+
+		// UI 업데이트
 		EquipmentWidgetInstance->RefreshEquipmentSlots();
-		if (HUDWidget)
-		{
-			HUDWidget->UpdateHotkeySlot(Index, EquipmentWidgetInstance->EquipmentSlots[EquipSlotIndex]);
-		}
 	}
 }
 

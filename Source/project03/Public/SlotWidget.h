@@ -6,6 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "Item.h"
 #include "ItemTooltipWidget.h"
+#include "UCharacterHUDWidget.h"
 #include "SlotWidget.generated.h"
 
 /**

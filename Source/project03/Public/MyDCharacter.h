@@ -100,6 +100,12 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	USkeletalMeshComponent* FeetMesh;
 
+	UPROPERTY()
+	USkeletalMesh* DefaultTorsoMesh;
+
+	UPROPERTY()
+	USkeletalMesh* DefaultLegsMesh;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Combat")
 	bool bIsInvulnerable = false;
 
@@ -159,6 +165,10 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastSetPlayerGravity(float GravityScale);
+
+	UPROPERTY()
+	UUserWidget* DelayedWarningWidget;
+
 
 
 	// =========================
@@ -340,6 +350,8 @@ public:
 
 	//핫키 인덱스 기반 호출 함수
 	void UseHotkey(int32 Index);
+
+
 
 	//개별 바인딩용 래퍼 함수들
 	UFUNCTION()

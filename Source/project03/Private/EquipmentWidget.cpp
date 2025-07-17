@@ -10,9 +10,6 @@
 
 void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
 {
-
-
-
     if (!EquipmentSlots.IsValidIndex(Index))
     {
         return;
@@ -20,6 +17,7 @@ void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
 
     EquipmentSlots[Index] = ItemData;
 
+    // 핫키 슬롯 업데이트 (로컬 클라이언트에서만)
     const int32 HotkeyStartIndex = 4;
     const int32 HotkeyEndIndex = 8;
 
@@ -28,28 +26,28 @@ void UEquipmentWidget::SetSlot(int32 Index, const FItemData& ItemData)
         APawn* OwnerPawn = GetOwningPlayerPawn();
         if (AMyDCharacter* Char = Cast<AMyDCharacter>(OwnerPawn))
         {
-            int32 HotkeyIndex = Index - HotkeyStartIndex;
-            if (Char->HUDWidget)
+            // 로컬 클라이언트에서만 핫키 UI 업데이트
+            if (Char->IsLocallyControlled() && Char->HUDWidget)
             {
+                int32 HotkeyIndex = Index - HotkeyStartIndex;
                 Char->HUDWidget->UpdateHotkeySlot(HotkeyIndex, ItemData);
+                UE_LOG(LogTemp, Log, TEXT("Updated hotkey slot %d with item: %s"),
+                    HotkeyIndex, *ItemData.ItemName);
             }
         }
     }
 
-
-   // 캐릭터가 있을 때만 무기 장착 시도
+    // 캐릭터가 있을 때만 무기 장착 시도
     APawn* OwnerPawn = GetOwningPlayerPawn();
     if (AMyDCharacter* Char = Cast<AMyDCharacter>(OwnerPawn))
     {
         if (Index == EQUIP_SLOT_WEAPON && ItemData.ItemType == EItemType::Weapon)
         {
-            //Char->EquipWeaponFromClass(ItemData.ItemClass, static_cast<EWeaponGrade>(ItemData.Grade));
             Char->ServerRequestEquipWeapon(ItemData);
             UE_LOG(LogTemp, Log, TEXT("Weapon Equipped in Game"));
         }
         else if (ItemData.ItemType == EItemType::Armor)
         {
-            //Char->EquipArmorFromClass(Index, ItemData.ItemClass, ItemData.Grade);
             Char->ServerRequestEquipArmor(ItemData, Index);
             UE_LOG(LogTemp, Log, TEXT("Armor Equipped at slot %d"), Index);
         }
@@ -70,23 +68,32 @@ void UEquipmentWidget::ClearSlot(int32 Index)
         {
             if (Index == EQUIP_SLOT_WEAPON)
             {
-                //Char->UnequipWeapon();
                 Char->ServerRequestUnequipWeapon();
             }
             else if (EquipmentSlots[Index].ItemType == EItemType::Armor)
             {
-
                 // 서버 요청 전에 즉시 시각적 제거 (옵션)
                 if (Char->IsLocallyControlled())
                 {
                     Char->UnequipArmorAtSlot(Index);
                 }
-
-  
-
-                //Char->UnequipArmorAtSlot(Index);
                 Char->ServerRequestUnequipArmor(Index);
                 UE_LOG(LogTemp, Log, TEXT("Armor unequipped at slot %d"), Index);
+            }
+        }
+
+        // 핫키 슬롯 클리어 (로컬 클라이언트에서만)
+        const int32 HotkeyStartIndex = 4;
+        const int32 HotkeyEndIndex = 8;
+
+        if (Index >= HotkeyStartIndex && Index <= HotkeyEndIndex && Char)
+        {
+            if (Char->IsLocallyControlled() && Char->HUDWidget)
+            {
+                int32 HotkeyIndex = Index - HotkeyStartIndex;
+                FItemData EmptyItem; // 빈 아이템
+                Char->HUDWidget->UpdateHotkeySlot(HotkeyIndex, EmptyItem);
+                UE_LOG(LogTemp, Log, TEXT("Cleared hotkey slot %d"), HotkeyIndex);
             }
         }
 
@@ -102,11 +109,31 @@ void UEquipmentWidget::ClearSlot(int32 Index)
         }
     }
 }
+
 void UEquipmentWidget::SwapSlots(int32 From, int32 To)
 {
     if (EquipmentSlots.IsValidIndex(From) && EquipmentSlots.IsValidIndex(To))
     {
         EquipmentSlots.Swap(From, To);
+
+        // 핫키 슬롯이 관련된 경우 핫키 UI도 업데이트
+        const int32 HotkeyStartIndex = 4;
+        const int32 HotkeyEndIndex = 8;
+
+        AMyDCharacter* Char = Cast<AMyDCharacter>(GetOwningPlayerPawn());
+        if (Char && Char->IsLocallyControlled() && Char->HUDWidget)
+        {
+            if ((From >= HotkeyStartIndex && From <= HotkeyEndIndex) ||
+                (To >= HotkeyStartIndex && To <= HotkeyEndIndex))
+            {
+                // 전체 핫키 슬롯 새로고침
+                for (int32 i = HotkeyStartIndex; i <= HotkeyEndIndex; ++i)
+                {
+                    int32 HotkeyIndex = i - HotkeyStartIndex;
+                    Char->HUDWidget->UpdateHotkeySlot(HotkeyIndex, EquipmentSlots[i]);
+                }
+            }
+        }
     }
 }
 
@@ -143,15 +170,26 @@ void UEquipmentWidget::RefreshEquipmentSlots()
                 {
                     UE_LOG(LogTemp, Log, TEXT("Hotkey Slot %d: [Empty]"), i);
                 }
-
             }
 
             EquipmentSlotContainer->AddChild(NewSlot);
         }
     }
+
+    // RefreshEquipmentSlots 후에 핫키 UI도 동기화 (로컬 클라이언트에서만)
+    AMyDCharacter* Char = Cast<AMyDCharacter>(GetOwningPlayerPawn());
+    if (Char && Char->IsLocallyControlled() && Char->HUDWidget)
+    {
+        const int32 HotkeyStartIndex = 4;
+        const int32 HotkeyEndIndex = 8;
+
+        for (int32 i = HotkeyStartIndex; i <= HotkeyEndIndex; ++i)
+        {
+            int32 HotkeyIndex = i - HotkeyStartIndex;
+            Char->HUDWidget->UpdateHotkeySlot(HotkeyIndex, EquipmentSlots[i]);
+        }
+    }
 }
-
-
 
 TArray<FItemData> UEquipmentWidget::GetAllEquipmentData() const
 {
@@ -162,4 +200,22 @@ void UEquipmentWidget::RestoreEquipmentFromData(const TArray<FItemData>& SavedDa
 {
     EquipmentSlots = SavedData;
     RefreshEquipmentSlots();
+
+    // 데이터 복구 후 핫키 UI도 동기화 (로컬 클라이언트에서만)
+    AMyDCharacter* Char = Cast<AMyDCharacter>(GetOwningPlayerPawn());
+    if (Char && Char->IsLocallyControlled() && Char->HUDWidget)
+    {
+        const int32 HotkeyStartIndex = 4;
+        const int32 HotkeyEndIndex = 8;
+
+        for (int32 i = HotkeyStartIndex; i <= HotkeyEndIndex; ++i)
+        {
+            if (EquipmentSlots.IsValidIndex(i))
+            {
+                int32 HotkeyIndex = i - HotkeyStartIndex;
+                Char->HUDWidget->UpdateHotkeySlot(HotkeyIndex, EquipmentSlots[i]);
+            }
+        }
+        UE_LOG(LogTemp, Log, TEXT("Hotkey UI synchronized after data restoration"));
+    }
 }
