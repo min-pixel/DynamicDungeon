@@ -322,7 +322,7 @@ AMyDCharacter::AMyDCharacter()
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;  // 컨트롤러 회전 적용
 
 	//**카메라 위치 및 방향 유지**
-	FirstPersonCameraComponent->SetRelativeLocation(FVector(-100.0f, 0.0f, 80.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
+	FirstPersonCameraComponent->SetRelativeLocation(FVector(20.0f, 0.0f, 50.0f));  // 머리 위치 , 원래값 20.0f, 0.0f, 50.0f, 테스트값 -100.0f, 0.0f, 80.0f
 	FirstPersonCameraComponent->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f)); // 정면 유지
 
 	//몸체 숨기기 (1인칭에서 보이지 않게)
@@ -439,6 +439,8 @@ AMyDCharacter::AMyDCharacter()
 
 }
 
+
+
 // 게임 시작 시 호출
 void AMyDCharacter::BeginPlay()
 {
@@ -463,6 +465,40 @@ void AMyDCharacter::BeginPlay()
 	//{
 	//	LegsMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
 	//}
+
+	if (IsLocallyControlled())
+	{
+		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+		if (GameInstance && GameInstance->CurrentCharacterData.PlayerName != TEXT("DefaultName"))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("=== CLIENT: SENDING LOBBY STATS TO SERVER ==="));
+			UE_LOG(LogTemp, Warning, TEXT("Sending: HP=%.1f, SP=%.1f, MP=%.1f, Gold=%d"),
+				GameInstance->CurrentCharacterData.MaxHealth,
+				GameInstance->CurrentCharacterData.MaxStamina,
+				GameInstance->CurrentCharacterData.MaxKnowledge,
+				GameInstance->LobbyGold);
+
+			// 서버에 이 플레이어의 업그레이드된 스탯 전송
+			ServerApplyLobbyStats(
+				GameInstance->CurrentCharacterData.MaxHealth,
+				GameInstance->CurrentCharacterData.MaxStamina,
+				GameInstance->CurrentCharacterData.MaxKnowledge,
+				GameInstance->LobbyGold
+			);
+
+			FTimerHandle UpdateHUDTimer;
+			GetWorldTimerManager().SetTimer(UpdateHUDTimer, [this]()
+				{
+					UpdateHUD();
+				}, 0.5f, false);
+
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No lobby data found, using default stats"));
+		}
+	}
+
 
 	if (HUDWidgetClass)
 	{
@@ -1426,7 +1462,7 @@ void AMyDCharacter::EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArm
 				ChestMesh->SetVisibility(true);
 				ChestMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
 				ResetToDefaultMaterials(ChestMesh);
-
+				FeetMesh->SetVisibility(false);
 				// 머티리얼 적용
 				if (Grade == EArmorGrade::B && SilverMat)
 				{
@@ -1922,7 +1958,19 @@ void AMyDCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	DOREPLIFETIME(AMyDCharacter, OriginalWalkSpeed);
 	DOREPLIFETIME(AMyDCharacter, SpeedMultiplier);
 	DOREPLIFETIME(AMyDCharacter, Gold);
+	DOREPLIFETIME(AMyDCharacter, MaxHealth);
+	DOREPLIFETIME(AMyDCharacter, MaxKnowledge);
+	DOREPLIFETIME(AMyDCharacter,MaxStamina);
+	DOREPLIFETIME(AMyDCharacter, Knowledge);
 
+}
+
+void AMyDCharacter::OnRep_Knowledge()
+{
+	if (IsLocallyControlled() && HUDWidget)
+	{
+		HUDWidget->UpdateMana(Knowledge, MaxKnowledge);
+	}
 }
 
 void AMyDCharacter::UpdateHUD()
@@ -3123,13 +3171,41 @@ void AMyDCharacter::ServerCastSpell_Implementation(int32 SpellIndex, FVector Tar
 {
 	if (!HasAuthority()) return;
 
+
+
+
 	// 서버에서 다시 한번 검증
 	if (!SpellSet.IsValidIndex(SpellIndex) || !SpellSet[SpellIndex]) return;
 	if (!SpellSet[SpellIndex]->CanActivate(this)) return;
 
+	UE_LOG(LogTemp, Error, TEXT("=== SERVER SPELL CHECK ==="));
+	UE_LOG(LogTemp, Error, TEXT("Server Mana: %.1f/%.1f"), Knowledge, MaxKnowledge);
+	UE_LOG(LogTemp, Error, TEXT("Server Stamina: %.1f/%.1f"), Stamina, MaxStamina);
+
+	if (!HasAuthority()) {
+		UE_LOG(LogTemp, Error, TEXT("SERVER: No Authority!"));
+		return;
+	}
+
+	if (!SpellSet.IsValidIndex(SpellIndex) || !SpellSet[SpellIndex]) {
+		UE_LOG(LogTemp, Error, TEXT("SERVER: Invalid Spell!"));
+		return;
+	}
+
+	if (!SpellSet[SpellIndex]->CanActivate(this)) {
+		UE_LOG(LogTemp, Error, TEXT("SERVER: CanActivate = FALSE"));
+		UE_LOG(LogTemp, Error, TEXT("SERVER: Required Mana=%.1f, Has=%.1f"),
+			SpellSet[SpellIndex]->ManaCost, Knowledge);
+		UE_LOG(LogTemp, Error, TEXT("SERVER: Required Stamina=%.1f, Has=%.1f"),
+			SpellSet[SpellIndex]->StaminaCost, Stamina);
+		return;
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("SERVER: All checks passed, casting spell..."));
+
 	// 리소스 소모
 	Knowledge -= SpellSet[SpellIndex]->ManaCost;
-	Stamina -= SpellSet[SpellIndex]->StaminaCost;
+	//Stamina -= SpellSet[SpellIndex]->StaminaCost;
 	UpdateHUD();
 
 	// 마법 시전 애니메이션 재생 (모든 클라이언트)
@@ -3791,7 +3867,13 @@ void AMyDCharacter::TryCastSpellMultiplayer(int32 SpellIndex)
 	if (!SpellSet[SpellIndex]->CanActivate(this)) return;
 
 	
-	
+	UE_LOG(LogTemp, Error, TEXT("=== SPELL ATTEMPT ==="));
+	UE_LOG(LogTemp, Error, TEXT("Current Mana: %.1f/%.1f"), Knowledge, MaxKnowledge);
+	UE_LOG(LogTemp, Error, TEXT("Current Stamina: %.1f/%.1f"), Stamina, MaxStamina);
+	UE_LOG(LogTemp, Error, TEXT("Required: Mana=%.1f, Stamina=%.1f"),
+		SpellSet[SpellIndex]->ManaCost, SpellSet[SpellIndex]->StaminaCost);
+	UE_LOG(LogTemp, Error, TEXT("Can Cast: %s"),
+		SpellSet[SpellIndex]->CanActivate(this) ? TEXT("YES") : TEXT("NO"));
 
 	
 	FVector TargetLocation = FVector::ZeroVector;
@@ -3830,6 +3912,9 @@ void AMyDCharacter::ToggleMapView()
 		{
 			PC->SetViewTargetWithBlend(OverheadCameraActor, 0.5f);
 			bIsInOverheadView = true;
+
+
+
 		}
 	}
 	else
@@ -4494,6 +4579,34 @@ void AMyDCharacter::UpdateGoldUI()
 		GoldWidgetInstance->UpdateGoldAmount(Gold);
 	}
 }
+
+void AMyDCharacter::ServerApplyLobbyStats_Implementation(float NewMaxHealth, float NewMaxStamina, float NewMaxKnowledge, int32 NewGold)
+{
+	UE_LOG(LogTemp, Error, TEXT("=== SERVER: APPLYING LOBBY STATS ==="));
+	UE_LOG(LogTemp, Error, TEXT("Player requesting stat update:"));
+	UE_LOG(LogTemp, Error, TEXT("  Before - HP: %.1f/%.1f, SP: %.1f/%.1f, MP: %.1f/%.1f, Gold: %d"),
+		Health, MaxHealth, Stamina, MaxStamina, Knowledge, MaxKnowledge, Gold);
+
+	// 서버에서 실제 스탯 변수 업데이트
+	MaxHealth = NewMaxHealth;
+	MaxStamina = NewMaxStamina;
+	MaxKnowledge = NewMaxKnowledge;
+	Gold = NewGold;
+
+	// 현재 스탯을 최대값으로 설정 (풀 상태로 시작)
+	Health = MaxHealth;
+	Stamina = MaxStamina;
+	Knowledge = MaxKnowledge;
+
+	UE_LOG(LogTemp, Error, TEXT("  After - HP: %.1f/%.1f, SP: %.1f/%.1f, MP: %.1f/%.1f, Gold: %d"),
+		Health, MaxHealth, Stamina, MaxStamina, Knowledge, MaxKnowledge, Gold);
+
+	// 네트워크 동기화
+	ForceNetUpdate();
+
+	UE_LOG(LogTemp, Error, TEXT("=== SERVER: STATS APPLIED SUCCESSFULLY ==="));
+}
+
 
 void AMyDCharacter::RestoreDataFromLobby()
 {

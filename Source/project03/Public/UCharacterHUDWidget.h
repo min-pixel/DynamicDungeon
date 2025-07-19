@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/TextBlock.h"
 #include "UCharacterHUDWidget.generated.h"
 
 /**
@@ -36,6 +37,19 @@ public:
 
     UPROPERTY(meta = (BindWidget))
     class UProgressBar* StaminaProgressBar;
+
+    /** 체력 수치 텍스트 (BP에서 바인딩) */
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* HealthText;
+
+    /** 마나 수치 텍스트 (BP에서 바인딩) */
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* ManaText;
+
+    /** 스태미나 수치 텍스트 (BP에서 바인딩) */
+    UPROPERTY(meta = (BindWidget))
+    class UTextBlock* StaminaText;
+
 
     UPROPERTY(meta = (BindWidget))
     class UImage* Image_HitOverlay;

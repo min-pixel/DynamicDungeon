@@ -213,8 +213,8 @@ public:
 	UFUNCTION()
 	void TryCastSpellMultiplayer(int32 SpellIndex);
 
-	UFUNCTION()
-	void ResetSpellCasting() { bCanCastSpell = true; }
+	/*UFUNCTION()
+	void ResetSpellCasting() { bCanCastSpell = true; }*/
 
 	bool bCanCastSpell = true;
 	
@@ -287,6 +287,10 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerCheckAllPlayersFinished();
 
+	UFUNCTION(Server, Reliable)
+	void ServerApplyLobbyStats(float NewMaxHealth, float NewMaxStamina, float NewMaxKnowledge, int32 NewGold);
+
+
 	//맵뷰
 	UPROPERTY()
 	ACameraActor* OverheadCameraActor;
@@ -303,23 +307,26 @@ public:
 	UFUNCTION()
 	void OnRep_Health();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float MaxHealth = 100; // 최대 체력
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float Agility = 50; // 민첩성 (이동 속도와 연결)
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	UPROPERTY(Replicated ,EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float Knowledge = 100; // 지식 (마나량)
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	UFUNCTION()
+	void OnRep_Knowledge();
+
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float MaxKnowledge = 100; // 최대 마나량
 
 	//스테미나 관련 변수
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float Stamina = 100;  // 현재 스테미나
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
+	UPROPERTY(Replicated,EditAnywhere, BlueprintReadWrite, Category = "Player Stats")
 	float MaxStamina = 100;  // 최대 스테미나
 
 	// 스태미나 소모량 변수 추가

@@ -81,6 +81,17 @@ public:
 
 	bool CanSpawnAtLocation(UWorld* World, const FVector& Location, float Radius);
 
+	// 실험 환경 정리 함수
+	void CleanupBeforeExperiment();
 
+	void SetBirdEyeView();
 
+	
+	static int32 CurrentExperimentIndex;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Experiment")
+	bool bAutoIncrement = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Experiment")
+	bool bExperimentCompleted = false;
 };

@@ -83,19 +83,19 @@ void UDynamicDungeonInstance::InitializeCharacterData(EPlayerClass SelectedClass
     case EPlayerClass::Warrior:
         CurrentCharacterData.MaxHealth = 150.f;
         CurrentCharacterData.MaxStamina = 100.f;
-        CurrentCharacterData.MaxKnowledge = 50.f;
+        CurrentCharacterData.MaxKnowledge = 0.f;
         break;
 
     case EPlayerClass::Rogue:
         CurrentCharacterData.MaxHealth = 100.f;
         CurrentCharacterData.MaxStamina = 150.f;
-        CurrentCharacterData.MaxKnowledge = 50.f;
+        CurrentCharacterData.MaxKnowledge = 0.f;
         break;
 
     case EPlayerClass::Mage:
-        CurrentCharacterData.MaxHealth = 100.f;
-        CurrentCharacterData.MaxStamina = 10.f;
-        CurrentCharacterData.MaxKnowledge = 200.f;
+        CurrentCharacterData.MaxHealth = 50.f;
+        CurrentCharacterData.MaxStamina = 100.f;
+        CurrentCharacterData.MaxKnowledge = 150.f;
         break;
     }
 
@@ -372,4 +372,48 @@ void UDynamicDungeonInstance::WaitForSaveCompletion()
     {
         UE_LOG(LogTemp, Warning, TEXT("[GameInstance] Save timed out after %.2f seconds"), ElapsedTime);
     }
+}
+
+
+void UDynamicDungeonInstance::GetBaseStatsForClass(EPlayerClass PlayerClass, float& OutHealth, float& OutStamina, float& OutKnowledge)
+{
+    switch (PlayerClass)
+    {
+    case EPlayerClass::Warrior:
+        OutHealth = 150.f;
+        OutStamina = 100.f;
+        OutKnowledge = 0.f;
+        break;
+
+    case EPlayerClass::Rogue:
+        OutHealth = 100.f;
+        OutStamina = 150.f;
+        OutKnowledge = 0.f;
+        break;
+
+    case EPlayerClass::Mage:
+        OutHealth = 50.f;
+        OutStamina = 100.f;
+        OutKnowledge = 150.f;
+        break;
+    }
+}
+
+void UDynamicDungeonInstance::RecalculateStats()
+{
+    float BaseHealth, BaseStamina, BaseKnowledge;
+    GetBaseStatsForClass(CurrentCharacterData.PlayerClass, BaseHealth, BaseStamina, BaseKnowledge);
+
+   
+
+    // 최종 스탯 = 기본 스탯 + 업그레이드 보너스
+    CurrentCharacterData.MaxHealth = BaseHealth + CurrentCharacterData.BonusHealth;
+    CurrentCharacterData.MaxStamina = BaseStamina + CurrentCharacterData.BonusStamina;
+    CurrentCharacterData.MaxKnowledge = BaseKnowledge + CurrentCharacterData.BonusKnowledge;
+
+    UE_LOG(LogTemp, Warning, TEXT("Recalculated stats - Class: %d, Final: %.0f/%.0f/%.0f (Base: %.0f/%.0f/%.0f + Bonus: %.0f/%.0f/%.0f)"),
+        (int32)CurrentCharacterData.PlayerClass,
+        CurrentCharacterData.MaxHealth, CurrentCharacterData.MaxStamina, CurrentCharacterData.MaxKnowledge,
+        BaseHealth, BaseStamina, BaseKnowledge,
+        CurrentCharacterData.BonusHealth, CurrentCharacterData.BonusStamina, CurrentCharacterData.BonusKnowledge);
 }

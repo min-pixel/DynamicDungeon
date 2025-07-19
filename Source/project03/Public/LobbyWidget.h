@@ -112,7 +112,7 @@ public:
     UPROPERTY()
     AMyDCharacter* PlayerCharacter;
 
-    TArray<EPlayerClass> AvailableClasses = { EPlayerClass::Warrior, EPlayerClass::Rogue, EPlayerClass::Mage };
+    TArray<EPlayerClass> AvailableClasses = { EPlayerClass::Mage, EPlayerClass::Warrior, EPlayerClass::Rogue };
     int32 CurrentClassIndex = 0;
 
     // ========== 인증 관련 ==========

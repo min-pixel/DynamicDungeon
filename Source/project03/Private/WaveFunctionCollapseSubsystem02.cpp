@@ -229,6 +229,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 						// 대체 타일 설정
 						FWaveFunctionCollapseOptionCustom AlternativeTileOption(TEXT("/Game/BP/goalt01.goalt01")); // 대체 타일 경로
 						AlternativeTileOption.bIsRoomTile = false;
+						AlternativeTileOption.bIsCorridorTile = true;
 						Tiles[TileIndex].RemainingOptions.Empty();
 						Tiles[TileIndex].RemainingOptions.Add(AlternativeTileOption);
 						
@@ -4399,6 +4400,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 									// goalt01로 교체
 									FWaveFunctionCollapseOptionCustom GoalTileOption(TEXT("/Game/BP/goalt01.goalt01"));
 									GoalTileOption.bIsRoomTile = false;
+									GoalTileOption.bIsCorridorTile = true;
 									Tiles[TargetIndex].RemainingOptions.Empty();
 									Tiles[TargetIndex].RemainingOptions.Add(GoalTileOption);
 

@@ -62,16 +62,19 @@ void AArmor::ApplyArmorStats(AMyDCharacter* Character)
     Character->MaxStamina += StaminaBonus;
     Character->MaxKnowledge += ManaBonus;
 
-    // 현재 스탯도 증가 (최대값 넘지 않도록)
-    Character->Health = FMath::Clamp(Character->Health + CachedAppliedBonus, 0.0f, Character->MaxHealth);
-    Character->Stamina = FMath::Clamp(Character->Stamina + StaminaBonus, 0.0f, Character->MaxStamina);
-    Character->Knowledge = FMath::Clamp(Character->Knowledge + ManaBonus, 0.0f, Character->MaxKnowledge);
+    
+    Character->Health = FMath::Clamp(Character->Health , 0.0f, Character->MaxHealth);
+    Character->Stamina = FMath::Clamp(Character->Stamina , 0.0f, Character->MaxStamina);
+    Character->Knowledge = FMath::Clamp(Character->Knowledge , 0.0f, Character->MaxKnowledge);
 
     UE_LOG(LogTemp, Warning, TEXT("Applied armor stats (Grade %s, Multiplier %.2f) - Health: +%d (base %d), Stamina: +%d (base %d), Mana: +%d (base %d)"),
         *UEnum::GetValueAsString(ArmorGrade), Multiplier,
         CachedAppliedBonus, BonusHealth,
         StaminaBonus, BonusStamina,
         ManaBonus, BonusMana);
+
+    Character->UpdateHUD();
+
 }
 
 void AArmor::RemoveArmorStats(AMyDCharacter* Character)
@@ -93,6 +96,8 @@ void AArmor::RemoveArmorStats(AMyDCharacter* Character)
 
     UE_LOG(LogTemp, Warning, TEXT("After removal - MaxHealth: %f, Health: %f"),
         Character->MaxHealth, Character->Health);
+
+    Character->UpdateHUD();
 
     // 캐시된 값들 초기화
     CachedAppliedBonus = 0;

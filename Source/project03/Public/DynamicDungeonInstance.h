@@ -109,7 +109,13 @@ public:
 
     bool bShutdownRequested = false;
 
+    // 직업별 기본 스탯을 반환하는 함수
+    UFUNCTION(BlueprintCallable)
+    void GetBaseStatsForClass(EPlayerClass PlayerClass, float& OutHealth, float& OutStamina, float& OutKnowledge);
 
+    // 현재 직업 기본 스탯 + 보너스 스탯으로 최종 스탯 계산
+    UFUNCTION(BlueprintCallable)
+    void RecalculateStats();
 
 private:
     // 저장 대기 타이머

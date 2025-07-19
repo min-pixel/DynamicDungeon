@@ -4,6 +4,7 @@
 #include "UCharacterHUDWidget.h"
 #include "Components/ProgressBar.h"
 #include "SlotWidget.h"
+#include "Components/TextBlock.h"
 #include "Components/Image.h"
 
 void UUCharacterHUDWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
@@ -25,7 +26,13 @@ void UUCharacterHUDWidget::UpdateHealth(float CurrentHealth, float MaxHealth)
         UE_LOG(LogTemp, Warning, TEXT("HealthProgressBar is NULL in UpdateHealth"));
     }
 
-    // WFC 위젯 생성 로직은 그대로...
+    if (HealthText)
+    {
+        FString HealthString = FString::Printf(TEXT("%.0f/%.0f"), CurrentHealth, MaxHealth);
+        HealthText->SetText(FText::FromString(HealthString));
+    }
+
+   
     if (WFCWarningWidgetClass)
     {
         WFCWarningWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), WFCWarningWidgetClass);
@@ -55,6 +62,13 @@ void UUCharacterHUDWidget::UpdateMana(float CurrentMana, float MaxMana)
     {
         UE_LOG(LogTemp, Warning, TEXT("ManaProgressBar is NULL in UpdateMana"));
     }
+
+    if (ManaText)
+    {
+        FString ManaString = FString::Printf(TEXT("%.0f/%.0f"), CurrentMana, MaxMana);
+        ManaText->SetText(FText::FromString(ManaString));
+    }
+
 }
 
 void UUCharacterHUDWidget::UpdateStamina(float CurrentStamina, float MaxStamina)
@@ -75,6 +89,13 @@ void UUCharacterHUDWidget::UpdateStamina(float CurrentStamina, float MaxStamina)
     {
         UE_LOG(LogTemp, Warning, TEXT("StaminaProgressBar is NULL in UpdateStamina"));
     }
+
+    if (StaminaText)
+    {
+        FString StaminaString = FString::Printf(TEXT("%.0f/%.0f"), CurrentStamina, MaxStamina);
+        StaminaText->SetText(FText::FromString(StaminaString));
+    }
+
 }
 
 void UUCharacterHUDWidget::StartHitOverlayFadeOut()

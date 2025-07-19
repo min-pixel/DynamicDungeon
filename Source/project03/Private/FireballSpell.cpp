@@ -36,9 +36,9 @@ void UFireballSpell::ActivateSpell(AMyDCharacter* Caster)
     }
 
     // 마나/스태미나 소비
-    Caster->Knowledge -= ManaCost;
+    /*Caster->Knowledge -= ManaCost;
     Caster->Stamina -= StaminaCost;
-    Caster->UpdateHUD();
+    Caster->UpdateHUD();*/
 
     // 카메라 위치 및 방향
     FVector SpawnLocation = Caster->GetActorLocation() + Caster->GetActorForwardVector() * 200.0f + FVector(0, 0, 50.0f);

@@ -16,17 +16,17 @@ Awfcex::Awfcex()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
+    bAutoIncrement = true;
     EscapeObjectClass = AEscapeObject::StaticClass();
     TreasureChestClass = ATreasureChest::StaticClass();
 
     RageEnemyClass = ARageEnemyCharacter::StaticClass();
-
+    EnemyClass = AEnemyCharacter::StaticClass();
 }
 
 
 
-
+int32 Awfcex::CurrentExperimentIndex = 0;
 
 void Awfcex::BeginPlay()
 {
@@ -42,54 +42,92 @@ void Awfcex::BeginPlay()
     {
 
         UE_LOG(LogTemp, Warning, TEXT("Awfcex HasAuthority: TRUE, Executing WFC"));
+        // === 실험 환경 정리 ===
+        //CleanupBeforeExperiment();
+        bExperimentCompleted = false; // 실험 시작
+        // 시드 배열 추가
+        const TArray<int32> ExperimentSeeds = {
+            1487629031, 2094813756, 867542139, 1692038457, 354719826,
+            1823946052, 729681304, 1456237890, 985301647, 1671529483,
+            402857196, 1738924605, 619358472, 1385046728, 756201394,
+            1529467810, 683720245, 892741063, 1756392840, 423851970,
+            1308794562, 675249318, 1967853041, 584172639, 1429683075,
+            738504261, 1892467530, 456781029, 1603925847, 827461039,
+            1974583206, 568937412, 1251864037, 794305628, 1673820947,
+            539871426, 1904637285, 726854093, 1491283670, 812946537,
+            1638507294, 367920851, 1759384062, 596102738, 1284739560,
+            943586172, 1517302948, 682745319, 1849671035, 475928361
+        };
 
+        // === 자동 시드 변경 ===
+        int32 UseIndex = CurrentExperimentIndex % ExperimentSeeds.Num();
+        int32 EXPERIMENT_SEED = ExperimentSeeds[UseIndex];
+
+        //const int32 CurrentExperiment = 0; // 매번 0~49로 변경
+        //const int32 EXPERIMENT_SEED = ExperimentSeeds[CurrentExperiment];
+
+        UE_LOG(LogTemp, Warning, TEXT("=== EXPERIMENT %d/50 - SEED: %d ==="),
+            CurrentExperimentIndex + 1, EXPERIMENT_SEED);
+
+        
+       
         const double StartTime = FPlatformTime::Seconds();
 
-        ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505--1, 767089153, 1948641409, 1358936321, 1964145409,  2078383361, 1231524609, 46204289
+        ExecuteWFCInSubsystem(90, EXPERIMENT_SEED); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505--1, 767089153, 1948641409, 1358936321, 1964145409,  2078383361, 1231524609, 46204289
 
         const double EndTime = FPlatformTime::Seconds();
         const double ElapsedTime = EndTime - StartTime;
+       
+        // === 한 줄 로그 출력 ===
+        UE_LOG(LogTemp, Warning, TEXT("[WFC ASTAR] maptime: %.3f sec, [EXPERIMENT]: %d,%d"),
+            ElapsedTime, CurrentExperimentIndex + 1, EXPERIMENT_SEED);
 
-
-        UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec"), ElapsedTime);
-
-        //풀링
-        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
-        {
-            WFCSubsystem->PrepareTilePrefabPool(GetWorld());
+        // === 다음 실험을 위해 인덱스 증가 ===
+        if (bAutoIncrement) {
+            CurrentExperimentIndex++;
         }
+
+        SetBirdEyeView();
+        bExperimentCompleted = true;
+        ////풀링
+        //if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        //{
+        //    WFCSubsystem->PrepareTilePrefabPool(GetWorld());
+        //}
 
 
 
 
         
-        SpawnEnemiesOnCorridor(20);
+        /*SpawnEnemiesOnCorridor(20);
 
         SpawnWFCRegeneratorOnRoom();
 
         SpawnEscapeObjectsOnRoom();
-        SpawnTreasureChestsOnTiles();
+        SpawnTreasureChestsOnTiles();*/
 
-        // WFC 완료 플래그 설정
-        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
-        {
-            WFCSubsystem->bWFCCompleted = true;
-            UE_LOG(LogTemp, Log, TEXT("WFC completed, players can now spawn"));
-        }
+        
+
+        //// WFC 완료 플래그 설정
+        //if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        //{
+        //    WFCSubsystem->bWFCCompleted = true;
+        //    UE_LOG(LogTemp, Log, TEXT("WFC completed, players can now spawn"));
+        //}
 
     }
     else
     {
-        UE_LOG(LogTemp, Warning, TEXT("Awfcex HasAuthority: FALSE, Skipping WFC"));
+        //UE_LOG(LogTemp, Warning, TEXT("Awfcex HasAuthority: FALSE, Skipping WFC"));
     }
 
 
-    //SpawnPlayerOnCorridor();
-    if (ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(UGameplayStatics::GetGameMode(this)))
-    {
-        GameMode->ForceRestartAllPlayers();
-        UE_LOG(LogTemp, Warning, TEXT("Players forced to restart after WFC completion."));
-    }
+    ////SpawnPlayerOnCorridor();
+    //if (ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(UGameplayStatics::GetGameMode(this)))
+    //{
+    //    GameMode->ForceRestartAllPlayers();
+    //    UE_LOG(LogTemp, Warning, TEXT("Players forced to restart after WFC completion."));
+    //}
 
 }
 
@@ -314,27 +352,75 @@ void Awfcex::SpawnEnemiesOnCorridor(int32 EnemyCount)
     UWorld* World = GetWorld();
     if (!World) return;
 
-    for (int32 i = 0; i < EnemyCount; ++i)
+    // 두 종류 적을 절반씩 스폰하는 로직
+    int32 RageEnemyCount = EnemyCount / 2;           // 절반은 RageEnemy
+    int32 NormalEnemyCount = EnemyCount - RageEnemyCount;  // 나머지는 일반 Enemy
+
+    UE_LOG(LogTemp, Log, TEXT("Spawning %d RageEnemies and %d NormalEnemies (Total: %d)"),
+        RageEnemyCount, NormalEnemyCount, EnemyCount);
+
+    // 스폰할 위치들을 미리 섞어서 중복 방지
+    TArray<int32> ShuffledIndices;
+    for (int32 i = 0; i < ValidCorridorPositions.Num(); ++i)
     {
-        int32 RandomIndex = FMath::RandRange(0, ValidCorridorPositions.Num() - 1);
-        FVector SpawnLocation = ValidCorridorPositions[RandomIndex] + FVector(0.f, 0.f, 50.f); // Z축 올려서 바닥 충돌 방지
+        ShuffledIndices.Add(i);
+    }
+
+    // Fisher-Yates 셔플 알고리즘으로 위치 섞기
+    for (int32 i = ShuffledIndices.Num() - 1; i > 0; --i)
+    {
+        int32 j = FMath::RandRange(0, i);
+        ShuffledIndices.Swap(i, j);
+    }
+
+    int32 SpawnedCount = 0;
+
+    // 1. RageEnemy 스폰
+    for (int32 i = 0; i < RageEnemyCount && SpawnedCount < ShuffledIndices.Num(); ++i)
+    {
+        int32 PositionIndex = ShuffledIndices[SpawnedCount];
+        FVector SpawnLocation = ValidCorridorPositions[PositionIndex] + FVector(0.f, 0.f, 50.f);
 
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-        //AEnemyCharacter* SpawnedEnemy = World->SpawnActor<AEnemyCharacter>(EnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+        ARageEnemyCharacter* SpawnedRageEnemy = World->SpawnActor<ARageEnemyCharacter>(RageEnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
 
-        ARageEnemyCharacter* SpawnedEnemy = World->SpawnActor<ARageEnemyCharacter>(RageEnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
-
-        if (SpawnedEnemy)
+        if (SpawnedRageEnemy)
         {
-            UE_LOG(LogTemp, Log, TEXT("Spawned enemy at location: %s"), *SpawnLocation.ToString());
+            UE_LOG(LogTemp, Log, TEXT("Spawned RageEnemy at location: %s"), *SpawnLocation.ToString());
+            SpawnedCount++;
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("Failed to spawn enemy at location: %s"), *SpawnLocation.ToString());
+            UE_LOG(LogTemp, Error, TEXT("Failed to spawn RageEnemy at location: %s"), *SpawnLocation.ToString());
         }
     }
+
+    // 2. 일반 Enemy 스폰 (EnemyClass가 있다고 가정)
+    for (int32 i = 0; i < NormalEnemyCount && SpawnedCount < ShuffledIndices.Num(); ++i)
+    {
+        int32 PositionIndex = ShuffledIndices[SpawnedCount];
+        FVector SpawnLocation = ValidCorridorPositions[PositionIndex] + FVector(0.f, 0.f, 50.f);
+
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+        // 일반 적 스폰 (EnemyClass 사용)
+        AEnemyCharacter* SpawnedNormalEnemy = World->SpawnActor<AEnemyCharacter>(EnemyClass, SpawnLocation, FRotator::ZeroRotator, SpawnParams);
+
+        if (SpawnedNormalEnemy)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Spawned NormalEnemy at location: %s"), *SpawnLocation.ToString());
+            SpawnedCount++;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to spawn NormalEnemy at location: %s"), *SpawnLocation.ToString());
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Enemy spawning completed. Total spawned: %d/%d"), SpawnedCount, EnemyCount);
 }
 
 void Awfcex::SpawnWFCRegeneratorOnRoom()
@@ -587,4 +673,57 @@ bool Awfcex::CanSpawnAtLocation(UWorld* World, const FVector& Location, float Ra
     );
 }
 
+// === 실험 환경 정리 함수 추가 ===
+void Awfcex::CleanupBeforeExperiment()
+{
+    UWorld* World = GetWorld();
+    if (!World) return;
 
+    UE_LOG(LogTemp, Log, TEXT("Cleaning up before experiment..."));
+
+    // 가비지 컬렉션 강제 실행
+    //CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+    GEngine->ForceGarbageCollection(true);
+
+    // 이전 WFC 생성물들 정리
+    TArray<AActor*> ActorsToDestroy;
+    for (TActorIterator<AActor> ActorItr(World); ActorItr; ++ActorItr) {
+        if (ActorItr->Tags.Contains("WFCGenerated")) {
+            ActorsToDestroy.Add(*ActorItr);
+        }
+    }
+
+    for (AActor* Actor : ActorsToDestroy) {
+        if (IsValid(Actor)) {
+            Actor->Destroy();
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("Cleanup completed. Destroyed %d WFC actors"), ActorsToDestroy.Num());
+}
+
+void Awfcex::SetBirdEyeView()
+{
+    APlayerController* PC = GetWorld()->GetFirstPlayerController();
+    if (!PC) return;
+
+    // 60x60 맵 기준 최적 카메라 위치
+    FVector OptimalLocation = FVector(15000, 15000, 25000); // 맵 중앙 위 12km
+    FRotator OptimalRotation = FRotator(-90, 0, 0); // 살짝 기울여서 보기
+
+    // 새로운 Pawn 생성해서 카메라 모드로 설정
+    if (APawn* CurrentPawn = PC->GetPawn())
+    {
+        CurrentPawn->SetActorLocation(OptimalLocation);
+        PC->SetControlRotation(OptimalRotation);
+    }
+
+    // 카메라 이동 속도 조정 (에디터에서 빠르게 이동 가능)
+    if (APlayerCameraManager* CameraManager = PC->PlayerCameraManager)
+    {
+        // 카메라 설정 조정 가능
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Bird's eye view activated!"));
+}

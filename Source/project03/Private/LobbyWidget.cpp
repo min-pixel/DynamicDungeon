@@ -124,10 +124,28 @@ void ULobbyWidget::ShowMainLobby()
         UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Showing main lobby screen"));
     }
 
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance)
+    {
+        EPlayerClass currentClass = GameInstance->CurrentCharacterData.PlayerClass;
+        for (int32 i = 0; i < AvailableClasses.Num(); ++i)
+        {
+            if (AvailableClasses[i] == currentClass)
+            {
+                CurrentClassIndex = i;
+                break;
+            }
+        }
+        UpdateClassDisplay();
+        UE_LOG(LogTemp, Warning, TEXT("Lobby initialized with class: %d"), (int32)currentClass);
+    }
+
     // 메인 로비 초기화
     InitializeLobby(PlayerCharacter);
     // 스탯 표시 업데이트
     UpdateStatsDisplay();
+
+    
 }
 
 void ULobbyWidget::SetAuthStatusText(const FString& StatusMessage)
@@ -208,6 +226,8 @@ void ULobbyWidget::OnAuthResponse(bool bSuccess, FCharacterLoginData CharacterDa
 
             // 회원가입 성공 시 입력창 초기화
             if (PasswordTextBox) PasswordTextBox->SetText(FText::GetEmpty());
+
+
         }
         else
         {
@@ -216,13 +236,49 @@ void ULobbyWidget::OnAuthResponse(bool bSuccess, FCharacterLoginData CharacterDa
             UE_LOG(LogTemp, Warning, TEXT("[Auth] Login SUCCESS - Character: %s, Class: %d, Gold: %d"),
                 *CharacterData.CharacterName, CharacterData.PlayerClass, CharacterData.Gold);
 
+            UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+
+            // 1. 클래스별 기본 스탯 계산
+            float BaseHealth, BaseStamina, BaseKnowledge;
+            GameInstance->GetBaseStatsForClass(
+                static_cast<EPlayerClass>(CharacterData.PlayerClass),
+                BaseHealth, BaseStamina, BaseKnowledge
+            );
+
+            // 2. 보너스 역계산 (음수 방지)
+            GameInstance->CurrentCharacterData.BonusHealth =
+                FMath::Max(0.0f, CharacterData.MaxHealth - BaseHealth);
+            GameInstance->CurrentCharacterData.BonusStamina =
+                FMath::Max(0.0f, CharacterData.MaxStamina - BaseStamina);
+            GameInstance->CurrentCharacterData.BonusKnowledge =
+                FMath::Max(0.0f, CharacterData.MaxKnowledge - BaseKnowledge);
+
+
+
+            // 3. 디버그 로그 (확인용)
+            UE_LOG(LogTemp, Warning, TEXT("=== BONUS STATS RESTORED ==="));
+            UE_LOG(LogTemp, Warning, TEXT("Class: %d"), (int32)CharacterData.PlayerClass);
+            UE_LOG(LogTemp, Warning, TEXT("Total Stats: %.1f/%.1f/%.1f"),
+                CharacterData.MaxHealth, CharacterData.MaxStamina, CharacterData.MaxKnowledge);
+            UE_LOG(LogTemp, Warning, TEXT("Base Stats: %.1f/%.1f/%.1f"),
+                BaseHealth, BaseStamina, BaseKnowledge);
+            UE_LOG(LogTemp, Warning, TEXT("Calculated Bonus: %.1f/%.1f/%.1f"),
+                GameInstance->CurrentCharacterData.BonusHealth,
+                GameInstance->CurrentCharacterData.BonusStamina,
+                GameInstance->CurrentCharacterData.BonusKnowledge);
+
 
             bIsAuthenticated = true;
 
+
+
             // 받은 캐릭터 데이터를 GameInstance에 저장
-            UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+           
             if (GameInstance)
             {
+
+               
+
                 // 캐릭터 기본 정보 설정
                 GameInstance->CurrentCharacterData.PlayerName = CharacterData.CharacterName;
                 GameInstance->CurrentCharacterData.PlayerClass = static_cast<EPlayerClass>(CharacterData.PlayerClass);
@@ -232,6 +288,35 @@ void ULobbyWidget::OnAuthResponse(bool bSuccess, FCharacterLoginData CharacterDa
                 GameInstance->CurrentCharacterData.MaxKnowledge = CharacterData.MaxKnowledge;
                 GameInstance->LobbyGold = CharacterData.Gold;
                 GameInstance->bHasValidCharacterData = true;
+
+                // 만약 기본 스탯(100/100/100)이라면 직업별 스탯으로 초기화
+                if (CharacterData.MaxHealth == 100 && CharacterData.MaxStamina == 100 && CharacterData.MaxKnowledge == 100 &&
+                    CharacterData.Gold == 1000) {
+                    EPlayerClass playerClass = static_cast<EPlayerClass>(CharacterData.PlayerClass);
+
+                    switch (playerClass)
+                    {
+                    case EPlayerClass::Warrior:
+                        GameInstance->CurrentCharacterData.MaxHealth = 150.f;
+                        GameInstance->CurrentCharacterData.MaxStamina = 100.f;
+                        GameInstance->CurrentCharacterData.MaxKnowledge = 0.f;
+                        break;
+                    case EPlayerClass::Rogue:
+                        GameInstance->CurrentCharacterData.MaxHealth = 100.f;
+                        GameInstance->CurrentCharacterData.MaxStamina = 150.f;
+                        GameInstance->CurrentCharacterData.MaxKnowledge = 0.f;
+                        break;
+                    case EPlayerClass::Mage:
+                        GameInstance->CurrentCharacterData.MaxHealth = 50.f;
+                        GameInstance->CurrentCharacterData.MaxStamina = 100.f;
+                        GameInstance->CurrentCharacterData.MaxKnowledge = 150.f;
+                        break;
+                    }
+                    GameInstance->CurrentCharacterData.BonusHealth = 0.0f;
+                    GameInstance->CurrentCharacterData.BonusStamina = 0.0f;
+                    GameInstance->CurrentCharacterData.BonusKnowledge = 0.0f;
+                    UE_LOG(LogTemp, Warning, TEXT("Applied class-specific stats for first-time user"));
+                }
 
                 UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Saved character data to GameInstance"));
             }
@@ -436,6 +521,14 @@ void ULobbyWidget::OnStartGameClicked()
     UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
     if (GameInstance)
     {
+
+        if (CurrentClassIndex >= 0 && CurrentClassIndex < AvailableClasses.Num())
+        {
+            GameInstance->CurrentCharacterData.PlayerClass = AvailableClasses[CurrentClassIndex];
+            GameInstance->RecalculateStats();
+            UE_LOG(LogTemp, Warning, TEXT("Selected class in lobby: %d"), (int32)AvailableClasses[CurrentClassIndex]);
+        }
+
         // 인벤토리 데이터 저장
         if (InventoryComponentRef && InventoryComponentRef->InventoryItemsStruct.Num() > 0)
         {
@@ -547,12 +640,36 @@ void ULobbyWidget::OnLeftArrowClicked()
 {
     CurrentClassIndex = (CurrentClassIndex - 1 + AvailableClasses.Num()) % AvailableClasses.Num();
     UpdateClassDisplay();
+
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance && CurrentClassIndex >= 0 && CurrentClassIndex < AvailableClasses.Num())
+    {
+        GameInstance->CurrentCharacterData.PlayerClass = AvailableClasses[CurrentClassIndex];
+        GameInstance->RecalculateStats(); //  핵심: 스탯 재계산
+
+        // UI 업데이트
+        UpdateStatsDisplay();
+
+        UE_LOG(LogTemp, Warning, TEXT("Class changed to: %d, stats recalculated"), (int32)AvailableClasses[CurrentClassIndex]);
+    }
 }
 
 void ULobbyWidget::OnRightArrowClicked()
 {
     CurrentClassIndex = (CurrentClassIndex + 1) % AvailableClasses.Num();
     UpdateClassDisplay();
+
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance && CurrentClassIndex >= 0 && CurrentClassIndex < AvailableClasses.Num())
+    {
+        GameInstance->CurrentCharacterData.PlayerClass = AvailableClasses[CurrentClassIndex];
+        GameInstance->RecalculateStats(); //  핵심: 스탯 재계산
+
+        // UI 업데이트
+        UpdateStatsDisplay();
+
+        UE_LOG(LogTemp, Warning, TEXT("Class changed to: %d, stats recalculated"), (int32)AvailableClasses[CurrentClassIndex]);
+    }
 }
 
 void ULobbyWidget::UpdateClassDisplay()
@@ -560,15 +677,23 @@ void ULobbyWidget::UpdateClassDisplay()
     FString ClassName;
     switch (AvailableClasses[CurrentClassIndex])
     {
-    case EPlayerClass::Warrior: ClassName = TEXT("W"); break;
-    case EPlayerClass::Rogue:   ClassName = TEXT("R"); break;
-    case EPlayerClass::Mage:    ClassName = TEXT("M"); break;
+    case EPlayerClass::Mage: ClassName = TEXT("M"); break;     // 0
+    case EPlayerClass::Warrior: ClassName = TEXT("W"); break;  // 1
+    case EPlayerClass::Rogue: ClassName = TEXT("R"); break;    // 2
     }
 
     if (ClassText)
     {
         ClassText->SetText(FText::FromString(ClassName));
     }
+
+    if (UpgradeKnowledgeButton)
+    {
+        EPlayerClass CurrentDisplayedClass = AvailableClasses[CurrentClassIndex]; // 화면 표시 클래스
+        bool bCanUpgradeKnowledge = (CurrentDisplayedClass == EPlayerClass::Mage);
+        UpgradeKnowledgeButton->SetIsEnabled(bCanUpgradeKnowledge);
+    }
+
 }
 
 void ULobbyWidget::OnCloseShopButtonClicked()
@@ -604,7 +729,9 @@ void ULobbyWidget::UpgradeHealth()
     GameInstance->LobbyGold -= HealthUpgradeCost;
 
     // 스탯 증가
-    GameInstance->CurrentCharacterData.MaxHealth += HealthUpgradeAmount;
+    GameInstance->CurrentCharacterData.BonusHealth += HealthUpgradeAmount;
+
+    GameInstance->RecalculateStats();
 
     // UI 업데이트
     UpdateGoldDisplay();
@@ -629,7 +756,8 @@ void ULobbyWidget::UpgradeStamina()
     }
 
     GameInstance->LobbyGold -= StaminaUpgradeCost;
-    GameInstance->CurrentCharacterData.MaxStamina += StaminaUpgradeAmount;
+    GameInstance->CurrentCharacterData.BonusStamina += StaminaUpgradeAmount; // 보너스에 추가
+    GameInstance->RecalculateStats(); // 재계산
 
     UpdateGoldDisplay();
     UpdateStatsDisplay();
@@ -650,8 +778,16 @@ void ULobbyWidget::UpgradeKnowledge()
         return;
     }
 
+    if (GameInstance->CurrentCharacterData.PlayerClass != EPlayerClass::Mage)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Only Mages can upgrade Knowledge!"));
+        return;
+    }
+
     GameInstance->LobbyGold -= KnowledgeUpgradeCost;
-    GameInstance->CurrentCharacterData.MaxKnowledge += KnowledgeUpgradeAmount;
+    GameInstance->CurrentCharacterData.BonusKnowledge += KnowledgeUpgradeAmount; // 보너스에 추가
+    GameInstance->RecalculateStats(); // 재계산
+
 
     UpdateGoldDisplay();
     UpdateStatsDisplay();

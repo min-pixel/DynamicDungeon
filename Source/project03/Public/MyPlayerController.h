@@ -34,7 +34,20 @@ public:
     UPROPERTY(Replicated)
     bool bIsReady;
 
-    
+    // 각 플레이어의 개별 스탯 정보 저장
+    UPROPERTY(Replicated)
+    float PlayerMaxHealth = 100.0f;
+
+    UPROPERTY(Replicated)
+    float PlayerMaxStamina = 100.0f;
+
+    UPROPERTY(Replicated)
+    float PlayerMaxKnowledge = 100.0f;
+
+    UPROPERTY(Replicated)
+    int32 PlayerGold = 1000;
+
+   
 
     UPROPERTY(BlueprintReadWrite)
     UWaitForPlayersWidget* WaitWidgetInstance;

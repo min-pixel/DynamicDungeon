@@ -60,6 +60,14 @@ struct FPlayerCharacterData
 
     UPROPERTY(BlueprintReadWrite)
     int32 Level;
+    
+    UPROPERTY(BlueprintReadWrite)
+    float BonusHealth = 0.f;
 
+    UPROPERTY(BlueprintReadWrite)
+    float BonusStamina = 0.f;
+
+    UPROPERTY(BlueprintReadWrite)
+    float BonusKnowledge = 0.f;
 
 };
