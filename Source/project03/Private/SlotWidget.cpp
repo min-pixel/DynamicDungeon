@@ -261,8 +261,14 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
         
 
         // 서버 RPC 호출
-        InventoryOwner->InventoryRef->ServerMoveItem(
+        /*InventoryOwner->InventoryRef->ServerMoveItem(
             SourceSlot->InventoryOwner->InventoryRef,
+            FromIndex,
+            ToIndex
+        );*/
+        SourceSlot->InventoryOwner->InventoryRef->ServerMoveItemBetweenInventories(
+            SourceSlot->InventoryOwner->InventoryRef,  // Source: 플레이어
+            InventoryOwner->InventoryRef,               // Dest: 보물상자
             FromIndex,
             ToIndex
         );
@@ -450,22 +456,30 @@ bool USlotWidget::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent
 
 
     // 같은 그룹 간 스왑
-    else
+   // 3) 같은 그룹 간 스왑
+    else if (bIsEquipmentSlot && SourceSlot->bIsEquipmentSlot)
     {
-        if (bIsEquipmentSlot)
+        // 장비 슬롯끼리만 스왑
+        if (EquipmentOwner)
         {
-            if (EquipmentOwner)
-            {
-                EquipmentOwner->SwapSlots(FromIndex, ToIndex);
-            }
+            EquipmentOwner->SwapSlots(FromIndex, ToIndex);
         }
-        else
+    }
+    else if (!bIsEquipmentSlot
+        && !bIsChestInventory
+        && !SourceSlot->bIsChestInventory)
         {
+            // 플레이어 인벤토리 끼리만 스왑
             if (InventoryOwner && InventoryOwner->InventoryRef)
             {
                 InventoryOwner->InventoryRef->InventoryItemsStruct.Swap(FromIndex, ToIndex);
             }
-        }
+         }
+    else if (bIsChestInventory && SourceSlot->bIsChestInventory)
+    {
+        // 체스트 간 스왑은 불허
+        UE_LOG(LogTemp, Warning, TEXT("Chest-to-Chest swap is disabled"));
+        return false;
     }
 
     if (InventoryOwner) InventoryOwner->RefreshInventoryStruct();

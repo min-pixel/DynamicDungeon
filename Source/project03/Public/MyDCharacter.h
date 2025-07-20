@@ -166,6 +166,16 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastSetPlayerGravity(float GravityScale);
 
+	UPROPERTY(Replicated)
+	bool bTorchVisible;
+
+	
+	UFUNCTION(Server, Reliable)
+	void ServerToggleTorch();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastToggleTorch(bool bVisible);
+
 	UPROPERTY()
 	UUserWidget* DelayedWarningWidget;
 
@@ -606,10 +616,11 @@ public:
 	UPROPERTY()
 	AActor* AttachedTorch = nullptr;
 
-	// 현재 횃불이 보이는 상태인지 여부
-	bool bTorchVisible = false;
+	UFUNCTION(BlueprintCallable)
+	void HideOwnCharacterMeshes();
 
 	void ToggleTorch();
+
 
 	void Die();
 

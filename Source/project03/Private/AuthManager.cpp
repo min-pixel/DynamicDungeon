@@ -475,6 +475,116 @@ FCharacterLoginData UAuthManager::ParseCharacterData(const FString& JsonString)
                 UE_LOG(LogTemp, Warning, TEXT("Total inventory items loaded: %d"),
                     GI->SavedInventoryItems.Num());
             }
+
+            // 창고 아이템 로드
+            const TArray<TSharedPtr<FJsonValue>>* StorageArray;
+            if (JsonObject->TryGetArrayField(TEXT("storage_items"), StorageArray))
+            {
+                GI->SavedStorageItems.Empty();
+                GI->SavedStorageItems.SetNum(50);  // 창고는 항상 50슬롯
+
+                for (const auto& ItemValue : *StorageArray)
+                {
+                    const TSharedPtr<FJsonObject>* ItemObject;
+                    if (ItemValue->TryGetObject(ItemObject))
+                    {
+                        FItemData NewItem;
+                        int32 SlotIndex;
+                        (*ItemObject)->TryGetNumberField(TEXT("slot_index"), SlotIndex);
+
+                        FString ItemClassName;
+                        (*ItemObject)->TryGetStringField(TEXT("item_class"), ItemClassName);
+
+                        // 클래스 찾기 (인벤토리와 동일한 로직)
+                        UClass* ItemClass = nullptr;
+                        for (TObjectIterator<UClass> It; It; ++It)
+                        {
+                            UClass* Class = *It;
+                            if (Class && Class->IsChildOf(AItem::StaticClass()))
+                            {
+                                FString ClassName = Class->GetName();
+
+                                // 정확한 클래스 이름 매칭
+                                if (ClassName.Equals(ItemClassName))
+                                {
+                                    ItemClass = Class;
+                                    UE_LOG(LogTemp, Log, TEXT("Found exact match for storage class: %s"), *ItemClassName);
+                                    break;
+                                }
+
+                                // "A" 접두사가 있는 경우도 체크 (예: "RobeTop" -> "ARobeTop")
+                                if (ClassName.Equals(FString("A") + ItemClassName))
+                                {
+                                    ItemClass = Class;
+                                    UE_LOG(LogTemp, Log, TEXT("Found storage class with A prefix: A%s"), *ItemClassName);
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!ItemClass)
+                        {
+                            UE_LOG(LogTemp, Error, TEXT("Failed to find storage item class: %s"), *ItemClassName);
+                        }
+
+                        NewItem.ItemClass = ItemClass;
+
+                        // 아이콘 설정
+                        if (!NewItem.ItemIcon && ItemClass)
+                        {
+                            // 해당 클래스의 DefaultObject 에서 아이콘을 복사
+                            if (const AItem* DefObj = ItemClass->GetDefaultObject<AItem>())
+                            {
+                                NewItem.ItemIcon = DefObj->ItemIcon;
+                            }
+                        }
+
+                        // 나머지 필드 파싱
+                        (*ItemObject)->TryGetStringField(TEXT("item_name"), NewItem.ItemName);
+
+                        int32 ItemType;
+                        (*ItemObject)->TryGetNumberField(TEXT("item_type"), ItemType);
+                        NewItem.ItemType = static_cast<EItemType>(ItemType);
+
+                        (*ItemObject)->TryGetNumberField(TEXT("grade"), NewItem.Grade);
+                        (*ItemObject)->TryGetNumberField(TEXT("count"), NewItem.Count);
+
+                        // 가격 설정 (기본값이 0이면 계산)
+                        if (NewItem.Price == 0 && ItemClass)
+                        {
+                            const AItem* DefObj = ItemClass->GetDefaultObject<AItem>();
+                            if (DefObj)
+                            {
+                                const int32 BasePrice = DefObj->Price;          // C-등급 기준
+                                static const float GradeMul[3] = { 1.0f, 1.5f, 2.0f };   // C, B, A
+                                int32 G = FMath::Clamp<int32>(NewItem.Grade, 0, 2);
+                                NewItem.Price = FMath::RoundToInt(BasePrice * GradeMul[G]);
+                            }
+                        }
+
+                        int32 PotionEffect;
+                        (*ItemObject)->TryGetNumberField(TEXT("potion_effect"), PotionEffect);
+                        NewItem.PotionEffect = static_cast<EPotionEffectType>(PotionEffect);
+
+                        if (SlotIndex >= 0 && SlotIndex < 50)
+                        {
+
+                            GI->SavedStorageItems[SlotIndex] = NewItem;
+
+                            UE_LOG(LogTemp, Warning, TEXT("Loaded storage item: %s at slot %d (Class: %s)"),
+                                *NewItem.ItemName, SlotIndex, ItemClass ? TEXT("Found") : TEXT("Not Found"));
+                        }
+                        else
+                        {
+                            UE_LOG(LogTemp, Error, TEXT("Invalid storage slot index: %d, skipping"), SlotIndex);
+                        }
+                    }
+                }
+
+                UE_LOG(LogTemp, Warning, TEXT("Total storage items loaded: %d"),
+                    GI->SavedStorageItems.Num());
+            }
+
         }
 
         UE_LOG(LogTemp, Warning, TEXT("[AuthManager] JSON Parse Success: ID=%d, Name=%s, Class=%d, Level=%d, Gold=%d"),

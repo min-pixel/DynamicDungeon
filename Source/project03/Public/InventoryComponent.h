@@ -71,12 +71,20 @@ public:
 	UFUNCTION(Server, Reliable, WithValidation)
 	void ServerSellItem(int32 FromIndex, int32 SellPrice);
 
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerMoveItemBetweenInventories(UInventoryComponent* SourceInv, UInventoryComponent* DestInv, int32 FromIndex, int32 ToIndex);
+
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerSyncInventoryFromLobby(const TArray<FItemData>& LobbyItems);
+
+	UFUNCTION()
+	void OnRep_InventoryItemsStruct();
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
 
-	UFUNCTION()
-	void OnRep_InventoryItemsStruct();
+	
 
 public:	
 	// Called every frame

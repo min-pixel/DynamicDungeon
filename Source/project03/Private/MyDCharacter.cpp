@@ -38,6 +38,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "RageEnemyCharacter.h"
 #include "Potion.h"
+#include "Components/LightComponent.h"
 #include "FireballSpell.h"
 #include "Camera/CameraShakeBase.h"
 #include "Net/UnrealNetwork.h"
@@ -455,6 +456,13 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("FirstPersonCameraComponent is null!"));
 	}
 	
+	// 로컬 플레이어에게만 자신의 메시 숨기기
+	if (IsLocallyControlled())
+	{
+		HideOwnCharacterMeshes();
+	}
+
+
 	//if (ChestMesh && CharacterMesh)
 	//{
 	//	// ChestMesh가 매 Tick마다 CharacterMesh의 Pose를 복사하게 만듭니다.
@@ -628,9 +636,8 @@ void AMyDCharacter::BeginPlay()
 		{
 			AttachedTorch->AttachToComponent(CharacterMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("hand_l"));
 			AttachedTorch->SetActorRelativeRotation(FRotator(0.0f, 0.0f, 180.0f));
-			AttachedTorch->SetActorHiddenInGame(true);
 			bTorchVisible = false;
-
+			AttachedTorch->SetActorHiddenInGame(!bTorchVisible);
 			UE_LOG(LogTemp, Log, TEXT("Torch attached and hidden on start."));
 		}
 	}
@@ -693,7 +700,7 @@ void AMyDCharacter::BeginPlay()
 		}
 	}
 	
-
+	
 
 	//UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
 	//if (GameInstance)
@@ -752,7 +759,34 @@ void AMyDCharacter::BeginPlay()
 
 }
 
+void AMyDCharacter::HideOwnCharacterMeshes()
+{
+	
+	TArray<USkeletalMeshComponent*> MeshesToHide = {
+		CharacterMesh,
+		//BodyMesh,
+		FaceMesh,
+		LegsMeshmetha,
+		TorsoMesh,
+		FeetMesh,
+		//ChestMesh,
+		LegsMesh
+	};
 
+	for (USkeletalMeshComponent* MeshComp : MeshesToHide)  
+	{
+		if (MeshComp)
+		{
+			MeshComp->SetOwnerNoSee(true);
+		}
+	}
+
+	// 스태틱 메시 (헬멧)도 숨기기
+	if (HelmetMesh)
+	{
+		HelmetMesh->SetOwnerNoSee(true);
+	}
+}
 
 void AMyDCharacter::Restart()
 {
@@ -2580,7 +2614,36 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 
 	if (Health <= 0)
 	{
+
+		ToggleMapView();
+
+
+
+		// 횃불 숨기기 처리 (기존 함수 활용)
+		if (AttachedTorch)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Player died - hiding torch"));
+
+			if (HasAuthority())
+			{
+				// 서버에서 횃불 숨기기 (기존 MulticastHideTorch 활용)
+				bTorchVisible = false;
+				MulticastToggleTorch(false);
+			}
+			else
+			{
+				// 클라이언트에서 서버에 요청 (기존 ServerToggleTorch 활용)
+				bTorchVisible = false;
+				ServerToggleTorch();
+			}
+		}
+
+		
+
 		DoRagDoll();
+
+
+
 		if (IsLocallyControlled())
 		{
 			ExecuteEscape();       // 인벤토리·플래그
@@ -2592,6 +2655,10 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 	}
 
 }
+
+
+
+
 
 void AMyDCharacter::ServerHandleDeath_Implementation()
 {
@@ -2657,6 +2724,11 @@ void AMyDCharacter::ServerHandleDeath_Implementation()
 void AMyDCharacter::ClientEnterSpectatorMode_Implementation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("ClientEnterSpectatorMode - Entering spectator mode"));
+
+
+	
+
+	
 
 	/*if (IsLocallyControlled())
 	{*/
@@ -3547,11 +3619,32 @@ void AMyDCharacter::FadeAndEscape()
 void AMyDCharacter::ExecuteEscape()
 {
 
+	// 횃불 숨기기 처리 (기존 함수 활용)
+	if (AttachedTorch)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Player escaped - hiding torch"));
+
+		if (HasAuthority())
+		{
+			// 서버에서 횃불 숨기기 (기존 MulticastToggleTorch 활용)
+			bTorchVisible = false;
+			MulticastToggleTorch(false);
+		}
+		else
+		{
+			// 클라이언트에서 서버에 요청 (기존 ServerToggleTorch 활용)
+			bTorchVisible = false;
+			ServerToggleTorch();
+		}
+	}
+
+	
+
 	// 로컬 플레이어인지 확인
 	if (IsLocallyControlled())
 	{
 
-
+		
 
 
 		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
@@ -3650,6 +3743,16 @@ void AMyDCharacter::ExecuteEscape()
 void AMyDCharacter::ServerHandleEscape_Implementation()
 {
 	if (!HasAuthority()) return;
+
+	// 횃불 숨기기 확실히 하기
+	if (AttachedTorch)
+	{
+		UE_LOG(LogTemp, Log, TEXT("SERVER ESCAPE: Found torch, hiding..."));
+		bTorchVisible = false;
+		MulticastToggleTorch(false);
+	}
+
+	
 
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
@@ -3913,7 +4016,13 @@ void AMyDCharacter::ToggleMapView()
 			PC->SetViewTargetWithBlend(OverheadCameraActor, 0.5f);
 			bIsInOverheadView = true;
 
-
+			//맵뷰 켤 때 라이트 켜기
+			if (CachedDirectionalLight)
+			{
+				CachedDirectionalLight->SetActorHiddenInGame(false);
+				CachedDirectionalLight->SetEnabled(true);
+				UE_LOG(LogTemp, Log, TEXT("MapView ON: Directional light enabled"));
+			}
 
 		}
 	}
@@ -3921,6 +4030,23 @@ void AMyDCharacter::ToggleMapView()
 	{
 		PC->SetViewTargetWithBlend(this, 0.5f);
 		bIsInOverheadView = false;
+
+		// 맵뷰 끌 때 라이트 끄기 (관전자가 아닌 경우에만)
+		APlayerController* MyPC = Cast<APlayerController>(GetController());
+		if (MyPC && MyPC->GetStateName() != NAME_Spectating)
+		{
+			if (CachedDirectionalLight)
+			{
+				CachedDirectionalLight->SetActorHiddenInGame(true);
+				CachedDirectionalLight->SetEnabled(false);
+				UE_LOG(LogTemp, Log, TEXT("MapView OFF: Directional light disabled"));
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("MapView OFF: Keeping light on (spectator mode)"));
+		}
+
 	}
 }
 
@@ -3990,7 +4116,24 @@ void AMyDCharacter::ToggleMapView()
 //}
 
 
+void AMyDCharacter::ServerToggleTorch_Implementation()
+{
+	if (!AttachedTorch) return;
 
+	bTorchVisible = !bTorchVisible;
+	MulticastToggleTorch(bTorchVisible);
+}
+
+
+void AMyDCharacter::MulticastToggleTorch_Implementation(bool bVisible)
+{
+	if (AttachedTorch)
+	{
+		bTorchVisible = bVisible;
+		AttachedTorch->SetActorHiddenInGame(!bVisible);
+		UE_LOG(LogTemp, Log, TEXT("Torch visibility updated: %s"), bVisible ? TEXT("Visible") : TEXT("Hidden"));
+	}
+}
 
 
 void AMyDCharacter::ToggleTorch()
@@ -4004,6 +4147,18 @@ void AMyDCharacter::ToggleTorch()
 
 		//UE_LOG(LogTemp, Log, TEXT("Torch is now %s"), bTorchVisible ? TEXT("visible") : TEXT("hidden"));
 	}
+
+	if (!AttachedTorch) return;
+	if (HasAuthority())
+	{
+		bTorchVisible = !bTorchVisible;
+		MulticastToggleTorch(bTorchVisible);
+	}
+	else
+	{
+		ServerToggleTorch();
+	}
+
 }
 
 void AMyDCharacter::Die()
@@ -4660,6 +4815,18 @@ void AMyDCharacter::RestoreDataFromLobby()
 				UE_LOG(LogTemp, Warning, TEXT("Restored item to slot %d: %s"),
 					i, *GameInstance->SavedInventoryItems[i].ItemName);
 			}
+		}
+
+		// 서버에 인벤토리 동기화 요청
+		if (HasAuthority())
+		{
+			// 서버라면 직접 적용
+			InventoryComponent->OnRep_InventoryItemsStruct();
+		}
+		else
+		{
+			// 클라이언트라면 서버에 동기화 요청
+			InventoryComponent->ServerSyncInventoryFromLobby(GameInstance->SavedInventoryItems);
 		}
 
 		// 인벤토리 UI 새로고침

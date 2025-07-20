@@ -158,13 +158,26 @@ bool UInventoryComponent::ServerMoveItem_Validate(UInventoryComponent* SourceInv
 
 void UInventoryComponent::ServerMoveItem_Implementation(UInventoryComponent* SourceInv, int32 FromIndex, int32 ToIndex)
 {
+
+    UE_LOG(LogTemp, Error, TEXT("=== ServerMoveItem_Implementation Called ==="));
+    UE_LOG(LogTemp, Error, TEXT("SourceInv: %s"), SourceInv ? *SourceInv->GetName() : TEXT("NULL"));
+    UE_LOG(LogTemp, Error, TEXT("This: %s"), *GetName());
+    UE_LOG(LogTemp, Error, TEXT("FromIndex: %d, ToIndex: %d"), FromIndex, ToIndex);
+
     // 1) 서버에서만 실제 배열 수정
     if (SourceInv && SourceInv->InventoryItemsStruct.IsValidIndex(FromIndex) &&
         InventoryItemsStruct.IsValidIndex(ToIndex))
     {
+
+        UE_LOG(LogTemp, Error, TEXT("Moving item: %s"), *SourceInv->InventoryItemsStruct[FromIndex].ItemName);
         FItemData Moved = SourceInv->InventoryItemsStruct[FromIndex];
         SourceInv->InventoryItemsStruct[FromIndex] = FItemData();
         InventoryItemsStruct[ToIndex] = Moved;
+        UE_LOG(LogTemp, Error, TEXT("Item moved successfully"));
+    }
+     else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed - Invalid indices or null SourceInv"));
     }
 
     //// 2) 리스너 서버 자신(UI)을 즉시 갱신
@@ -177,6 +190,43 @@ void UInventoryComponent::ServerMoveItem_Implementation(UInventoryComponent* Sou
     //    SourceInv->OwningWidgetInstance->RefreshInventoryStruct();
     //}
 }
+
+bool UInventoryComponent::ServerMoveItemBetweenInventories_Validate(
+    UInventoryComponent* SourceInv,
+    UInventoryComponent* DestInv,
+    int32 FromIndex,
+    int32 ToIndex)
+{
+    return true; 
+}
+
+void UInventoryComponent::ServerMoveItemBetweenInventories_Implementation(
+    UInventoryComponent* SourceInv,
+    UInventoryComponent* DestInv,
+    int32 FromIndex,
+    int32 ToIndex)
+{
+    if (!SourceInv || !DestInv) return;
+
+    if (SourceInv->InventoryItemsStruct.IsValidIndex(FromIndex) &&
+        DestInv->InventoryItemsStruct.IsValidIndex(ToIndex))
+    {
+        FItemData Moved = SourceInv->InventoryItemsStruct[FromIndex];
+        SourceInv->InventoryItemsStruct[FromIndex] = FItemData();
+        DestInv->InventoryItemsStruct[ToIndex] = Moved;
+
+        // Owner Actor의 ForceNetUpdate 호출
+        if (AActor* SourceOwner = SourceInv->GetOwner())
+        {
+            SourceOwner->ForceNetUpdate();
+        }
+        if (AActor* DestOwner = DestInv->GetOwner())
+        {
+            DestOwner->ForceNetUpdate();
+        }
+    }
+}
+
 
 void UInventoryComponent::ServerRemoveItem_Implementation(int32 Index)
 {
@@ -282,4 +332,27 @@ void UInventoryComponent::ServerSellItem_Implementation(int32 FromIndex, int32 S
         // 골드 UI 업데이트
         Character->UpdateGoldUI();
     }
+}
+
+bool UInventoryComponent::ServerSyncInventoryFromLobby_Validate(const TArray<FItemData>& LobbyItems)
+{
+    return true;
+}
+
+void UInventoryComponent::ServerSyncInventoryFromLobby_Implementation(const TArray<FItemData>& LobbyItems)
+{
+    if (!GetOwner()->HasAuthority()) return;
+
+    // 서버에서 인벤토리 데이터 적용
+    InventoryItemsStruct.SetNum(Capacity);
+
+    for (int32 i = 0; i < LobbyItems.Num() && i < Capacity; ++i)
+    {
+        InventoryItemsStruct[i] = LobbyItems[i];
+    }
+
+    // 모든 클라이언트에 전파
+    OnRep_InventoryItemsStruct();
+
+    UE_LOG(LogTemp, Warning, TEXT("Server: Synchronized %d items from lobby"), LobbyItems.Num());
 }

@@ -26,7 +26,7 @@ Awfcex::Awfcex()
 
 
 
-int32 Awfcex::CurrentExperimentIndex = 0;
+//int32 Awfcex::CurrentExperimentIndex = 0;
 
 void Awfcex::BeginPlay()
 {
@@ -44,9 +44,9 @@ void Awfcex::BeginPlay()
         UE_LOG(LogTemp, Warning, TEXT("Awfcex HasAuthority: TRUE, Executing WFC"));
         // === 실험 환경 정리 ===
         //CleanupBeforeExperiment();
-        bExperimentCompleted = false; // 실험 시작
+        //bExperimentCompleted = false; // 실험 시작
         // 시드 배열 추가
-        const TArray<int32> ExperimentSeeds = {
+        /*const TArray<int32> ExperimentSeeds = {
             1487629031, 2094813756, 867542139, 1692038457, 354719826,
             1823946052, 729681304, 1456237890, 985301647, 1671529483,
             402857196, 1738924605, 619358472, 1385046728, 756201394,
@@ -57,63 +57,64 @@ void Awfcex::BeginPlay()
             539871426, 1904637285, 726854093, 1491283670, 812946537,
             1638507294, 367920851, 1759384062, 596102738, 1284739560,
             943586172, 1517302948, 682745319, 1849671035, 475928361
-        };
+        };*/
 
         // === 자동 시드 변경 ===
-        int32 UseIndex = CurrentExperimentIndex % ExperimentSeeds.Num();
-        int32 EXPERIMENT_SEED = ExperimentSeeds[UseIndex];
+        /*int32 UseIndex = CurrentExperimentIndex % ExperimentSeeds.Num();
+        int32 EXPERIMENT_SEED = ExperimentSeeds[UseIndex];*/
 
         //const int32 CurrentExperiment = 0; // 매번 0~49로 변경
         //const int32 EXPERIMENT_SEED = ExperimentSeeds[CurrentExperiment];
 
-        UE_LOG(LogTemp, Warning, TEXT("=== EXPERIMENT %d/50 - SEED: %d ==="),
-            CurrentExperimentIndex + 1, EXPERIMENT_SEED);
+        /*UE_LOG(LogTemp, Warning, TEXT("=== EXPERIMENT %d/50 - SEED: %d ==="),
+            CurrentExperimentIndex + 1, EXPERIMENT_SEED);*/
 
         
        
         const double StartTime = FPlatformTime::Seconds();
 
-        ExecuteWFCInSubsystem(90, EXPERIMENT_SEED); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505--1, 767089153, 1948641409, 1358936321, 1964145409,  2078383361, 1231524609, 46204289
+        ExecuteWFCInSubsystem(90, 0); //테스트용 시드 1967664897, 1094396673, 테스트01: 1172835073, 1966419713, 984042241, 1925703041, 1435413505--1, 767089153, 1948641409, 1358936321, 1964145409,  2078383361, 1231524609, 46204289
 
         const double EndTime = FPlatformTime::Seconds();
         const double ElapsedTime = EndTime - StartTime;
        
         // === 한 줄 로그 출력 ===
-        UE_LOG(LogTemp, Warning, TEXT("[WFC ASTAR] maptime: %.3f sec, [EXPERIMENT]: %d,%d"),
-            ElapsedTime, CurrentExperimentIndex + 1, EXPERIMENT_SEED);
+        /*UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec, [EXPERIMENT]: %d,%d"),
+            ElapsedTime, CurrentExperimentIndex + 1, EXPERIMENT_SEED);*/
 
-        // === 다음 실험을 위해 인덱스 증가 ===
-        if (bAutoIncrement) {
-            CurrentExperimentIndex++;
-        }
-
-        SetBirdEyeView();
-        bExperimentCompleted = true;
-        ////풀링
-        //if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
-        //{
-        //    WFCSubsystem->PrepareTilePrefabPool(GetWorld());
+        //// === 다음 실험을 위해 인덱스 증가 ===
+        //if (bAutoIncrement) {
+        //    CurrentExperimentIndex++;
         //}
+
+       /* SetBirdEyeView();
+        bExperimentCompleted = true;*/
+
+        //풀링
+        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        {
+            WFCSubsystem->PrepareTilePrefabPool(GetWorld());
+        }
 
 
 
 
         
-        /*SpawnEnemiesOnCorridor(20);
+        SpawnEnemiesOnCorridor(20);
 
         SpawnWFCRegeneratorOnRoom();
 
         SpawnEscapeObjectsOnRoom();
-        SpawnTreasureChestsOnTiles();*/
+        SpawnTreasureChestsOnTiles();
 
         
 
-        //// WFC 완료 플래그 설정
-        //if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
-        //{
-        //    WFCSubsystem->bWFCCompleted = true;
-        //    UE_LOG(LogTemp, Log, TEXT("WFC completed, players can now spawn"));
-        //}
+        // WFC 완료 플래그 설정
+        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        {
+            WFCSubsystem->bWFCCompleted = true;
+            UE_LOG(LogTemp, Log, TEXT("WFC completed, players can now spawn"));
+        }
 
     }
     else
@@ -122,12 +123,12 @@ void Awfcex::BeginPlay()
     }
 
 
-    ////SpawnPlayerOnCorridor();
-    //if (ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(UGameplayStatics::GetGameMode(this)))
-    //{
-    //    GameMode->ForceRestartAllPlayers();
-    //    UE_LOG(LogTemp, Warning, TEXT("Players forced to restart after WFC completion."));
-    //}
+    //SpawnPlayerOnCorridor();
+    if (ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(UGameplayStatics::GetGameMode(this)))
+    {
+        GameMode->ForceRestartAllPlayers();
+        UE_LOG(LogTemp, Warning, TEXT("Players forced to restart after WFC completion."));
+    }
 
 }
 
