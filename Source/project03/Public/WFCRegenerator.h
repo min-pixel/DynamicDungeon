@@ -58,6 +58,8 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastRestoreGravity();
 
+	void UpdateTileNetworkPriorities();
+
 	FIntVector FixedTileCoord;
 	FWaveFunctionCollapseOptionCustom FixedTileOption;
 	bool bHasFixedTile = false;

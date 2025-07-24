@@ -19,7 +19,10 @@ void UAuthManager::Initialize(FSubsystemCollectionBase& Collection)
 {
     Super::Initialize(Collection);
 
-    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Initializing - connecting to server..."));
+    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Initializing - loading server config..."));
+
+    // 설정 파일에서 서버 정보 로드
+    LoadServerConfig();
 
     // SocketManager 가져오기
     SocketMgr = GetGameInstance()->GetSubsystem<USocketManager>();
@@ -30,10 +33,10 @@ void UAuthManager::Initialize(FSubsystemCollectionBase& Collection)
         return;
     }
 
-    // 게임 시작 시 서버에 연결
-    bool bConnectResult = SocketMgr->Connect(TEXT("192.168.0.12"), 3000);
-    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Initial server connection: %s"),
-        bConnectResult ? TEXT("SUCCESS") : TEXT("FAILED"));
+    // 설정 파일에서 읽은 IP와 포트로 연결
+    bool bConnectResult = SocketMgr->Connect(ServerIP, ServerPort);
+    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Connecting to %s:%d - Result: %s"),
+        *ServerIP, ServerPort, bConnectResult ? TEXT("SUCCESS") : TEXT("FAILED"));
 
     if (bConnectResult)
     {
@@ -66,6 +69,92 @@ void UAuthManager::Deinitialize()
     Super::Deinitialize();
 }
 
+void UAuthManager::LoadServerConfig()
+{
+    // 기본값 설정
+    ServerIP = TEXT("192.168.0.12");
+    ServerPort = 3000;
+
+    // 설정 파일 경로 (게임 실행 파일과 같은 위치)
+    FString ConfigPath = FPaths::ProjectDir() + TEXT("ServerConfig.ini");
+
+    // 패키징된 버전에서는 실행 파일 경로 사용
+    if (!FPaths::FileExists(ConfigPath))
+    {
+        ConfigPath = FPaths::LaunchDir() + TEXT("ServerConfig.ini");
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Looking for config at: %s"), *ConfigPath);
+
+    // 설정 파일이 없으면 기본 설정 파일 생성
+    if (!FPaths::FileExists(ConfigPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Config file not found, creating default..."));
+        CreateDefaultConfig();
+        return;
+    }
+
+    // 설정 파일 읽기
+    TArray<FString> Lines;
+    if (FFileHelper::LoadFileToStringArray(Lines, *ConfigPath))
+    {
+        for (const FString& Line : Lines)
+        {
+            FString TrimmedLine = Line.TrimStartAndEnd();
+
+            // 주석이나 빈 줄 무시
+            if (TrimmedLine.IsEmpty() || TrimmedLine.StartsWith(TEXT("#")))
+                continue;
+
+            // IP 주소 파싱
+            if (TrimmedLine.StartsWith(TEXT("ServerIP=")))
+            {
+                FString Value = TrimmedLine.RightChop(9); // "ServerIP=" 제거
+                ServerIP = Value.TrimStartAndEnd();
+                UE_LOG(LogTemp, Log, TEXT("[AuthManager] Loaded ServerIP: %s"), *ServerIP);
+            }
+            // 포트 파싱
+            else if (TrimmedLine.StartsWith(TEXT("ServerPort=")))
+            {
+                FString Value = TrimmedLine.RightChop(11); // "ServerPort=" 제거
+                ServerPort = FCString::Atoi(*Value.TrimStartAndEnd());
+                UE_LOG(LogTemp, Log, TEXT("[AuthManager] Loaded ServerPort: %d"), ServerPort);
+            }
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Config loaded successfully - IP: %s, Port: %d"),
+            *ServerIP, ServerPort);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[AuthManager] Failed to read config file, using defaults"));
+    }
+}
+
+void UAuthManager::CreateDefaultConfig()
+{
+    FString ConfigContent = TEXT("# Server Configuration File\n");
+    ConfigContent += TEXT("# Edit these values to change server connection settings\n");
+    ConfigContent += TEXT("# \n");
+    ConfigContent += TEXT("# Server IP Address\n");
+    ConfigContent += TEXT("ServerIP=192.168.0.12\n");
+    ConfigContent += TEXT("# \n");
+    ConfigContent += TEXT("# Server Port Number\n");
+    ConfigContent += TEXT("ServerPort=3000\n");
+
+    FString ConfigPath = FPaths::LaunchDir() + TEXT("ServerConfig.ini");
+
+    if (FFileHelper::SaveStringToFile(ConfigContent, *ConfigPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Created default config file at: %s"), *ConfigPath);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[AuthManager] Failed to create default config file"));
+    }
+}
+
+
 bool UAuthManager::EnsureConnection()
 {
     // SocketManager 확인
@@ -89,8 +178,9 @@ bool UAuthManager::EnsureConnection()
 
     UE_LOG(LogTemp, Warning, TEXT("[AuthManager] Connection lost, attempting to reconnect..."));
 
-    // 재연결 시도
-    bool bReconnected = SocketMgr->Connect(TEXT("192.168.0.12"), 3000);
+   
+    // 재연결 시도 (설정 파일에서 읽은 값 사용)
+    bool bReconnected = SocketMgr->Connect(ServerIP, ServerPort);
     if (bReconnected)
     {
         // 이벤트 재바인딩 (혹시 모르니)
@@ -99,12 +189,14 @@ bool UAuthManager::EnsureConnection()
             SocketMgr->OnDataReceived.AddDynamic(this, &UAuthManager::HandleSocketData);
         }
         bIsConnected = true;
-        UE_LOG(LogTemp, Log, TEXT("[AuthManager] Reconnection successful"));
+        UE_LOG(LogTemp, Log, TEXT("[AuthManager] Reconnection successful to %s:%d"),
+            *ServerIP, ServerPort);
     }
     else
     {
         bIsConnected = false;
-        UE_LOG(LogTemp, Error, TEXT("[AuthManager] Reconnection failed"));
+        UE_LOG(LogTemp, Error, TEXT("[AuthManager] Reconnection failed to %s:%d"),
+            *ServerIP, ServerPort);
     }
 
     return bReconnected;

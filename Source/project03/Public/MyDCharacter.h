@@ -300,6 +300,19 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerApplyLobbyStats(float NewMaxHealth, float NewMaxStamina, float NewMaxKnowledge, int32 NewGold);
 
+	void ApplyCorridorDamage();
+
+	UFUNCTION(Server, Reliable)
+	void ServerApplyCorridorDamage();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastToggleMapView();
+
+	UFUNCTION(Client, Reliable)
+	void ClientToggleMapView();
+	
+
+
 
 	//맵뷰
 	UPROPERTY()
@@ -659,9 +672,34 @@ public:
 
 	void PlayMagicMontage();
 
+	// 플레이어 죽음 시 보물상자 스폰
+	UFUNCTION(BlueprintCallable)
+	void SpawnPlayerDeathChest();
 
+	// 플레이어 인벤토리를 보물상자로 이전
+	void TransferInventoryToChest(class ATreasureChest* Chest);
+
+	// 보물상자 글로우 이펙트
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Death")
+	class UNiagaraSystem* TreasureGlowEffectAsset;
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayDeathGlow(ATreasureChest* Chest);
+
+	UPROPERTY(EditDefaultsOnly, Category = "Audio")
+	USoundBase* HitSoundCue;
+
+	UFUNCTION(Client, Unreliable)
+	void ClientPlayHitSoundAtLocation(const FVector& Location);
+
+	// 보물상자 클래스 (기본값: TreasureChest)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Death")
+	TSubclassOf<class ATreasureChest> PlayerDeathChestClass;
 
 private:
+
+	
+
 	/** 캐릭터의 스켈레탈 메쉬 */
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	class USkeletalMeshComponent* CharacterMesh;

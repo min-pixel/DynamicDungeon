@@ -24,7 +24,26 @@ void UItemTooltipWidget::InitWithItemData(const FItemData& Data)
     // 타입
     if (ItemTypeText)
     {
-        ItemTypeText->SetText(UEnum::GetDisplayValueAsText(Data.ItemType));
+        FString TypeString;
+        switch (Data.ItemType)
+        {
+        case EItemType::Weapon:
+            TypeString = TEXT("Weapon");
+            break;
+        case EItemType::Armor:
+            TypeString = TEXT("Armor");
+            break;
+        case EItemType::Potion:
+            TypeString = TEXT("Potion");
+            break;
+        case EItemType::Consumable:
+            TypeString = TEXT("Consumable");
+            break;
+        default:
+            TypeString = TEXT("Unknown");
+            break;
+        }
+        ItemTypeText->SetText(FText::FromString(TypeString));
     }
 
     // 이름 (Armor는 "[X등급]" 접미 제거)

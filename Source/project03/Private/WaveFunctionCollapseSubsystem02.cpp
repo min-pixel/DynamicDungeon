@@ -1178,6 +1178,41 @@ UActorComponent* UWaveFunctionCollapseSubsystem02::AddNamedInstanceComponent(
 	return InstanceComponent;
 }
 
+void UWaveFunctionCollapseSubsystem02::SetTileNetworkPriority(AActor* TileActor, const FVector& TilePosition)
+{
+	if (!TileActor || !GetWorld()) return;
+
+	float MinDistanceToAnyPlayer = FLT_MAX;
+
+	// 모든 플레이어와의 최소 거리 찾기
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PC = It->Get();
+		if (PC && PC->GetPawn())
+		{
+			float Distance = FVector::Dist(TilePosition, PC->GetPawn()->GetActorLocation());
+			MinDistanceToAnyPlayer = FMath::Min(MinDistanceToAnyPlayer, Distance);
+		}
+	}
+
+	// 거리에 따른 간단한 우선순위 (가까우면 높게, 멀면 낮게)
+	if (MinDistanceToAnyPlayer < 1000.0f)      // 10m 이내
+	{
+		TileActor->NetPriority = 10.0f;
+	}
+	else if (MinDistanceToAnyPlayer < 3000.0f) // 30m 이내  
+	{
+		TileActor->NetPriority = 5.0f;
+	}
+	else if (MinDistanceToAnyPlayer < 5000.0f) // 50m 이내
+	{
+		TileActor->NetPriority = 2.0f;
+	}
+	else
+	{
+		TileActor->NetPriority = 1.0f;  // 기본값
+	}
+}
 
 AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWaveFunctionCollapseTileCustom>& Tiles, UWorld* WorldContext)
 {
@@ -1245,6 +1280,8 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 				AActor* TileActor = WorldContext->SpawnActor<AActor>(ActorClass, TilePosition, TileRotation);
 				if (TileActor)
 				{
+					 SetTileNetworkPriority(TileActor, TilePosition);
+
 					TileActor->SetActorScale3D(TileScale);
 					TileActor->AttachToActor(SpawnedActor, FAttachmentTransformRules::KeepWorldTransform);
 					TileActor->Tags.Add(FName("WFCGenerated"));

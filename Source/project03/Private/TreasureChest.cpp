@@ -8,6 +8,7 @@
 #include "Weapon.h"
 #include "ScrollItem.h"
 #include "Armor.h"
+#include "Net/UnrealNetwork.h"
 #include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
@@ -72,7 +73,7 @@ void ATreasureChest::BeginPlay()
     }
 
     // 서버에서만 아이템 생성
-    if (HasAuthority())
+    if (HasAuthority() && !bIsPlayerDeathChest)
     {
         GenerateRandomItems();
     }
@@ -108,6 +109,14 @@ void ATreasureChest::GenerateRandomItems()
             AItem* DefaultItem = SelectedClass->GetDefaultObject<AItem>();
             NewItemData.ItemIcon = DefaultItem->ItemIcon;
             NewItemData.ItemName = DefaultItem->ItemName;
+            NewItemData.ItemType = DefaultItem->ItemType;
+            NewItemData.bIsStackable = DefaultItem->bIsStackable;
+            NewItemData.MaxStack = DefaultItem->MaxStack;
+            NewItemData.Count = 1;
+            NewItemData.Price = DefaultItem->Price;
+
+
+
 
             // 스크롤이면 스킬 인덱스 랜덤 지정
             if (DefaultItem->IsA(AScrollItem::StaticClass()))
@@ -123,28 +132,58 @@ void ATreasureChest::GenerateRandomItems()
             {
                 int32 GradeRoll = FMath::RandRange(0, 99);
                 if (GradeRoll < 5)
+                {
                     NewItemData.Grade = static_cast<uint8>(EArmorGrade::C);
+                    NewItemData.Price = DefaultItem->Price; // C등급 가격 
+                }
                 else if (GradeRoll < 50)
+                {
                     NewItemData.Grade = static_cast<uint8>(EArmorGrade::B);
+                    NewItemData.Price = DefaultItem->Price * 2; // : B등급 가격 
+                }
                 else
+                {
                     NewItemData.Grade = static_cast<uint8>(EArmorGrade::A);
+                    NewItemData.Price = DefaultItem->Price * 3; //A등급 가격 
+                }
             }
             else if (DefaultItem->IsA(AWeapon::StaticClass()))
             {
                 int32 GradeRoll = FMath::RandRange(0, 99);
                 if (GradeRoll < 60)
+                {
                     NewItemData.Grade = static_cast<uint8>(EWeaponGrade::C);
+                    NewItemData.Price = DefaultItem->Price; //C등급 가격 
+                }
                 else if (GradeRoll < 90)
+                {
                     NewItemData.Grade = static_cast<uint8>(EWeaponGrade::B);
+                    NewItemData.Price = DefaultItem->Price * 2; // B등급 가격 
+                }
                 else
+                {
                     NewItemData.Grade = static_cast<uint8>(EWeaponGrade::A);
+                    NewItemData.Price = DefaultItem->Price * 3; //  A등급 가격 
+                }
+            }
+            // 기타 아이템은 기본 가격 유지 
+            else
+            {
+                NewItemData.Price = DefaultItem->Price;
             }
 
 
         }
 
        //ChestInventory->TryAddItemByClass(PossibleItems[RandomIndex]); // 구조체 기반으로 추가
-       ChestInventory->TryAddItemByClassWithGrade(SelectedClass, NewItemData.Grade);
+        for (int32 j = 0; j < ChestInventory->InventoryItemsStruct.Num(); ++j)
+        {
+            if (ChestInventory->InventoryItemsStruct[j].ItemClass == nullptr)
+            {
+                ChestInventory->InventoryItemsStruct[j] = NewItemData;
+                break;
+            }
+        }
        //ChestInventory->TryAddItemStruct(NewItemData);
     }
 }
@@ -221,6 +260,20 @@ void ATreasureChest::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* O
 
 void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
 {
+    
+    UE_LOG(LogTemp, Error, TEXT("=== CHEST ACCESS - Player: %s, CurrentUser: %s ==="), *InteractingPlayer->GetName(), CurrentUser ? *CurrentUser->GetName() : TEXT("NULL"));
+
+    // 서버에서만 체크
+    if (HasAuthority())
+    {
+        if (CurrentUser && CurrentUser != InteractingPlayer)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Access denied"));
+            return;
+        }
+        CurrentUser = InteractingPlayer;
+    }
+    
     if (!ChestInventory || !InventoryWidgetClass) return;
 
     if (ChestInventoryWidgetInstance && ChestInventoryWidgetInstance->IsInViewport())
@@ -228,6 +281,9 @@ void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
         UE_LOG(LogTemp, Warning, TEXT("Chest UI already open, skipping duplicate creation"));
         return;
     }
+
+    
+
 
     ChestInventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
     if (ChestInventoryWidgetInstance)
@@ -266,6 +322,13 @@ void ATreasureChest::OpenChestUI(AMyDCharacter* InteractingPlayer)
 
 void ATreasureChest::CloseChestUI(AMyDCharacter* InteractingPlayer)
 {
+
+    // 사용자 해제
+    if (CurrentUser == InteractingPlayer)
+    {
+        CurrentUser = nullptr;
+    }
+
     if (ChestInventoryWidgetInstance)
     {
         ChestInventoryWidgetInstance->RemoveFromParent();
@@ -286,4 +349,10 @@ void ATreasureChest::CloseChestUI(AMyDCharacter* InteractingPlayer)
 
         UE_LOG(LogTemp, Log, TEXT("Closed Player Inventory UI"));
     }
+}
+
+void ATreasureChest::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME(ATreasureChest, CurrentUser);
 }

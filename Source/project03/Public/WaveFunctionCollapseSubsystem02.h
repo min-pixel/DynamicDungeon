@@ -312,6 +312,8 @@ private:
 	*/
 	bool AreAllTilesNonSpawnable(const TArray<FWaveFunctionCollapseTileCustom>& Tiles);
 
+	void SetTileNetworkPriority(AActor* TileActor, const FVector& TilePosition);
+
 protected:
 		UWorld* GetEffectiveWorld() const
 		{

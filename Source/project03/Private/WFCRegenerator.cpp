@@ -257,6 +257,7 @@ void AWFCRegenerator::GenerateWFCAtLocation()
 	}
 
 
+
 	// 기존 WFC 액터 제거
 	ClearPreviousWFCActors();
 	UE_LOG(LogTemp, Warning, TEXT("Previous WFC actors cleared"));
@@ -407,4 +408,76 @@ void AWFCRegenerator::MulticastRestoreGravity_Implementation()
             }
         }
     }
+
+	// 2) 방타일 밖에 있는 플레이어 전부 데미지 5000
+	if (HasAuthority()) // 서버만 실행
+	{
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			APlayerController* PC = It->Get();
+			AMyDCharacter* Char = PC ? Cast<AMyDCharacter>(PC->GetPawn()) : nullptr;
+			if (!Char) continue;
+			bool bPlayerInFixedRoom = Char->IsPlayerInFixedRoomTile();
+
+
+			if (!bPlayerInFixedRoom)  // 방타일 여부 확인
+			{
+				// 기본 데미지 시스템 사용
+				
+				if (HasAuthority())
+				{
+					Char->ServerHandleEscape();
+				}
+			}
+			
+		}
+	}
+	UpdateTileNetworkPriorities();
+}
+
+void AWFCRegenerator::UpdateTileNetworkPriorities()
+{
+	APlayerController* LocalPC = GetWorld()->GetFirstPlayerController();
+	if (!LocalPC || !LocalPC->GetPawn()) return;
+
+	FVector PlayerLocation = LocalPC->GetPawn()->GetActorLocation();
+
+	// WFC로 생성된 모든 타일 찾기
+	TArray<AActor*> WFCTiles;
+	UGameplayStatics::GetAllActorsWithTag(GetWorld(), "WFCGenerated", WFCTiles);
+
+	// 거리순으로 정렬
+	WFCTiles.Sort([PlayerLocation](const AActor& A, const AActor& B)
+		{
+			float DistA = FVector::Dist(A.GetActorLocation(), PlayerLocation);
+			float DistB = FVector::Dist(B.GetActorLocation(), PlayerLocation);
+			return DistA < DistB;
+		});
+
+	// 가까운 순서대로 높은 우선순위 부여
+	for (int32 i = 0; i < WFCTiles.Num(); i++)
+	{
+		AActor* TileActor = WFCTiles[i];
+		float Distance = FVector::Dist(TileActor->GetActorLocation(), PlayerLocation);
+
+		if (Distance < 1000.0f)
+		{
+			TileActor->NetPriority = 20.0f; // 최고 우선순위
+			TileActor->ForceNetUpdate();    // 즉시 업데이트
+		}
+		else if (Distance < 2500.0f)
+		{
+			TileActor->NetPriority = 10.0f;
+		}
+		else if (Distance < 5000.0f)
+		{
+			TileActor->NetPriority = 5.0f;
+		}
+		else
+		{
+			TileActor->NetPriority = 1.0f;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Updated network priorities for %d tiles around player"), WFCTiles.Num());
 }

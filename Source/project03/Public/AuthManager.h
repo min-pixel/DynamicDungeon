@@ -101,7 +101,15 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Auth")
     FOnAuthResponse OnAuthResponse;
 
-
+     // 서버 설정 정보
+    FString ServerIP;
+    int32 ServerPort;
+    
+    // 설정 파일에서 서버 정보 로드
+    void LoadServerConfig();
+    
+    // 기본 설정 파일 생성
+    void CreateDefaultConfig();
 private:
     // 소켓 매니저 참조
     class USocketManager* SocketMgr = nullptr;

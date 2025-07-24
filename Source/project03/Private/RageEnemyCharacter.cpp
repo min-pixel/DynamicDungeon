@@ -1,5 +1,6 @@
 #include "RageEnemyCharacter.h"
 #include "EnemyFSMComponent.h"
+#include "EnemyCharacter.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "EnemyAIController.h"
@@ -225,6 +226,7 @@ void ARageEnemyCharacter::TraceAttack()
     TArray<AActor*> IgnoredActors;
     IgnoredActors.Add(this);
 
+
     UKismetSystemLibrary::SphereTraceMulti(
         GetWorld(),
         LastStartLocation,
@@ -233,7 +235,7 @@ void ARageEnemyCharacter::TraceAttack()
         UEngineTypes::ConvertToTraceType(ECC_Pawn),
         false,
         IgnoredActors,
-        EDrawDebugTrace::ForDuration,
+        EDrawDebugTrace::None,
         StartHitResults,
         true
     );
@@ -258,6 +260,13 @@ void ARageEnemyCharacter::TraceAttack()
         AActor* HitActor = Hit.GetActor();
         if (HitActor && HitActor->Implements<UHitInterface>())
         {
+
+            // 적끼리는 공격하지 않도록 체크
+            if (Cast<AEnemyCharacter>(HitActor) || Cast<ARageEnemyCharacter>(HitActor))
+            {
+                continue; // 모든 적 타입 스킵
+            }
+
             if (!HitActors.Contains(HitActor))
             {
                 HitActors.Add(HitActor);
@@ -273,6 +282,13 @@ void ARageEnemyCharacter::TraceAttack()
         AActor* HitActor = Hit.GetActor();
         if (HitActor && HitActor->Implements<UHitInterface>())
         {
+
+            // 적끼리는 공격하지 않도록 체크
+            if (Cast<AEnemyCharacter>(HitActor) || Cast<ARageEnemyCharacter>(HitActor))
+            {
+                continue; // 모든 적 타입 스킵
+            }
+
             if (!HitActors.Contains(HitActor)) // 중복 방지(여기서도 꼭!)
             {
                 HitActors.Add(HitActor);
@@ -302,8 +318,18 @@ void ARageEnemyCharacter::GetHit_Implementation(const FHitResult& HitResult, AAc
     CurrentHealth -= Damage;
     UE_LOG(LogTemp, Log, TEXT("RageEnemy took damage: %f | Current HP: %f"), Damage, CurrentHealth);
 
+    if (HasAuthority() && InstigatorActor)
+    {
+        if (AMyDCharacter* PlayerPawn = Cast<AMyDCharacter>(InstigatorActor))
+        {
+            PlayerPawn->ClientPlayHitSoundAtLocation(GetActorLocation());
+        }
+    }
+
     // 레이지 모드 체크
     CheckRageMode();
+
+
 
     // 레이지 모드에서는 스턴 저항 (스턴 시간 단축)
     if (bIsInRageMode)
@@ -515,7 +541,7 @@ void ARageEnemyCharacter::HandleStun()
             {
                 AnimInstance->Montage_Resume(AttackMontage);
             }
-        }, 0.15f, false);
+        }, 0.45f, false);
 }
 
 void ARageEnemyCharacter::PlayHitShake()
@@ -524,11 +550,11 @@ void ARageEnemyCharacter::PlayHitShake()
 
     for (int i = 0; i < 3; ++i)
     {
-        float Delay = i * 0.05f;
+        float Delay = i * 0.15f;
         FTimerHandle TimerHandle;
         GetWorldTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateLambda([this, OriginalLocation, i]()
             {
-                FVector ShakeOffset = FVector(0.0f, (i % 2 == 0 ? -3.0f : 3.0f), 0.0f);
+                FVector ShakeOffset = FVector(0.0f, (i % 2 == 0 ? -10.0f : 10.0f), 0.0f);
                 GetMesh()->SetRelativeLocation(OriginalLocation + ShakeOffset, false, nullptr, ETeleportType::TeleportPhysics);
             }), Delay, false);
     }
@@ -538,7 +564,7 @@ void ARageEnemyCharacter::PlayHitShake()
         FTimerHandle RestoreHandle;
         GetWorldTimerManager().SetTimer(RestoreHandle, [this, OriginalLocation]() {
             GetMesh()->SetRelativeLocation(OriginalLocation, false, nullptr, ETeleportType::TeleportPhysics);
-            }, 0.16f, false);
+            }, 0.48f, false);
         });
 }
 
@@ -565,16 +591,17 @@ void ARageEnemyCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AAct
         Player->OverlappedActor = nullptr;
         GetMesh()->SetRenderCustomDepth(false);
 
-        if (LootInventoryWidgetInstance)
+        if (LootInventoryWidgetInstance &&
+            LootInventory->OwningWidgetInstance == LootInventoryWidgetInstance &&
+            Player->InventoryWidgetInstance &&
+            Player->InventoryWidgetInstance->IsInViewport())
         {
             LootInventory->OwningWidgetInstance = nullptr;
             LootInventoryWidgetInstance->RemoveFromParent();
             LootInventoryWidgetInstance = nullptr;
-            UE_LOG(LogTemp, Log, TEXT("Closed rage enemy loot UI"));
-        }
+            UE_LOG(LogTemp, Log, TEXT("Closed enemy loot UI"));
 
-        if (Player->InventoryWidgetInstance)
-        {
+            // 이 플레이어의 인벤토리도 닫기
             Player->InventoryWidgetInstance->RemoveFromParent();
 
             APlayerController* PC = Cast<APlayerController>(Player->GetController());
@@ -658,6 +685,53 @@ void ARageEnemyCharacter::GenerateRandomLoot()
         NewItemData.bIsStackable = DefaultItem->bIsStackable;
         NewItemData.MaxStack = DefaultItem->MaxStack;
         NewItemData.Count = 1;
+        NewItemData.Price = DefaultItem->Price; // 기본 가격 사용
+
+        // 등급별 가격 조정
+        if (DefaultItem->IsA(AArmor::StaticClass()))
+        {
+            int32 GradeRoll = FMath::RandRange(0, 99);
+            if (GradeRoll < 60)
+            {
+                NewItemData.Grade = static_cast<uint8>(EArmorGrade::C);
+                NewItemData.Price = DefaultItem->Price; // C등급: 기본 가격
+            }
+            else if (GradeRoll < 90)
+            {
+                NewItemData.Grade = static_cast<uint8>(EArmorGrade::B);
+                NewItemData.Price = DefaultItem->Price * 2; // B등급: 2배
+            }
+            else
+            {
+                NewItemData.Grade = static_cast<uint8>(EArmorGrade::A);
+                NewItemData.Price = DefaultItem->Price * 3; // A등급: 3배
+            }
+        }
+        else if (DefaultItem->IsA(AWeapon::StaticClass()))
+        {
+            int32 GradeRoll = FMath::RandRange(0, 99);
+            if (GradeRoll < 60)
+            {
+                NewItemData.Grade = static_cast<uint8>(EWeaponGrade::C);
+                NewItemData.Price = DefaultItem->Price;
+            }
+            else if (GradeRoll < 90)
+            {
+                NewItemData.Grade = static_cast<uint8>(EWeaponGrade::B);
+                NewItemData.Price = DefaultItem->Price * 2;
+            }
+            else
+            {
+                NewItemData.Grade = static_cast<uint8>(EWeaponGrade::A);
+                NewItemData.Price = DefaultItem->Price * 3;
+            }
+        }
+        else
+        {
+            // 무기/방어구가 아닌 경우 기본 가격 사용
+            NewItemData.Price = DefaultItem->Price;
+        }
+
 
         for (int32 j = 0; j < LootInventory->InventoryItemsStruct.Num(); ++j)
         {

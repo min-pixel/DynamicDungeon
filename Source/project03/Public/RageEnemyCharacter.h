@@ -48,7 +48,7 @@ public:
 
 	// === 체력 시스템 ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float MaxHealth = 15.0f; // 기본 에너미보다 높게
+	float MaxHealth = 150.0f; // 기본 에너미보다 높게
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	float CurrentHealth;

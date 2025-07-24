@@ -229,4 +229,24 @@ public:
     void UpdateStatsDisplay();
     void UpdateGoldDisplay();
 
+    // 로그아웃 버튼
+    UPROPERTY(meta = (BindWidget))
+    class UButton* LogoutButton;
+
+    // 로그아웃 관련 함수들
+    UFUNCTION()
+    void OnLogoutButtonClicked();
+
+    UFUNCTION()
+    void SaveLobbyDataToDatabase();
+
+    UFUNCTION()
+    void OnLogoutSaveCompleted(bool bSuccess);
+
+    UFUNCTION()
+    void ReturnToLoginScreen();
+
+    // UI 헬퍼 함수
+    void SetButtonsEnabled(bool bEnabled);
+
 };

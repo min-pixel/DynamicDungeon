@@ -11,6 +11,8 @@ ATreasureGlowEffect::ATreasureGlowEffect()
 	PrimaryActorTick.bCanEverTick = true;
 	NiagaraComp = CreateDefaultSubobject<UNiagaraComponent>(TEXT("NiagaraComp"));
 	RootComponent = NiagaraComp;
+
+   
 }
 
 // Called when the game starts or when spawned

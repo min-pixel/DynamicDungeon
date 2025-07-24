@@ -68,9 +68,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
     TSubclassOf<USlotWidget> SlotWidgetClass;
 
+    UPROPERTY(Replicated)
+    AMyDCharacter* CurrentUser = nullptr;
+
+    
 
     void GenerateRandomItems();
 
     void CloseChestUI(AMyDCharacter* InteractingPlayer);
+
+    // 플레이어 사망으로 생성된 상자인지 확인하는 플래그
+    UPROPERTY(BlueprintReadWrite, Category = "Chest")
+    bool bIsPlayerDeathChest = false;
 
 };

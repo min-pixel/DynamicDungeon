@@ -11,6 +11,7 @@ ADagger::ADagger()
 	PrimaryActorTick.bCanEverTick = true;
 
     WeaponType = EWeaponType::Dagger;
+    ItemType = EItemType::Weapon;
     BaseDamage = 10.0f; //대형 무기라서 기본 공격력이 높음
     StaminaCost = 5.0f; //공격 시 스태미나 소모량 증가
     Price = 200;

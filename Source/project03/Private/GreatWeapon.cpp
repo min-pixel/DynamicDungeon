@@ -11,6 +11,7 @@ AGreatWeapon::AGreatWeapon()
 	PrimaryActorTick.bCanEverTick = true;
 
     WeaponType = EWeaponType::GreatWeapon;
+    ItemType = EItemType::Weapon;
     BaseDamage = 40.0f; //대형 무기라서 기본 공격력이 높음
     StaminaCost = -10.0f; //공격 시 스태미나 소모량 증가
     Price = 350;

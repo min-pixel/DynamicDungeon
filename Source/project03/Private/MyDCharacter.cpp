@@ -25,16 +25,19 @@
 #include "RobeBottom.h"
 #include "StaminaPotion.h"
 #include "ManaPotion.h"
+#include "TreasureGlowEffect.h"
 #include "HealSpell.h"
 #include "CurseSpell.h"
 #include "GoldWidget.h"
 #include "InventoryWidget.h"
 #include "GameFramework/SpectatorPawn.h"
+#include "Components/DirectionalLightComponent.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
 #include "Components/Image.h"
+#include "Sound/SoundWave.h"
 #include "NiagaraFunctionLibrary.h"
 #include "RageEnemyCharacter.h"
 #include "Potion.h"
@@ -59,7 +62,7 @@ AMyDCharacter::AMyDCharacter()
 
 	bUseControllerRotationYaw = true;
 	GetCharacterMovement()->bOrientRotationToMovement =true;
-
+	bAlwaysRelevant = true;
 
 	//기본 속성 설정
 	MaxHealth = 100.0f;
@@ -437,6 +440,24 @@ AMyDCharacter::AMyDCharacter()
 	{
 		OverheadCameraClass = CameraBPClass.Class;
 	}
+
+	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> GlowEffect(TEXT("/Game/PixieDustTrail/FX/NS_PixieDustTrail.NS_PixieDustTrail"));
+	if (GlowEffect.Succeeded())
+	{
+		TreasureGlowEffectAsset = GlowEffect.Object;
+	}
+
+	static ConstructorHelpers::FObjectFinder<USoundWave> DamageSoundObj(
+		TEXT("SoundWave'/Game/BP/Enemy/Sound/d-damage-splat.d-damage-splat'")
+	);
+	if (DamageSoundObj.Succeeded())
+	{
+		HitSoundCue = DamageSoundObj.Object;
+	}
+
+
+	// 기본 보물상자 클래스 설정
+	PlayerDeathChestClass = ATreasureChest::StaticClass();
 
 }
 
@@ -1078,8 +1099,12 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+
+
+
 	if (OtherActor && OtherActor != this)
 	{
+
 		OverlappedActor = OtherActor;
 		UE_LOG(LogTemp, Log, TEXT("Overlapped with: %s"), *OtherActor->GetName());
 	}
@@ -1091,15 +1116,17 @@ void AMyDCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActo
 
 	UE_LOG(LogTemp, Warning, TEXT("OnOverlapEnd: Resetting OverlappedActor"));
 	// 조건 제거: 그냥 오버랩 끝났으면 OverlappedActor를 초기화
+
+
 	OverlappedActor = nullptr;
 
 	// GameInstance 변수 초기화
 	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
 	if (GameInstance)
 	{
-		GameInstance->itemEAt = false;
+		/*GameInstance->itemEAt = false;
 		GameInstance->OpenDoor = false;
-		GameInstance->WeaponEAt = false;
+		GameInstance->WeaponEAt = false;*/
 		UE_LOG(LogTemp, Log, TEXT("Overlap Ended - Reset GameInstance variables"));
 	}
 
@@ -1118,9 +1145,9 @@ void AMyDCharacter::StartInteraction()
 	if (GameInstance)
 	{
 		// R 키를 누르면 두 변수 모두 true
-		GameInstance->itemEAt = true;
+		/*GameInstance->itemEAt = true;
 		GameInstance->OpenDoor = true;
-		GameInstance->WeaponEAt = true;
+		GameInstance->WeaponEAt = true;*/
 
 		
 
@@ -2300,10 +2327,18 @@ void AMyDCharacter::ServerPerformTraceAttack_Implementation()
 				if (!HitActors.Contains(HitActor))
 				{
 					HitActors.Add(HitActor);
-					IHitInterface::Execute_GetHit(HitActor, Hit, this, 30.0f);
+					IHitInterface::Execute_GetHit(HitActor, Hit, this, 10.0f);
 				}
 			}
 		}
+	}
+}
+
+void AMyDCharacter::ClientPlayHitSoundAtLocation_Implementation(const FVector& Location)
+{
+	if (HitSoundCue)  // HitSoundCue는 생성자나 에디터에서 세팅돼 있어야 함
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, HitSoundCue, Location);
 	}
 }
 
@@ -2596,6 +2631,14 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 
 	//UpdateHUD();
 
+	if (HasAuthority() && InstigatorActor) 
+	{
+		if (AMyDCharacter* Attacker = Cast<AMyDCharacter>(InstigatorActor)) 
+		{
+			Attacker->ClientPlayHitSoundAtLocation(GetActorLocation());
+		}
+	}
+
 	// 서버 전용 HUD 갱신
 	if (IsLocallyControlled() && HUDWidget)
 	{
@@ -2614,9 +2657,20 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 
 	if (Health <= 0)
 	{
+		
 
-		ToggleMapView();
+		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
 
+		// 2. 유효성 검사 후 bool 값 변경
+		/*if (GameInstance)
+		{
+			GameInstance->bPlydie = true;
+		}*/
+
+		if (HasAuthority())
+		{
+			SpawnPlayerDeathChest();
+		}
 
 
 		// 횃불 숨기기 처리 (기존 함수 활용)
@@ -2640,12 +2694,14 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 
 		
 
+
 		DoRagDoll();
 
-
+		ToggleMapView();
 
 		if (IsLocallyControlled())
 		{
+			
 			ExecuteEscape();       // 인벤토리·플래그
 		}
 		if (HasAuthority())
@@ -2657,8 +2713,152 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 }
 
 
+void AMyDCharacter::SpawnPlayerDeathChest()
+{
+	// 서버에서만 실행
+	if (!HasAuthority() || !PlayerDeathChestClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnPlayerDeathChest: Not authority or no chest class"));
+		return;
+	}
+
+	// 플레이어 위치에서 약간 위에 스폰 (바닥에 묻히지 않도록)
+	FVector SpawnLocation = GetActorLocation() + FVector(0, 0, -80.0f);
+	FRotator SpawnRotation = FRotator::ZeroRotator;
+
+	// 스폰 파라미터 설정
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = GetInstigator();
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	// 보물상자 스폰
+	ATreasureChest* DeathChest = GetWorld()->SpawnActor<ATreasureChest>(
+		PlayerDeathChestClass,
+		SpawnLocation,
+		SpawnRotation,
+		SpawnParams
+	);
+
+	if (DeathChest)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Player death chest spawned at: %s"), *SpawnLocation.ToString());
+
+		// 생성자에서 로드한 에셋 사용
+		
+
+		DeathChest->bIsPlayerDeathChest = true;
+
+		// 플레이어 인벤토리를 보물상자로 이전
+		TransferInventoryToChest(DeathChest);
+
+		// 특별한 태그 추가 (플레이어가 죽어서 생긴 상자임을 표시)
+		DeathChest->Tags.Add(FName("PlayerDeathChest"));
+
+		Multicast_PlayDeathGlow(DeathChest);
+
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Failed to spawn player death chest"));
+	}
+}
+
+//플레이어 인벤토리를 보물상자로 이전
+void AMyDCharacter::TransferInventoryToChest(ATreasureChest* Chest)
+{
+	if (!Chest || !InventoryComponent || !Chest->ChestInventory)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TransferInventoryToChest: Invalid parameters"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("=== TRANSFER DEBUG START === Player: %s, Player Inventory Size: %d, Chest Inventory Size: %d"), *GetName(), InventoryComponent->InventoryItemsStruct.Num(), Chest->ChestInventory->InventoryItemsStruct.Num());
+
+	for (int32 i = 0; i < Chest->ChestInventory->InventoryItemsStruct.Num(); ++i)
+	{
+		Chest->ChestInventory->InventoryItemsStruct[i] = FItemData(); // 빈 구조체로 초기화
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Cleared existing chest items"));
+
+	// 플레이어 인벤토리의 모든 아이템을 보물상자로 이전
+	int32 TransferredItems = 0;
+
+	for (int32 i = 0; i < InventoryComponent->InventoryItemsStruct.Num(); ++i)
+	{
+		const FItemData& PlayerItem = InventoryComponent->InventoryItemsStruct[i];
+
+		// 아이템이 존재하는 경우에만 이전
+		if (PlayerItem.ItemClass)
+		{
+			// 보물상자 인벤토리에서 빈 슬롯 찾기
+			for (int32 j = 0; j < Chest->ChestInventory->InventoryItemsStruct.Num(); ++j)
+			{
+				if (!Chest->ChestInventory->InventoryItemsStruct[j].ItemClass)
+				{
+					// 아이템 이전
+					Chest->ChestInventory->InventoryItemsStruct[j] = PlayerItem;
+					TransferredItems++;
+
+					UE_LOG(LogTemp, Log, TEXT("Transferred item: %s to chest slot %d"),
+						*PlayerItem.ItemName, j);
+					break;
+				}
+			}
+		}
+	}
+
+	// 장비 아이템도 이전 (장착된 무기/방어구)
+	if (EquipmentWidgetInstance)
+	{
+		TArray<FItemData> EquipmentItems = EquipmentWidgetInstance->GetAllEquipmentData();
+
+		for (const FItemData& EquipItem : EquipmentItems)
+		{
+			if (EquipItem.ItemClass)
+			{
+				// 보물상자에서 빈 슬롯 찾기
+				for (int32 j = 0; j < Chest->ChestInventory->InventoryItemsStruct.Num(); ++j)
+				{
+					if (!Chest->ChestInventory->InventoryItemsStruct[j].ItemClass)
+					{
+						Chest->ChestInventory->InventoryItemsStruct[j] = EquipItem;
+						TransferredItems++;
+
+						UE_LOG(LogTemp, Log, TEXT("Transferred equipment: %s to chest"),
+							*EquipItem.ItemName);
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Successfully transferred %d items from player to death chest"),
+		TransferredItems);
+}
 
 
+void AMyDCharacter::Multicast_PlayDeathGlow_Implementation(ATreasureChest* Chest)
+{
+	if (!Chest || !TreasureGlowEffectAsset) return;
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	// 클라이언트 로컬에서 스폰
+	ATreasureGlowEffect* Glow = GetWorld()->SpawnActor<ATreasureGlowEffect>(
+		ATreasureGlowEffect::StaticClass(),
+		Chest->GetActorLocation(),
+		FRotator::ZeroRotator,
+		Params
+	);
+	if (Glow)
+	{
+		Glow->InitEffect(Chest, TreasureGlowEffectAsset, 0.f);
+	}
+}
 
 void AMyDCharacter::ServerHandleDeath_Implementation()
 {
@@ -3024,7 +3224,7 @@ void AMyDCharacter::FadeAndRegenWFC()
 		UUserWidget* DoneWidget = CreateWidget<UUserWidget>(LocalPC, WFCDoneWidgetClass);
 		DoneWidget->AddToViewport(21);
 
-		//5초 뒤 자동 제거
+		
 		FTimerHandle HideHandle;
 		World->GetTimerManager().SetTimer(
 			HideHandle,
@@ -3048,19 +3248,41 @@ void AMyDCharacter::FadeAndRegenWFC()
 		TeleportToWFCRegen();
 	}
 
+
 	// (7) 0.5초 뒤에 맵 재생성
 	FTimerHandle RegenHandle;
 	World->GetTimerManager().SetTimer(
 		RegenHandle,
 		this,
 		&AMyDCharacter::ExecuteWFCNow,
-		0.5f,
+		0.1f,
 		false
 	);
 }
 
 
+// 서버에서 실제로 맵에 존재하는 모든 AMyDCharacter 검사
+void AMyDCharacter::ServerApplyCorridorDamage_Implementation()
+{
+	ApplyCorridorDamage();
+}
 
+void AMyDCharacter::ApplyCorridorDamage()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// 월드에 있는 모든 AMyDCharacter 순회
+	for (AMyDCharacter* Char : TActorRange<AMyDCharacter>(World))
+	{
+		// 방 타일 밖에 있는 캐릭터에게만 데미지
+		if (Char && !Char->IsPlayerInFixedRoomTile())
+		{
+			FHitResult Hit;
+			IHitInterface::Execute_GetHit(Char, Hit, this, 5000.0f);
+		}
+	}
+}
 
 
 void AMyDCharacter::ServerSetPlayerGravity_Implementation(float GravityScale)
@@ -3533,18 +3755,18 @@ bool AMyDCharacter ::IsPlayerInFixedRoomTile()
 	// 검색 반경 설정
 	float SearchRadius = 690.0f;
 
-	// 디버그 시각화: 플레이어 주변에 구체 그리기
-	DrawDebugSphere(
-		GetWorld(),
-		GetActorLocation(),
-		SearchRadius,
-		32,                    // 세그먼트 (부드러운 정도)
-		FColor::Green,         // 색상
-		true,                 // 지속 여부 (true면 무한)
-		5.0f,                  // 지속 시간 (초)
-		0,                     // 깊이 우선 순위
-		1.0f                   // 두께
-	);
+	//// 디버그 시각화: 플레이어 주변에 구체 그리기
+	//DrawDebugSphere(
+	//	GetWorld(),
+	//	GetActorLocation(),
+	//	SearchRadius,
+	//	32,                    // 세그먼트 (부드러운 정도)
+	//	FColor::Green,         // 색상
+	//	true,                 // 지속 여부 (true면 무한)
+	//	5.0f,                  // 지속 시간 (초)
+	//	0,                     // 깊이 우선 순위
+	//	1.0f                   // 두께
+	//);
 
 	// 플레이어 주변에서 WFCRegen 태그가 있는 재생성 오브젝트 검색
 	TArray<AActor*> AllRegenObjects;
@@ -3619,6 +3841,8 @@ void AMyDCharacter::FadeAndEscape()
 void AMyDCharacter::ExecuteEscape()
 {
 
+	ToggleMapView();
+
 	// 횃불 숨기기 처리 (기존 함수 활용)
 	if (AttachedTorch)
 	{
@@ -3643,11 +3867,14 @@ void AMyDCharacter::ExecuteEscape()
 	// 로컬 플레이어인지 확인
 	if (IsLocallyControlled())
 	{
-
+		
 		
 
 
 		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+
+		
+
 		if (GameInstance)
 		{
 			// 1. 장비창의 모든 아이템을 인벤토리/창고로 이동
@@ -3744,6 +3971,8 @@ void AMyDCharacter::ServerHandleEscape_Implementation()
 {
 	if (!HasAuthority()) return;
 
+
+
 	// 횃불 숨기기 확실히 하기
 	if (AttachedTorch)
 	{
@@ -3752,7 +3981,7 @@ void AMyDCharacter::ServerHandleEscape_Implementation()
 		MulticastToggleTorch(false);
 	}
 
-	
+	ClientToggleMapView();
 
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;
@@ -3775,7 +4004,7 @@ void AMyDCharacter::ServerHandleEscape_Implementation()
 	PC->UnPossess();
 	PC->ChangeState(NAME_Spectating);
 	PC->ClientGotoState(NAME_Spectating);
-
+	
 	// 관전 카메라 속도 설정
 	FTimerHandle SpectatorSpeedTimer;
 	GetWorldTimerManager().SetTimer(SpectatorSpeedTimer, [PC]()
@@ -3825,6 +4054,22 @@ void AMyDCharacter::ServerHandleEscape_Implementation()
 				}
 			}, 1.0f, false);
 	}
+}
+
+void AMyDCharacter::ClientToggleMapView_Implementation()
+{
+	//맵뷰 켤 때 라이트 켜기
+	if (CachedDirectionalLight)
+	{
+		CachedDirectionalLight->SetActorHiddenInGame(false);
+		CachedDirectionalLight->SetEnabled(true);
+		UE_LOG(LogTemp, Log, TEXT("MapView ON: Directional light enabled"));
+	}
+}
+
+void AMyDCharacter::MulticastToggleMapView_Implementation()
+{
+	ToggleMapView();
 }
 
 void AMyDCharacter::ServerCheckAllPlayersFinished_Implementation()

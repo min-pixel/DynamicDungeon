@@ -50,6 +50,10 @@ void ULobbyWidget::NativeConstruct()
     if (UpgradeKnowledgeButton)
         UpgradeKnowledgeButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnUpgradeKnowledgeClicked);
 
+    // 로그아웃 버튼 바인딩 추가
+    if (LogoutButton)
+        LogoutButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLogoutButtonClicked);
+
     // GameInstance 확인
     UDynamicDungeonInstance* GameInstance =Cast<UDynamicDungeonInstance>(GetWorld()->GetGameInstance());
     if (GameInstance)
@@ -376,6 +380,9 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
 
     // GameInstance에서 저장된 인벤토리를 복원한다
     UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+
+
+
     if (GameInstance && InventoryComponentRef)
     {
         const int32 SavedCount = GameInstance->SavedInventoryItems.Num();
@@ -415,6 +422,16 @@ void ULobbyWidget::InitializeLobby(AMyDCharacter* Player)
             // 저장된 게 없으면 (처음 시작이면)
             UE_LOG(LogTemp, Warning, TEXT("No SavedStorageItems found, starting empty Storage"));
         }
+
+        /*if (GameInstance->bPlydie)
+        {
+            GameInstance->SavedInventoryItems.Empty();
+            GameInstance->SavedStorageItems.Empty();
+            InventoryComponentRef->InventoryItemsStruct.Empty();
+            InventoryComponentRef->InventoryItemsStruct.SetNum(InventoryComponentRef->Capacity);
+            StorageComponentRef->InventoryItemsStruct.Empty();
+            StorageComponentRef->InventoryItemsStruct.SetNum(StorageComponentRef->Capacity);
+        }*/
 
         if (StorageWidgetInstance)
         {
@@ -846,4 +863,157 @@ void ULobbyWidget::OnUpgradeStaminaClicked()
 void ULobbyWidget::OnUpgradeKnowledgeClicked()
 {
     UpgradeKnowledge();
+}
+
+void ULobbyWidget::OnLogoutButtonClicked()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Logout button clicked - starting logout process"));
+
+    // 로그아웃 중 UI 피드백
+    if (AuthStatusText)
+    {
+        AuthStatusText->SetText(FText::FromString(TEXT("Logout...")));
+    }
+
+    // 모든 버튼 비활성화 (중복 클릭 방지)
+    SetButtonsEnabled(false);
+
+    // 현재 로비 데이터를 데이터베이스에 저장
+    SaveLobbyDataToDatabase();
+}
+
+void ULobbyWidget::SetButtonsEnabled(bool bEnabled)
+{
+    if (StartGameButton) StartGameButton->SetIsEnabled(bEnabled);
+    if (GoToShopButton) GoToShopButton->SetIsEnabled(bEnabled);
+    if (LogoutButton) LogoutButton->SetIsEnabled(bEnabled);
+    if (UpgradeHealthButton) UpgradeHealthButton->SetIsEnabled(bEnabled);
+    if (UpgradeStaminaButton) UpgradeStaminaButton->SetIsEnabled(bEnabled);
+    if (UpgradeKnowledgeButton) UpgradeKnowledgeButton->SetIsEnabled(bEnabled);
+    if (LeftArrowButton) LeftArrowButton->SetIsEnabled(bEnabled);
+    if (RightArrowButton) RightArrowButton->SetIsEnabled(bEnabled);
+}
+
+void ULobbyWidget::SaveLobbyDataToDatabase()
+{
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (!GameInstance)
+    {
+        UE_LOG(LogTemp, Error, TEXT("GameInstance not found for logout save"));
+        ReturnToLoginScreen();
+        return;
+    }
+
+    // 유효한 캐릭터 데이터가 있는지 확인
+    if (GameInstance->CurrentCharacterData.PlayerName.IsEmpty() ||
+        GameInstance->CurrentCharacterData.PlayerName == TEXT("DefaultName"))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No valid character data to save for logout"));
+        ReturnToLoginScreen();
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Saving lobby data for logout - Character: %s"),
+        *GameInstance->CurrentCharacterData.PlayerName);
+
+    // 저장 완료 이벤트 바인딩 (기존 멤버 변수 AuthMgr 사용)
+    if (AuthMgr)
+    {
+        // 기존 바인딩 제거 후 새로 추가
+        AuthMgr->OnSaveDataResponse.RemoveDynamic(this, &ULobbyWidget::OnLogoutSaveCompleted);
+        AuthMgr->OnSaveDataResponse.AddDynamic(this, &ULobbyWidget::OnLogoutSaveCompleted);
+    }
+
+    // 1. 창고 인벤토리 데이터 동기화
+    if (StorageComponentRef && StorageComponentRef->InventoryItemsStruct.Num() > 0)
+    {
+        GameInstance->SavedStorageItems = StorageComponentRef->InventoryItemsStruct;
+        UE_LOG(LogTemp, Warning, TEXT("Synced %d storage items for logout"),
+            GameInstance->SavedStorageItems.Num());
+    }
+
+    // 2. 장비 데이터 동기화
+    if (EquipmentWidgetInstance)
+    {
+        GameInstance->SavedEquipmentItems = EquipmentWidgetInstance->GetAllEquipmentData();
+        UE_LOG(LogTemp, Warning, TEXT("Synced equipment data for logout"));
+    }
+
+    // 3. 인벤토리 데이터 동기화 (플레이어 인벤토리)
+    if (InventoryComponentRef && InventoryComponentRef->InventoryItemsStruct.Num() > 0)
+    {
+        GameInstance->SavedInventoryItems = InventoryComponentRef->InventoryItemsStruct;
+        UE_LOG(LogTemp, Warning, TEXT("Synced %d inventory items for logout"),
+            GameInstance->SavedInventoryItems.Num());
+    }
+
+    // 4. 골드 동기화
+    GameInstance->CurrentCharacterData.Gold = GameInstance->LobbyGold;
+    UE_LOG(LogTemp, Warning, TEXT("Synced gold: %d"), GameInstance->LobbyGold);
+
+    // 5. 데이터베이스 저장 요청 (기존 SaveAllDataToServer 함수 재사용)
+    GameInstance->SaveAllDataToServer();
+
+    UE_LOG(LogTemp, Warning, TEXT("Logout save request sent to server"));
+}
+
+void ULobbyWidget::OnLogoutSaveCompleted(bool bSuccess)
+{
+    UE_LOG(LogTemp, Warning, TEXT("Logout save completed: %s"),
+        bSuccess ? TEXT("SUCCESS") : TEXT("FAILED"));
+
+    // 성공 여부와 관계없이 로그아웃 진행
+    ReturnToLoginScreen();
+
+    // 이벤트 바인딩 해제 (기존 멤버 변수 AuthMgr 사용)
+    if (AuthMgr)
+    {
+        AuthMgr->OnSaveDataResponse.RemoveDynamic(this, &ULobbyWidget::OnLogoutSaveCompleted);
+    }
+}
+
+void ULobbyWidget::ReturnToLoginScreen()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Returning to login screen..."));
+
+    // 1. GameInstance 데이터 초기화 (다음 로그인을 위해)
+    UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+    if (GameInstance)
+    {
+        // 인증 상태 초기화
+        GameInstance->bHasValidCharacterData = false;
+        GameInstance->bIsReturningFromGame = false;
+
+        // 캐릭터 데이터 초기화 (보안을 위해)
+        GameInstance->CurrentCharacterData.PlayerName = TEXT("DefaultName");
+        GameInstance->CurrentCharacterData.CharacterId = 0;
+        GameInstance->LobbyGold = 1000; // 기본값으로 리셋
+
+        // 임시 데이터 클리어
+        GameInstance->SavedInventoryItems.Empty();
+        GameInstance->SavedEquipmentItems.Empty();
+        GameInstance->SavedStorageItems.Empty();
+
+        UE_LOG(LogTemp, Warning, TEXT("GameInstance data cleared for logout"));
+    }
+
+    // 2. 로비 위젯 상태 초기화
+    bIsAuthenticated = false;
+
+    // 3. UI 상태 복원
+    SetButtonsEnabled(true);
+
+    if (AuthStatusText)
+    {
+        AuthStatusText->SetText(FText::FromString(TEXT("Plesse Login")));
+    }
+
+    // 4. 입력 필드 초기화
+    if (UsernameTextBox) UsernameTextBox->SetText(FText::GetEmpty());
+    if (PasswordTextBox) PasswordTextBox->SetText(FText::GetEmpty());
+
+    // 5. 인증 화면으로 전환
+    ShowAuthScreen();
+
+    UE_LOG(LogTemp, Warning, TEXT("Successfully returned to login screen"));
 }

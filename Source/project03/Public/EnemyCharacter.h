@@ -52,7 +52,7 @@ public:
 
 	// Ã¼·Â
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
-	float MaxHealth = 10.0f;
+	float MaxHealth = 100.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	float CurrentHealth;
@@ -131,5 +131,7 @@ public:
 
 
 	TArray<TSubclassOf<AItem>> PossibleItems;
+
+	
 
 };

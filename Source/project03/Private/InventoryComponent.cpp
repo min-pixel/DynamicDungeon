@@ -21,7 +21,7 @@ UInventoryComponent::UInventoryComponent()
     
 
     // 컴포넌트 자체 복제
-    SetIsReplicated(true);
+    SetIsReplicatedByDefault(true);
 
     InventoryItemsStruct.SetNum(Capacity);
     HotkeyItems.SetNum(5);

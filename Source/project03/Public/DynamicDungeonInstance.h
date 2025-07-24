@@ -117,6 +117,8 @@ public:
     UFUNCTION(BlueprintCallable)
     void RecalculateStats();
 
+    bool bPlydie = false;
+
 private:
     // 저장 대기 타이머
     FTimerHandle SaveWaitTimer;

@@ -32,6 +32,7 @@ AWeapon::AWeapon()
     // 무기 메쉬 생성
     WeaponMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WeaponMesh"));
     RootComponent = WeaponMesh;
+    ItemType = EItemType::Weapon;
     Price = 300;
     BaseDamage = 20.0f;
     Damage = BaseDamage; // 무기 생성 시 기본 데미지 적용
