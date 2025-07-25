@@ -30,9 +30,9 @@ void UHealSpell::ActivateSpell(AMyDCharacter* Caster)
 
 	
 
-	Caster->Knowledge -= ManaCost;
+	//Caster->Knowledge -= ManaCost;
 	Caster->Stamina -= StaminaCost;
-	Caster->UpdateHUD();
+	//Caster->UpdateHUD();
 
 	Caster->HealPlayer(HealAmount); // 체력 회복 함수 사용
 

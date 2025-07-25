@@ -54,6 +54,9 @@ void ULobbyWidget::NativeConstruct()
     if (LogoutButton)
         LogoutButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnLogoutButtonClicked);
 
+    if (ToggleBSPButton)
+        ToggleBSPButton->OnClicked.AddDynamic(this, &ULobbyWidget::OnToggleBSPPreviewClicked);
+
     // GameInstance 확인
     UDynamicDungeonInstance* GameInstance =Cast<UDynamicDungeonInstance>(GetWorld()->GetGameInstance());
     if (GameInstance)
@@ -1016,4 +1019,47 @@ void ULobbyWidget::ReturnToLoginScreen()
     ShowAuthScreen();
 
     UE_LOG(LogTemp, Warning, TEXT("Successfully returned to login screen"));
+}
+
+void ULobbyWidget::OnToggleBSPPreviewClicked()
+{
+    if (!bBSPPreviewActive)
+    {
+        // 로그인 패널 숨김 (버튼은 Switcher 밖에 둬야 사라지지 않음)
+        if (MainSwitcher)
+        {
+            MainSwitcher->SetVisibility(ESlateVisibility::Collapsed);
+        }
+
+        // BSPMapGenerator 스폰
+        if (!BSPPreviewActor && BSPGeneratorClass)
+        {
+            FActorSpawnParameters Params;
+            Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            FVector SpawnLoc = FVector::ZeroVector;      // 필요하면 위치 조정
+            FRotator SpawnRot = FRotator::ZeroRotator;
+
+            BSPPreviewActor = GetWorld()->SpawnActor<ABSPMapGenerator>(BSPGeneratorClass, SpawnLoc, SpawnRot, Params);
+        }
+
+        bBSPPreviewActive = true;
+    }
+    else
+    {
+        // BSP 액터 제거
+        if (BSPPreviewActor)
+        {
+            BSPPreviewActor->Destroy();
+            BSPPreviewActor = nullptr;
+        }
+
+        // 로그인 화면 다시 표시
+        if (MainSwitcher)
+        {
+            MainSwitcher->SetVisibility(ESlateVisibility::Visible);
+        }
+        ShowAuthScreen(); // 입력모드/커서 세팅 포함.
+
+        bBSPPreviewActive = false;
+    }
 }

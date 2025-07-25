@@ -4,6 +4,9 @@
 #include "Item.h"
 #include "Armor.h"
 #include "ScrollItem.h"
+#include "Potion.h"
+#include "ManaPotion.h"
+#include "StaminaPotion.h"
 #include "Weapon.h"
 
 
@@ -52,6 +55,28 @@ FItemData AItem::ToItemData() const
     Data.PotionEffect = PotionEffect;
     Data.Count = 1; // 기본 수량
     Data.Price = Price;
+
+    if (const APotion* HealthPotion = Cast<APotion>(this))
+    {
+        Data.PotionEffect = EPotionEffectType::Health;
+        UE_LOG(LogTemp, Warning, TEXT("ToItemData: HealthPotion detected, setting effect to Health"));
+    }
+    else if (const AManaPotion* ManaPotion = Cast<AManaPotion>(this))
+    {
+        Data.PotionEffect = EPotionEffectType::Mana;
+        UE_LOG(LogTemp, Warning, TEXT("ToItemData: ManaPotion detected, setting effect to Mana"));
+    }
+    else if (const AStaminaPotion* StaminaPotion = Cast<AStaminaPotion>(this))
+    {
+        Data.PotionEffect = EPotionEffectType::Stamina;
+        UE_LOG(LogTemp, Warning, TEXT("ToItemData: StaminaPotion detected, setting effect to Stamina"));
+    }
+    else
+    {
+        Data.PotionEffect = PotionEffect;  // 기본값 사용
+    }
+
+
     if (const AArmor* Armor = Cast<AArmor>(this))
     {
         Data.Grade = static_cast<uint8>(Armor->ArmorGrade);

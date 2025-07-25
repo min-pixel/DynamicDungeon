@@ -43,57 +43,46 @@ void AScrollItem::UseWithData(AMyDCharacter* Character, const FItemData& Data)
     TSubclassOf<UUSpellBase> SpellClass = GetSpellFromIndex(Data.SkillIndex);
     if (!Character || !SpellClass) return;
 
-    UUSpellBase* Spell = NewObject<UUSpellBase>(Character, SpellClass);
-    if (Spell && Spell->CanActivate(Character))
+    UE_LOG(LogTemp, Warning, TEXT("=== SCROLL USED ==="));
+    UE_LOG(LogTemp, Warning, TEXT("Player: %s, Class: %d, SkillIndex: %d"),
+        *Character->GetName(), (int32)Character->PlayerClass, Data.SkillIndex);
+
+    // 타겟 위치 계산
+    FVector TargetLocation = FVector::ZeroVector;
+    FRotator TargetRotation = Character->GetControlRotation();
+
+
+
+    if (Data.SkillIndex == 0) // Fireball
     {
-
-        // 마법 시전 몽타주 재생
-        if (Character)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Trying to play montage"));
-            Character->PlayMagicMontage();
-        }
-
-        // 스크롤용 특별 처리 - 클래스 체크 없이 직접 서버 RPC 호출
-        FVector TargetLocation = FVector::ZeroVector;
-        FRotator TargetRotation = Character->GetControlRotation();
-
-        if (Data.SkillIndex == 0) // Fireball
-        {
-            TargetLocation = Character->GetActorLocation() + Character->GetActorForwardVector() * 200.0f + FVector(0, 0, 50.0f);
-        }
-        else if (Data.SkillIndex == 1) // Heal - 추가!
-        {
-            TargetLocation = Character->GetActorLocation(); // 힐은 자기 위치에
-        }
-        else if (Data.SkillIndex == 2) // Curse
-        {
-            // Curse 타겟 계산
-            FVector Start = Character->GetActorLocation() + Character->GetActorForwardVector() * 100.0f;
-            FVector End = Start + Character->GetActorForwardVector() * 1000.0f;
-            TargetLocation = End;
-        }
-
-        // 직접 ServerCastSpell 호출 (클래스 체크 우회)
-        if (Character->HasAuthority())
-        {
-            // 서버라면 직접 실행
-            Character->ExecuteSpellOnServer(Data.SkillIndex, TargetLocation, TargetRotation);
-            Character->MulticastPlaySpellCastAnimation();
-        }
-        else
-        {
-            // 클라이언트라면 서버 RPC
-            Character->ServerCastSpell(Data.SkillIndex, TargetLocation, TargetRotation);
-        }
-
-        //Spell->ActivateSpell(Character);
-        
-        // 스펠 인덱스를 가져와서 캐릭터의 멀티플레이어 캐스팅 함수 호출
-        //Character->TryCastSpellMultiplayer(Data.SkillIndex);
-        
-        Character->Knowledge = Character->MaxKnowledge;
+        TargetLocation = Character->GetActorLocation() + Character->GetActorForwardVector() * 200.0f + FVector(0, 0, 50.0f);
     }
+    else if (Data.SkillIndex == 1) // Heal
+    {
+        TargetLocation = Character->GetActorLocation();
+    }
+    else if (Data.SkillIndex == 2) // Curse
+    {
+        FVector Start = Character->GetActorLocation() + Character->GetActorForwardVector() * 100.0f;
+        FVector End = Start + Character->GetActorForwardVector() * 1000.0f;
+        TargetLocation = End;
+    }
+
+    // *** 스크롤 전용 RPC 사용 (마나/클래스 체크 없음) ***
+    if (Character->HasAuthority())
+    {
+        Character->ServerCastScrollSpell(Data.SkillIndex, TargetLocation, TargetRotation);
+    }
+    else
+    {
+        Character->ServerCastScrollSpell(Data.SkillIndex, TargetLocation, TargetRotation);
+    }
+
+    // 마나 완전 회복 (보너스)
+   /* Character->Knowledge = Character->MaxKnowledge;
+    Character->UpdateHUD();*/
+
+    UE_LOG(LogTemp, Warning, TEXT("Scroll spell requested - any class can use!"));
 }
 
 

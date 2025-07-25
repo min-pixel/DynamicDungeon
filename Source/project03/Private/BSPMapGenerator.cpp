@@ -2,10 +2,14 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h" 
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+
 
 ABSPMapGenerator::ABSPMapGenerator()
 {
     PrimaryActorTick.bCanEverTick = false;
+
+    RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
     // 기본 타일 경로 설정
     static ConstructorHelpers::FClassFinder<AActor> RoomNorth(TEXT("/Game/BP/romm"));
@@ -14,7 +18,7 @@ ABSPMapGenerator::ABSPMapGenerator()
     static ConstructorHelpers::FClassFinder<AActor> RoomEast(TEXT("/Game/BP/rommRIGHT"));
     static ConstructorHelpers::FClassFinder<AActor> CorridorH(TEXT("/Game/BP/t01-01"));
     static ConstructorHelpers::FClassFinder<AActor> CorridorV(TEXT("/Game/BP/t01"));
-    static ConstructorHelpers::FClassFinder<AActor> CorridorCorner(TEXT("/Game/BP/goalt01"));
+    static ConstructorHelpers::FClassFinder<AActor> CorridorCorner(TEXT("/Game/BP/BSP/goalt01"));
 
     if (RoomNorth.Succeeded()) RoomNorthClass = RoomNorth.Class;
     if (RoomSouth.Succeeded()) RoomSouthClass = RoomSouth.Class;
@@ -23,6 +27,16 @@ ABSPMapGenerator::ABSPMapGenerator()
     if (CorridorH.Succeeded()) CorridorHorizontalClass = CorridorH.Class;
     if (CorridorV.Succeeded()) CorridorVerticalClass = CorridorV.Class;
     if (CorridorCorner.Succeeded()) CorridorCornerClass = CorridorCorner.Class;
+
+    ISM_CorridorHorizontal = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("ISM_CorridorHorizontal"));
+    ISM_CorridorHorizontal->SetupAttachment(RootComponent);
+
+    ISM_CorridorVertical = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("ISM_CorridorVertical"));
+    ISM_CorridorVertical->SetupAttachment(RootComponent);
+
+    ISM_CorridorCorner = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("ISM_CorridorCorner"));
+    ISM_CorridorCorner->SetupAttachment(RootComponent);
+    bReplicates = false;
 }
 
 void ABSPMapGenerator::BeginPlay()
@@ -35,8 +49,55 @@ void ABSPMapGenerator::BeginPlay()
 
 void ABSPMapGenerator::GenerateBSPMap()
 {
+
     // 기존 맵 정리
     ClearMap();
+
+    // 매번 새로 수집
+    Parts_H.Empty(); Parts_V.Empty(); Parts_C.Empty();
+
+    auto CollectParts = [&](TSubclassOf<AActor> SourceClass,
+        UInstancedStaticMeshComponent* BaseISM,
+        TArray<FTilePart>& OutParts)
+        {
+            if (!SourceClass) return;
+            AActor* Temp = GetWorld()->SpawnActor<AActor>(SourceClass);
+            if (!Temp) return;
+
+            TArray<UStaticMeshComponent*> MeshComps;
+            Temp->GetComponents(MeshComps);
+            for (int32 i = 0; i < MeshComps.Num(); ++i)
+            {
+                UStaticMeshComponent* MC = MeshComps[i];
+                if (!MC || !MC->GetStaticMesh()) continue;
+
+                UInstancedStaticMeshComponent* UseISM = (i == 0)
+                    ? BaseISM
+                    : NewObject<UInstancedStaticMeshComponent>(this);
+
+                if (i != 0)
+                {
+                    UseISM->SetupAttachment(RootComponent);
+                    UseISM->RegisterComponent();
+                }
+
+                UseISM->SetStaticMesh(MC->GetStaticMesh());
+                for (int32 m = 0; m < MC->GetNumMaterials(); ++m)
+                    UseISM->SetMaterial(m, MC->GetMaterial(m));
+
+                FTilePart Part;
+                Part.ISM = UseISM;
+                Part.PartWorld = MC->GetComponentTransform();
+                OutParts.Add(Part);
+            }
+            Temp->Destroy();
+        };
+
+    CollectParts(CorridorHorizontalClass, ISM_CorridorHorizontal, Parts_H);
+    CollectParts(CorridorVerticalClass, ISM_CorridorVertical, Parts_V);
+    CollectParts(CorridorCornerClass, ISM_CorridorCorner, Parts_C);
+
+    
 
     // 랜덤 시드 설정
     if (RandomSeed == 0)
@@ -78,6 +139,15 @@ void ABSPMapGenerator::ClearMap()
     {
         Actor->Destroy();
     }
+
+    if (ISM_CorridorHorizontal) ISM_CorridorHorizontal->ClearInstances();
+    if (ISM_CorridorVertical)   ISM_CorridorVertical->ClearInstances();
+    if (ISM_CorridorCorner)     ISM_CorridorCorner->ClearInstances();
+
+    for (const FTilePart& P : Parts_H) if (P.ISM) P.ISM->ClearInstances();
+    for (const FTilePart& P : Parts_V) if (P.ISM) P.ISM->ClearInstances();
+    for (const FTilePart& P : Parts_C) if (P.ISM) P.ISM->ClearInstances();
+
 }
 
 void ABSPMapGenerator::InitializeTileMap()
@@ -489,6 +559,18 @@ void ABSPMapGenerator::SpawnTiles()
         return;
     }
 
+    if (!ISM_CorridorHorizontal || !ISM_CorridorVertical || !ISM_CorridorCorner)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ISM components not created"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Meshes: H=%s V=%s C=%s"),
+        ISM_CorridorHorizontal->GetStaticMesh() ? *ISM_CorridorHorizontal->GetStaticMesh()->GetName() : TEXT("NULL"),
+        ISM_CorridorVertical->GetStaticMesh() ? *ISM_CorridorVertical->GetStaticMesh()->GetName() : TEXT("NULL"),
+        ISM_CorridorCorner->GetStaticMesh() ? *ISM_CorridorCorner->GetStaticMesh()->GetName() : TEXT("NULL"));
+
+
     int32 SpawnedCount = 0;
 
     for (int32 x = 0; x < MapSize.X; ++x)
@@ -497,23 +579,40 @@ void ABSPMapGenerator::SpawnTiles()
         {
             if (TileMap[x][y] == ETileType::Empty) continue;
 
+            //if (TileMap[x][y] == ETileType::Room)
+            //{
+            //    bool bInterior =
+            //        x > 0 && x < MapSize.X - 1 &&
+            //        y > 0 && y < MapSize.Y - 1 &&
+            //        TileMap[x + 1][y] == ETileType::Room &&
+            //        TileMap[x - 1][y] == ETileType::Room &&
+            //        TileMap[x][y + 1] == ETileType::Room &&
+            //        TileMap[x][y - 1] == ETileType::Room;
+
+            //    if (bInterior)
+            //    {
+            //        // 필요하면 여기서 바닥 전용 파츠만 인스턴싱하거나,
+            //        // 아무 것도 안 두고 continue
+            //        continue;
+            //    }
+            //}
+
             FVector SpawnLocation = FVector(x * TileSize, y * TileSize, 0);
             FRotator SpawnRotation = FRotator::ZeroRotator;
             TSubclassOf<AActor> TileClass = nullptr;
 
-            // 방도 복도 타일로 처리
+            // 기존 로직 그대로 (타일 클래스 결정)
             if (TileMap[x][y] == ETileType::Room || TileMap[x][y] == ETileType::Corridor)
             {
-                // 타일 방향 확인
                 bool bHasNorth = (y > 0 && TileMap[x][y - 1] != ETileType::Empty);
                 bool bHasSouth = (y < MapSize.Y - 1 && TileMap[x][y + 1] != ETileType::Empty);
                 bool bHasEast = (x < MapSize.X - 1 && TileMap[x + 1][y] != ETileType::Empty);
                 bool bHasWest = (x > 0 && TileMap[x - 1][y] != ETileType::Empty);
 
-                int32 ConnectionCount = (bHasNorth ? 1 : 0) + (bHasSouth ? 1 : 0) +
+                int32 ConnectionCount =
+                    (bHasNorth ? 1 : 0) + (bHasSouth ? 1 : 0) +
                     (bHasEast ? 1 : 0) + (bHasWest ? 1 : 0);
 
-                // 코너나 교차점
                 if (ConnectionCount > 2 ||
                     (bHasNorth && bHasEast) || (bHasNorth && bHasWest) ||
                     (bHasSouth && bHasEast) || (bHasSouth && bHasWest))
@@ -522,41 +621,46 @@ void ABSPMapGenerator::SpawnTiles()
                 }
                 else if (bHasNorth || bHasSouth)
                 {
-                    // Y축 방향 연결 = 세로 (하지만 X/Y 반대이므로 가로 타일)
                     TileClass = CorridorHorizontalClass;
                 }
                 else if (bHasEast || bHasWest)
                 {
-                    // X축 방향 연결 = 가로 (하지만 X/Y 반대이므로 세로 타일)
                     TileClass = CorridorVerticalClass;
                 }
                 else
                 {
-                    // 연결이 없거나 하나만 있는 경우 - 기본적으로 코너 타일 사용
                     TileClass = CorridorCornerClass;
                 }
             }
 
-            if (TileClass)
-            {
-                FActorSpawnParameters SpawnParams;
-                SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            // 여기서부터 SpawnActor 대신 인스턴싱
+            FTransform TileTransform(SpawnRotation, SpawnLocation, FVector(1));
 
-                AActor* SpawnedTile = World->SpawnActor<AActor>(TileClass, SpawnLocation, SpawnRotation, SpawnParams);
-                if (SpawnedTile)
+            TArray<FTilePart>* UseParts = nullptr;
+            if (TileClass == CorridorHorizontalClass)      UseParts = &Parts_H;
+            else if (TileClass == CorridorVerticalClass)    UseParts = &Parts_V;
+            else if (TileClass == CorridorCornerClass)      UseParts = &Parts_C;
+
+            if (UseParts)
+            {
+                for (const FTilePart& P : *UseParts)
                 {
-                    SpawnedTile->Tags.Add("BSPGenerated");
-                    SpawnedCount++;
+                    // 타일 위치/회전을 적용한 최종 트랜스폼
+                    FTransform Combined = P.PartWorld;
+
+                    // TileTransform(위치/회전)을 파츠에 적용
+                    Combined.SetLocation(TileTransform.TransformPosition(Combined.GetLocation()));
+                    Combined.SetRotation((TileTransform.GetRotation() * Combined.GetRotation()).GetNormalized());
+                    Combined.SetScale3D(Combined.GetScale3D() * TileTransform.GetScale3D());
+
+                    P.ISM->AddInstance(Combined);
                 }
-                else
-                {
-                    UE_LOG(LogTemp, Error, TEXT("Failed to spawn tile at (%d, %d)"), x, y);
-                }
+                ++SpawnedCount;
             }
         }
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Spawned %d tiles"), SpawnedCount);
+    UE_LOG(LogTemp, Warning, TEXT("Spawned %d tile instances"), SpawnedCount);
 }
 
 

@@ -311,8 +311,15 @@ public:
 	UFUNCTION(Client, Reliable)
 	void ClientToggleMapView();
 	
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastRemoveWeapon();
 
+	// 스크롤 전용 RPC (마나/클래스 체크 없음)
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerCastScrollSpell(int32 SpellIndex, FVector TargetLocation = FVector::ZeroVector, FRotator TargetRotation = FRotator::ZeroRotator);
 
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastCastScrollSpell(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation);
 
 	//맵뷰
 	UPROPERTY()
@@ -622,6 +629,8 @@ public:
 	void CastSpell1();
 
 	void CastSpell2();
+
+	void CastSpell3();
 
 
 

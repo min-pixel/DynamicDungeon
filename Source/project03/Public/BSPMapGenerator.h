@@ -39,6 +39,16 @@ enum class ETileType : uint8
     Door
 };
 
+USTRUCT()
+struct FTilePart
+{
+    GENERATED_BODY()
+
+    UPROPERTY() UInstancedStaticMeshComponent* ISM = nullptr;
+    UPROPERTY() FTransform PartWorld;
+};
+
+
 UCLASS()
 class PROJECT03_API ABSPMapGenerator : public AActor
 {
@@ -100,6 +110,19 @@ public:
     UFUNCTION(BlueprintCallable, Category = "BSP")
     void ClearMap();
 
+    UPROPERTY()
+    UInstancedStaticMeshComponent* ISM_CorridorHorizontal;
+
+    UPROPERTY()
+    UInstancedStaticMeshComponent* ISM_CorridorVertical;
+
+    UPROPERTY()
+    UInstancedStaticMeshComponent* ISM_CorridorCorner;
+
+    UPROPERTY() TArray<FTilePart> Parts_H;
+    UPROPERTY() TArray<FTilePart> Parts_V;
+    UPROPERTY() TArray<FTilePart> Parts_C;
+
 protected:
     virtual void BeginPlay() override;
 
@@ -108,6 +131,8 @@ private:
     TArray<TSharedPtr<FBSPNode>> LeafNodes;
     TArray<TArray<ETileType>> TileMap;
     FRandomStream RandomStream;
+
+
 
     // BSP 트리 생성
     TSharedPtr<FBSPNode> CreateBSPTree(const FIntVector& Min, const FIntVector& Max, int32 Depth = 0);

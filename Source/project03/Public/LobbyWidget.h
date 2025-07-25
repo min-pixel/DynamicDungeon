@@ -13,6 +13,7 @@
 #include "Components/Button.h"
 #include "Components/WidgetSwitcher.h"
 #include "Components/EditableTextBox.h"
+#include "BSPMapGenerator.h"
 #include "LobbyWidget.generated.h"
 
 /**
@@ -248,5 +249,23 @@ public:
 
     // UI 헬퍼 함수
     void SetButtonsEnabled(bool bEnabled);
+
+    UPROPERTY(meta = (BindWidget))
+    UButton* ToggleBSPButton;
+
+    // BSP 미리보기용
+    UPROPERTY(EditAnywhere, Category = "BSP Preview")
+    TSubclassOf<ABSPMapGenerator> BSPGeneratorClass;
+
+    UPROPERTY()
+    ABSPMapGenerator* BSPPreviewActor = nullptr;
+
+    bool bBSPPreviewActive = false;
+
+    UFUNCTION()
+    void OnToggleBSPPreviewClicked();
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LoginCamera")
+    AActor* LoginCameraActor = nullptr;
 
 };

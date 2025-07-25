@@ -1066,7 +1066,11 @@ void AMyDCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	//스펠 사용 추가 (E키)
 	PlayerInputComponent->BindAction("CastSpell2", IE_Pressed, this, &AMyDCharacter::CastSpell2);
+
+	//스펠 사용 추가 (tab키)
+	PlayerInputComponent->BindAction("CastSpell3", IE_Pressed, this, &AMyDCharacter::CastSpell3);
 	
+	//p키
 		PlayerInputComponent->BindAction("ToggleMapView", IE_Pressed, this, &AMyDCharacter::ToggleMapView);
 	
 	//f키
@@ -2667,6 +2671,8 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 			GameInstance->bPlydie = true;
 		}*/
 
+		DoRagDoll();
+
 		if (HasAuthority())
 		{
 			SpawnPlayerDeathChest();
@@ -2691,11 +2697,6 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 				ServerToggleTorch();
 			}
 		}
-
-		
-
-
-		DoRagDoll();
 
 		ToggleMapView();
 
@@ -2834,10 +2835,55 @@ void AMyDCharacter::TransferInventoryToChest(ATreasureChest* Chest)
 		}
 	}
 
+	// 1. 무기 숨기기
+	MulticastRemoveWeapon();
+
+	// 2. 방어구 메시들 숨기기
+	if (ChestMesh)
+	{
+		ChestMesh->SetVisibility(false);
+	}
+
+	if (LegsMesh)
+	{
+		LegsMesh->SetVisibility(false);
+	}
+
+	if (HelmetMesh)
+	{
+		HelmetMesh->SetVisibility(false);
+	}
+
+	// 3. 기본 메시들은 그대로 보이게 (기본 옷차림)
+	if (TorsoMesh)
+	{
+		TorsoMesh->SetVisibility(false);
+	}
+
+	if (LegsMeshmetha)
+	{
+		LegsMeshmetha->SetVisibility(false);
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("Successfully transferred %d items from player to death chest"),
 		TransferredItems);
 }
 
+void AMyDCharacter::MulticastRemoveWeapon_Implementation()
+{
+	// 모든 클라이언트에서 실행됨
+
+	// 무기 제거
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Destroy();
+		EquippedWeapon = nullptr;
+	}
+
+	
+
+	UE_LOG(LogTemp, Log, TEXT("Equipment removed on all clients"));
+}
 
 void AMyDCharacter::Multicast_PlayDeathGlow_Implementation(ATreasureChest* Chest)
 {
@@ -4201,6 +4247,11 @@ void AMyDCharacter::CastSpell2()
 	TryCastSpellMultiplayer(2);
 }
 
+void AMyDCharacter::CastSpell3()
+{
+	TryCastSpellMultiplayer(1);
+}
+
 void AMyDCharacter::TryCastSpellMultiplayer(int32 SpellIndex)
 {
 	if (PlayerClass != EPlayerClass::Mage) return;
@@ -4644,6 +4695,8 @@ void AMyDCharacter::UseHotkey(int32 Index)
 		return;
 	}
 
+	UE_LOG(LogTemp, Error, TEXT("=== POTION DEBUG === Item.PotionEffect: %d, DefaultItem->PotionEffect: %d, Item.ItemType: %d, DefaultItem->ItemType: %d"), (int32)Item.PotionEffect, (int32)DefaultItem->PotionEffect, (int32)Item.ItemType, (int32)DefaultItem->ItemType);
+
 	// 소비성 아이템 처리 (스크롤 등)
 	if (Item.ItemType == EItemType::Consumable)
 	{
@@ -4662,16 +4715,12 @@ void AMyDCharacter::UseHotkey(int32 Index)
 	}
 
 	// 포션 타입으로 강제 설정 (기존 로직 유지)
-	if (Item.ItemClass && Item.ItemType != EItemType::Potion)
+	if (Item.ItemType == EItemType::Potion)
 	{
-		Item.ItemType = EItemType::Potion;
-		UE_LOG(LogTemp, Log, TEXT("ItemType changed to Potion for %s"), *Item.ItemName);
-	}
+		// Item 데이터가 잘못되었으니 DefaultItem에서 가져오기
+		EPotionEffectType EffectType = DefaultItem->PotionEffect;
 
-	// 포션 사용 처리
-	if (Item.ItemType == EItemType::Potion && Item.ItemClass)
-	{
-		const EPotionEffectType EffectType = Item.PotionEffect;
+		UE_LOG(LogTemp, Warning, TEXT("Using DefaultItem PotionEffect: %d"), (int32)EffectType);
 
 		switch (EffectType)
 		{
@@ -4710,8 +4759,32 @@ void AMyDCharacter::UseHotkey(int32 Index)
 			break;
 		}
 		default:
-			UE_LOG(LogTemp, Warning, TEXT("Unknown potion effect type for %s"), *Item.ItemName);
-			return; // 알 수 없는 타입이면 사용하지 않음
+			UE_LOG(LogTemp, Warning, TEXT("Even DefaultItem has None effect! Trying class detection..."));
+
+			// *** 최후의 수단: 클래스명으로 직접 판단 ***
+			if (DefaultItem->IsA<APotion>())
+			{
+				APotion* Potion = Cast<APotion>(DefaultItem);
+				HealPlayer(Potion->GetHealAmount());
+				UE_LOG(LogTemp, Log, TEXT("Used health potion by class detection: +%d HP"), Potion->GetHealAmount());
+			}
+			else if (DefaultItem->IsA<AManaPotion>())
+			{
+				AManaPotion* ManaPotion = Cast<AManaPotion>(DefaultItem);
+				Knowledge += ManaPotion->ManaAmount;
+				Knowledge = FMath::Clamp(Knowledge, 0.0f, MaxKnowledge);
+				UpdateHUD();
+				UE_LOG(LogTemp, Log, TEXT("Used mana potion by class detection: +%d MP"), ManaPotion->ManaAmount);
+			}
+			else if (DefaultItem->IsA<AStaminaPotion>())
+			{
+				AStaminaPotion* StaminaPotion = Cast<AStaminaPotion>(DefaultItem);
+				Stamina += StaminaPotion->StaminaAmount;
+				Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
+				UpdateHUD();
+				UE_LOG(LogTemp, Log, TEXT("Used stamina potion by class detection: +%d SP"), StaminaPotion->StaminaAmount);
+			}
+			return;
 		}
 
 		// 개수 차감
@@ -4721,8 +4794,8 @@ void AMyDCharacter::UseHotkey(int32 Index)
 			EquipmentWidgetInstance->ClearSlot(EquipSlotIndex);
 		}
 
-		// UI 업데이트
 		EquipmentWidgetInstance->RefreshEquipmentSlots();
+		return;
 	}
 }
 
@@ -5122,5 +5195,41 @@ void AMyDCharacter::RestoreDataFromLobby()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Data restoration completed!"));
+}
+
+
+bool AMyDCharacter::ServerCastScrollSpell_Validate(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation)
+{
+	// 스크롤은 유효성 검사만 (마나/클래스 체크 없음)
+	return SpellIndex >= 0 && SpellIndex <= 2;
+}
+
+void AMyDCharacter::ServerCastScrollSpell_Implementation(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation)
+{
+	if (!HasAuthority()) return;
+
+	UE_LOG(LogTemp, Error, TEXT("=== SERVER SCROLL SPELL ==="));
+	UE_LOG(LogTemp, Error, TEXT("Player: %s, Class: %d, SpellIndex: %d"),
+		*GetName(), (int32)PlayerClass, SpellIndex);
+
+	// *** 스크롤은 마나/클래스 체크 없이 바로 실행 ***
+
+	// 마법 시전 애니메이션 (모든 클라이언트)
+	MulticastPlaySpellCastAnimation();
+
+	// 스펠별 실행
+	ExecuteSpellOnServer(SpellIndex, TargetLocation, TargetRotation);
+
+	UE_LOG(LogTemp, Error, TEXT("Scroll spell executed successfully"));
+}
+
+void AMyDCharacter::MulticastCastScrollSpell_Implementation(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation)
+{
+	// 모든 클라이언트에서 시각 효과만 재생
+	if (SpellCastMontage && CharacterMesh && CharacterMesh->GetAnimInstance())
+	{
+		UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
+		AnimInstance->Montage_Play(SpellCastMontage, 1.0f);
+	}
 }
 
