@@ -204,7 +204,16 @@ void ARageEnemyCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInte
         if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
         {
             MoveComp->SetMovementMode(MOVE_Walking); // 이동 재활성화
-            MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed;
+            if (bIsInRageMode)
+            {
+                MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed * RageSpeedMultiplier;
+                UE_LOG(LogTemp, Warning, TEXT("Attack ended - Restored RAGE speed: %f"), MoveComp->MaxWalkSpeed);
+            }
+            else
+            {
+                MoveComp->MaxWalkSpeed = OriginalMaxWalkSpeed;
+                UE_LOG(LogTemp, Warning, TEXT("Attack ended - Restored normal speed: %f"), MoveComp->MaxWalkSpeed);
+            }
         }
 
         UE_LOG(LogTemp, Log, TEXT("Attack montage ended, movement re-enabled"));
@@ -747,6 +756,9 @@ void ARageEnemyCharacter::GenerateRandomLoot()
 // === 레이지 모드 시스템 ===
 void ARageEnemyCharacter::CheckRageMode()
 {
+    if (bIsInRageMode) return;
+
+
     float HealthPercent = CurrentHealth / MaxHealth;
 
     // HP가 30% 이하이고 아직 레이지 모드가 아니라면
@@ -760,40 +772,42 @@ void ARageEnemyCharacter::EnterRageMode()
 {
     if (bIsInRageMode) return;
 
-    bIsInRageMode = true;
-    bIsPlayingRageMontage = true;
-    
-    UE_LOG(LogTemp, Warning, TEXT("RageEnemy entered RAGE MODE!"));
+    // 서버에서 실행
+    if (HasAuthority())
+    {
+        bIsInRageMode = true;
+        bIsPlayingRageMontage = true;
 
-    // === 움직임 완전 정지 ===
+        // 모든 클라이언트에서 강제로 움직임 중단
+        MulticastForceStopMovement();
+    }
+}
+
+void ARageEnemyCharacter::MulticastForceStopMovement_Implementation()
+{
+    // AI 완전 중단
+    if (AEnemyAIController* AI = Cast<AEnemyAIController>(GetController()))
+    {
+        AI->StopMovement();
+        AI->ClearFocus(EAIFocusPriority::Gameplay);
+    }
+
+    // Movement 강제 중단
     if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
     {
         MoveComp->StopMovementImmediately();
-        //MoveComp->DisableMovement(); // 움직임 완전 비활성화
-        MoveComp->MaxWalkSpeed = 0.0f;
+        MoveComp->DisableMovement(); // 완전 비활성화
     }
 
-    
- 
-   
-
-    // 메시 색상 변경으로 레이지 모드 표시 (빨간색 틴트)
-    if (USkeletalMeshComponent* MeshComp = GetMesh())
-    {
-        MeshComp->SetVectorParameterValueOnMaterials(FName("TintColor"), FVector(1.0f, 0.3f, 0.3f));
-    }
-
-    // 레이지 모드 애니메이션 재생
+    // 애니메이션 재생
     if (RageEnterMontage && GetMesh() && GetMesh()->GetAnimInstance())
     {
         UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
         AnimInstance->Montage_Play(RageEnterMontage, 1.0f);
-        
-        // 몽타주 종료 시 콜백 설정
+
         FOnMontageEnded RageMontageEndedDelegate;
         RageMontageEndedDelegate.BindUObject(this, &ARageEnemyCharacter::OnRageMontageEnded);
         AnimInstance->Montage_SetEndDelegate(RageMontageEndedDelegate, RageEnterMontage);
-
     }
 }
 

@@ -19,7 +19,7 @@ void UAnimNotify_TraceAttack::Notify(USkeletalMeshComponent* MeshComp, UAnimSequ
     AMyDCharacter* Character = Cast<AMyDCharacter>(Owner);
     if (Character && Character->GetEquippedWeapon()) // 캐릭터가 무기 들고 있으면
     {
-        Character->GetEquippedWeapon()->TraceAttack(); // 무기의 TraceAttack() 호출
+        Character->ServerPerformTraceAttack(); // 무기의 TraceAttack() 호출
     }
     else if (ARageEnemyCharacter* RageEnemy = Cast<ARageEnemyCharacter>(Owner)) // 레이지 에네미 처리 추가
     {

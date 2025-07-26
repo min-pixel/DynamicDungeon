@@ -28,8 +28,8 @@ ASpellProjectile::ASpellProjectile()
     CollisionComponent->SetGenerateOverlapEvents(true);
     CollisionComponent->OnComponentHit.AddDynamic(this, &ASpellProjectile::OnHit);
 
-    CollisionComponent->bHiddenInGame = false;
-    CollisionComponent->SetVisibility(true);
+    CollisionComponent->bHiddenInGame = true;
+    CollisionComponent->SetVisibility(false);
     CollisionComponent->ShapeColor = FColor::Green;
 
     SetRootComponent(CollisionComponent);
@@ -222,6 +222,16 @@ void ASpellProjectile::BeginPlay()
     if (LaunchSound)
     {
         FireLoopSound = UGameplayStatics::SpawnSoundAtLocation(this, LaunchSound, GetActorLocation());
+
+        FTimerHandle SoundTimerHandle;
+        GetWorld()->GetTimerManager().SetTimer(SoundTimerHandle, [this]()
+            {
+                if (FireLoopSound && FireLoopSound->IsPlaying())
+                {
+                    FireLoopSound->Stop();
+                }
+            }, 3.0f, false);
+
     }
 
 }

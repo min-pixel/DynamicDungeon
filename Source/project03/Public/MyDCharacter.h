@@ -321,6 +321,15 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastCastScrollSpell(int32 SpellIndex, FVector TargetLocation, FRotator TargetRotation);
 
+	UFUNCTION(Server, Reliable)
+	void ServerStartSprinting();
+
+	UFUNCTION(Server, Reliable)
+	void ServerStopSprinting();
+
+	void ExecuteStartSprinting();
+	void ExecuteStopSprinting();
+
 	//¸Êºä
 	UPROPERTY()
 	ACameraActor* OverheadCameraActor;
@@ -571,6 +580,9 @@ public:
 
 	UFUNCTION()
 	void TeleportToNearestEnemy();
+
+	UFUNCTION(Server, Reliable)
+	void ServerTeleportToNearestEnemy();
 
 	void HealPlayer(int32 Amount);
 

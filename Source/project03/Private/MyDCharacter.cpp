@@ -459,6 +459,8 @@ AMyDCharacter::AMyDCharacter()
 	// 기본 보물상자 클래스 설정
 	PlayerDeathChestClass = ATreasureChest::StaticClass();
 
+	GetCharacterMovement()->JumpZVelocity = 450.0f;
+
 }
 
 
@@ -989,6 +991,28 @@ void AMyDCharacter::MoveRight(float Value)
 // 달리기 시작
 void AMyDCharacter::StartSprinting()
 {
+
+	// 서버에서 직접 실행
+	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed * Agility;
+	GetWorldTimerManager().SetTimer(TimerHandle_SprintDrain, this, &AMyDCharacter::SprintStaminaDrain, 0.1f, true);
+
+	if (HasAuthority())
+	{
+		
+		if (bIsSlowed)
+		{
+			ApplySpeedMultiplier();
+		}
+	}
+	else
+	{
+		// 클라이언트에서는 서버에만 요청
+		ServerStartSprinting();
+	}
+}
+
+void AMyDCharacter::ServerStartSprinting_Implementation()
+{
 	GetCharacterMovement()->MaxWalkSpeed = SprintSpeed * Agility;
 	GetWorldTimerManager().SetTimer(TimerHandle_SprintDrain, this, &AMyDCharacter::SprintStaminaDrain, 0.1f, true);
 	if (bIsSlowed)
@@ -1000,9 +1024,33 @@ void AMyDCharacter::StartSprinting()
 // 달리기 중지
 void AMyDCharacter::StopSprinting()
 {
+
+	// 서버에서 직접 실행
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
 	GetWorldTimerManager().ClearTimer(TimerHandle_SprintDrain);
-	ManageStaminaRegen();  //달리기 끝나고 스테미나 회복 시키기
+	ManageStaminaRegen();  //달리기 끝나고 스태미나 회복 시키기
+
+	if (HasAuthority())
+	{
+		
+
+		if (bIsSlowed)
+		{
+			ApplySpeedMultiplier();
+		}
+	}
+	else
+	{
+		// 클라이언트에서 서버에 요청
+		ServerStopSprinting();
+	}
+}
+
+void AMyDCharacter::ServerStopSprinting_Implementation()
+{
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed * Agility;
+	GetWorldTimerManager().ClearTimer(TimerHandle_SprintDrain);
+	ManageStaminaRegen();  //달리기 끝나고 스태미나 회복 시키기
 
 	if (bIsSlowed)
 	{
@@ -1012,6 +1060,8 @@ void AMyDCharacter::StopSprinting()
 
 void AMyDCharacter::SprintStaminaDrain()
 {
+	
+
 	if (Stamina > 0)
 	{
 		ReduceStamina(SprintStaminaCost);
@@ -2232,6 +2282,7 @@ void AMyDCharacter::PlayAttackAnimation_Internal()
 	ReduceStamina(AttackStaminaCost);
 
 	UAnimMontage* SelectedMontage = nullptr;
+	float PlayRate = 1.0f;
 
 	if (EquippedWeapon)
 	{
@@ -2239,15 +2290,18 @@ void AMyDCharacter::PlayAttackAnimation_Internal()
 		{
 		case EWeaponType::GreatWeapon:
 			SelectedMontage = GreatWeaponMontage;
+			PlayRate = 1.0f;
 			break;
 		case EWeaponType::Dagger:
 			SelectedMontage = DaggerWeaponMontage;
+			PlayRate = 2.5f;
 			break;
 		case EWeaponType::Staff:
 			//SelectedMontage = StaffMontage;
 			break;
 		default:
 			SelectedMontage = WeaponAttackMontage;
+			PlayRate = 0.5f;
 			break;
 		}
 	}
@@ -2271,7 +2325,7 @@ void AMyDCharacter::PlayAttackAnimation_Internal()
 		EquippedWeapon->StartTrace();
 	}
 
-	AnimInstance->Montage_Play(SelectedMontage, 1.0f);
+	AnimInstance->Montage_Play(SelectedMontage, PlayRate);
 	AnimInstance->Montage_JumpToSection(SelectedSection, SelectedMontage);
 
 	UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage Section: %s"), *SelectedSection.ToString());
@@ -2671,7 +2725,7 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 			GameInstance->bPlydie = true;
 		}*/
 
-		DoRagDoll();
+		
 
 		if (HasAuthority())
 		{
@@ -2697,6 +2751,8 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 				ServerToggleTorch();
 			}
 		}
+
+		DoRagDoll();
 
 		ToggleMapView();
 
@@ -3281,7 +3337,7 @@ void AMyDCharacter::FadeAndRegenWFC()
 					DoneWidget->RemoveFromParent();
 				}
 			},
-			15.0f,
+			10.0f,
 			false
 		);
 	}
@@ -4991,12 +5047,20 @@ void AMyDCharacter::ApplySpeedMultiplier()
 
 void AMyDCharacter::TeleportToNearestEnemy()
 {
+	if (!IsLocallyControlled()) return;
+	ServerTeleportToNearestEnemy();
+}
+
+void AMyDCharacter::ServerTeleportToNearestEnemy_Implementation()
+{
+	UWorld* World = GetWorld();
+	if (!World) return;
+
 	FVector MyLocation = GetActorLocation();
 	float NearestDistance = TNumericLimits<float>::Max();
 	ARageEnemyCharacter* NearestEnemy = nullptr;
-	//AEnemyCharacter* NearestEnemy = nullptr;
 
-	for (TActorIterator<ARageEnemyCharacter> It(GetWorld()); It; ++It)
+	for (TActorIterator<ARageEnemyCharacter> It(World); It; ++It)
 	{
 		ARageEnemyCharacter* Enemy = *It;
 		if (!Enemy) continue;
@@ -5009,23 +5073,10 @@ void AMyDCharacter::TeleportToNearestEnemy()
 		}
 	}
 
-	/*for (TActorIterator<AEnemyCharacter> It(GetWorld()); It; ++It)
-	{
-		AEnemyCharacter* Enemy = *It;
-		if (!Enemy) continue;
-
-		float Dist = FVector::Dist(MyLocation, Enemy->GetActorLocation());
-		if (Dist < NearestDistance)
-		{
-			NearestDistance = Dist;
-			NearestEnemy = Enemy;
-		}
-	}*/
-
 	if (NearestEnemy)
 	{
-		FVector TargetLocation = NearestEnemy->GetActorLocation() + FVector(0, 0, 200); // 살짝 위
-		SetActorLocation(TargetLocation);
+		FVector TargetLocation = NearestEnemy->GetActorLocation() + FVector(0, 0, 200);
+		SetActorLocation(TargetLocation, false, nullptr, ETeleportType::TeleportPhysics);
 		UE_LOG(LogTemp, Warning, TEXT("Teleported to enemy: %s"), *NearestEnemy->GetName());
 	}
 	else

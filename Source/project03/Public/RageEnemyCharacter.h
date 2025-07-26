@@ -80,6 +80,9 @@ public:
 
 	void ReplaceMeshWithChest();
 
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastForceStopMovement();
+
 	UPROPERTY()
 	class UNiagaraSystem* TreasureGlowEffectAsset;
 
@@ -124,10 +127,10 @@ public:
 
 	// === 레이지 모드 관련 ===
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rage System")
-	float RageThreshold = 0.3f; // HP 30% 이하에서 레이지 모드
+	float RageThreshold = 0.5f; // HP 30% 이하에서 레이지 모드
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rage System")
-	float RageSpeedMultiplier = 1.8f; // 레이지 모드 시 속도 증가
+	float RageSpeedMultiplier = 3.0f; // 레이지 모드 시 속도 증가
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rage System")
 	float RageDamageMultiplier = 1.5f; // 레이지 모드 시 데미지 증가
