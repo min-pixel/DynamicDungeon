@@ -103,11 +103,11 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 				WFCModel
 			);
 
-			UE_LOG(LogTemp, Warning, TEXT("StarterOption applied at (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
+			//UE_LOG(LogTemp, Warning, TEXT("StarterOption applied at (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Invalid StarterOption index for (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
+			//UE_LOG(LogTemp, Warning, TEXT("Invalid StarterOption index for (%d, %d, %d)"), Coord.X, Coord.Y, Coord.Z);
 		}
 	}
 
@@ -130,7 +130,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		while (!bSuccessfulSolve && CurrentTry < TryCount)
 		{
 			CurrentTry += 1;
-			UE_LOG(LogWFC, Warning, TEXT("Failed with Seed Value: %d. Trying again.  Attempt number: %d"), ChosenRandomSeed, CurrentTry);
+			//UE_LOG(LogWFC, Warning, TEXT("Failed with Seed Value: %d. Trying again.  Attempt number: %d"), ChosenRandomSeed, CurrentTry);
 			ChosenRandomSeed = RandomStream.RandRange(1, TNumericLimits<int32>::Max());
 
 			// Start from Original Initialized tiles
@@ -146,7 +146,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 	}
 	else
 	{
-		UE_LOG(LogWFC, Error, TEXT("Invalid TryCount on Collapse: %d"), TryCount);
+		//UE_LOG(LogWFC, Error, TEXT("Invalid TryCount on Collapse: %d"), TryCount);
 		return nullptr;
 	}
 
@@ -223,8 +223,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					if (bOverlapsOtherRoomTile && !bIsUserFixed)
 					{
 						// 원래 코드 유지: goalt01로 바꾸고 고립 검사까지
-						UE_LOG(LogWFC, Display, TEXT("Room tile at (%s) overlaps with existing room, removing room tile but keeping other options."),
-							*RoomTilePosition.ToString());
+						//UE_LOG(LogWFC, Display, TEXT("Room tile at (%s) overlaps with existing room, removing room tile but keeping other options."),
+							//*RoomTilePosition.ToString());
 
 						// 대체 타일 설정
 						FWaveFunctionCollapseOptionCustom AlternativeTileOption(TEXT("/Game/BP/goalt01.goalt01")); // 대체 타일 경로
@@ -247,7 +247,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 						// **여기서 goalt01 타일이 고립되었는지 검사!**
 						if (IsIsolatedTile(TileIndex, Tiles))  // 함수로 고립 체크
 						{
-							UE_LOG(LogWFC, Display, TEXT("Isolated goalt01 tile at (%s), replacing or removing."), *RoomTilePosition.ToString());
+							//UE_LOG(LogWFC, Display, TEXT("Isolated goalt01 tile at (%s), replacing or removing."), *RoomTilePosition.ToString());
 
 							// 삭제할 경우
 							 /*Tiles[TileIndex].RemainingOptions.Empty();
@@ -343,7 +343,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 							Tiles[AdjacentIndex].RemainingOptions.Empty();
 							Tiles[AdjacentIndex].ShannonEntropy = 0.0f;
 
-							UE_LOG(LogWFC, Display, TEXT("Removed overlapping tile inside room boundary at index: %d"), AdjacentIndex);
+							//UE_LOG(LogWFC, Display, TEXT("Removed overlapping tile inside room boundary at index: %d"), AdjacentIndex);
 						}
 					}
 				
@@ -397,13 +397,13 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 			double AdjustStart2 = FPlatformTime::Seconds();
 			AdjustRoomTileBasedOnCorridors(RoomTileIndex, Tiles);
 			double AdjustEnd2 = FPlatformTime::Seconds();
-			UE_LOG(LogTemp, Warning, TEXT("[WFC] AdjustRoomTileBasedOnCorridors (2) time: %.6f sec"), AdjustEnd2 - AdjustStart2);
+			//UE_LOG(LogTemp, Warning, TEXT("[WFC] AdjustRoomTileBasedOnCorridors (2) time: %.6f sec"), AdjustEnd2 - AdjustStart2);
 
 			// ========== PlaceGoalTileInFrontOfRoom ==========
 			double PlaceGoalStart = FPlatformTime::Seconds();
 			PlaceGoalTileInFrontOfRoom(RoomTileIndex, Tiles);
 			double PlaceGoalEnd = FPlatformTime::Seconds();
-			UE_LOG(LogTemp, Warning, TEXT("[WFC] PlaceGoalTileInFrontOfRoom time: %.6f sec"), PlaceGoalEnd - PlaceGoalStart);
+			//UE_LOG(LogTemp, Warning, TEXT("[WFC] PlaceGoalTileInFrontOfRoom time: %.6f sec"), PlaceGoalEnd - PlaceGoalStart);
 		}
 
 		// 성공한 타일 데이터를 저장
@@ -487,7 +487,7 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 	if (!LeftBorderBlueprint || !RightBorderBlueprint || !FrontBorderBlueprint || !BackBorderBlueprint ||
 		!BottomLeftCornerBlueprint || !TopLeftCornerBlueprint || !BottomRightCornerBlueprint || !TopRightCornerBlueprint)
 	{
-		UE_LOG(LogWFC, Error, TEXT("Failed to load one or more Blueprint assets"));
+		//UE_LOG(LogWFC, Error, TEXT("Failed to load one or more Blueprint assets"));
 		return;
 	}
 
@@ -518,7 +518,7 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 				// 겹치면 스폰을 건너뜀
 				if (bOverlapsRoomTile)
 				{
-					UE_LOG(LogWFC, Display, TEXT("Skipping Border Actor spawn due to overlap with Room Tile at (%d, %d, %d)"), X, Y, Z);
+					//UE_LOG(LogWFC, Display, TEXT("Skipping Border Actor spawn due to overlap with Room Tile at (%d, %d, %d)"), X, Y, Z);
 					continue;
 				}
 
@@ -596,12 +596,12 @@ void UWaveFunctionCollapseSubsystem02::SpawnBorderBlueprints()
 						}
 						else
 						{
-							UE_LOG(LogWFC, Error, TEXT("Failed to spawn Blueprint Actor at (%d, %d, %d)"), X, Y, Z);
+							//UE_LOG(LogWFC, Error, TEXT("Failed to spawn Blueprint Actor at (%d, %d, %d)"), X, Y, Z);
 						}
 					}
 					else
 					{
-						UE_LOG(LogWFC, Error, TEXT("Failed to spawn due to invalid Blueprint class or world context at (%d, %d, %d)"), X, Y, Z);
+						//UE_LOG(LogWFC, Error, TEXT("Failed to spawn due to invalid Blueprint class or world context at (%d, %d, %d)"), X, Y, Z);
 					}
 				}
 			}
@@ -1243,7 +1243,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 	{
 		if (Tiles[Index].RemainingOptions.IsEmpty())
 		{
-			UE_LOG(LogWFC, Display, TEXT("Skipped empty tile at index: %d"), Index);
+			//UE_LOG(LogWFC, Display, TEXT("Skipped empty tile at index: %d"), Index);
 			continue;
 		}
 
@@ -1322,6 +1322,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 					AddNamedInstanceComponent(SpawnedActor, UInstancedStaticMeshComponent::StaticClass(), LoadedStaticMesh->GetFName()));
 				BaseObjectToISM.Add(Option.BaseObject, ISMComponent);
 				ISMComponent->SetStaticMesh(LoadedStaticMesh);
+				ISMComponent->SetIsReplicated(false);
 			}
 
 			if (ISMComponent)
@@ -1339,7 +1340,7 @@ AActor* UWaveFunctionCollapseSubsystem02::SpawnActorFromTiles(const TArray<FWave
 		}
 		else
 		{
-			UE_LOG(LogWFC, Warning, TEXT("Failed to load tile asset: %s"), *Option.BaseObject.ToString());
+			//UE_LOG(LogWFC, Warning, TEXT("Failed to load tile asset: %s"), *Option.BaseObject.ToString());
 		}
 	}
 
@@ -1709,11 +1710,11 @@ void UWaveFunctionCollapseSubsystem02::SetWFCModel()
 	if (LoadedModel)
 	{
 		WFCModel = LoadedModel;
-		UE_LOG(LogWFC, Log, TEXT("WFCModel이 zxzx34로 설정되었습니다."));
+		//UE_LOG(LogWFC, Log, TEXT("WFCModel이 zxzx34로 설정되었습니다."));
 	}
 	else
 	{
-		UE_LOG(LogWFC, Error, TEXT("WFCModel 로드 실패: %s"), *ModelPath.ToString());
+		//UE_LOG(LogWFC, Error, TEXT("WFCModel 로드 실패: %s"), *ModelPath.ToString());
 	}
 
 }
@@ -4358,7 +4359,7 @@ void UWaveFunctionCollapseSubsystem02::PrecomputeMapAsync(int32 TryCount, int32 
 
 				if (!bSuccess)
 				{
-					UE_LOG(LogWFC, Warning, TEXT("[Async] Failed with Seed: %d (Attempt %d/%d)"), SeedToUse, AttemptCount, TryCount);
+					//UE_LOG(LogWFC, Warning, TEXT("[Async] Failed with Seed: %d (Attempt %d/%d)"), SeedToUse, AttemptCount, TryCount);
 					SeedToUse = RandomStream.RandRange(1, TNumericLimits<int32>::Max());
 
 					Tiles = OriginalTiles;

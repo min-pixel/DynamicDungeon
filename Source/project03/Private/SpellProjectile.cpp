@@ -167,7 +167,7 @@ void ASpellProjectile::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActo
 {
     if (!OtherActor || OtherActor == this || OtherActor == Caster) return;
 
-    UE_LOG(LogTemp, Warning, TEXT("Overlap Hit %s"), *OtherActor->GetName());
+    //UE_LOG(LogTemp, Warning, TEXT("Overlap Hit %s"), *OtherActor->GetName());
 
     if (ExplosionEffect)
     {

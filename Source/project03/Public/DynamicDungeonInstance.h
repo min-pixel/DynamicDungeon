@@ -119,6 +119,10 @@ public:
 
     bool bPlydie = false;
 
+    // 플레이어가 죽어서 로비로 돌아왔는지 추적
+    UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Player State")
+    bool bLocalPlayerDiedInGame = false;
+
 private:
     // 저장 대기 타이머
     FTimerHandle SaveWaitTimer;

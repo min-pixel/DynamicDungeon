@@ -1160,7 +1160,7 @@ void AMyDCharacter::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AAc
 	{
 
 		OverlappedActor = OtherActor;
-		UE_LOG(LogTemp, Log, TEXT("Overlapped with: %s"), *OtherActor->GetName());
+		//UE_LOG(LogTemp, Log, TEXT("Overlapped with: %s"), *OtherActor->GetName());
 	}
 }
 
@@ -1168,7 +1168,7 @@ void AMyDCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActo
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
 
-	UE_LOG(LogTemp, Warning, TEXT("OnOverlapEnd: Resetting OverlappedActor"));
+	//UE_LOG(LogTemp, Warning, TEXT("OnOverlapEnd: Resetting OverlappedActor"));
 	// 조건 제거: 그냥 오버랩 끝났으면 OverlappedActor를 초기화
 
 
@@ -1181,12 +1181,12 @@ void AMyDCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActo
 		/*GameInstance->itemEAt = false;
 		GameInstance->OpenDoor = false;
 		GameInstance->WeaponEAt = false;*/
-		UE_LOG(LogTemp, Log, TEXT("Overlap Ended - Reset GameInstance variables"));
+		//UE_LOG(LogTemp, Log, TEXT("Overlap Ended - Reset GameInstance variables"));
 	}
 
 	if (OtherActor)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Overlap Ended with: %s"), *OtherActor->GetName());
+		//UE_LOG(LogTemp, Log, TEXT("Overlap Ended with: %s"), *OtherActor->GetName());
 	}
 }
 
@@ -2126,6 +2126,16 @@ void AMyDCharacter::OnRep_Health()
 
 		PreviousHealth = Health;
 	}
+
+	if (Health <= 0 && IsLocallyControlled())
+	{
+		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+		if (GameInstance && !GameInstance->bLocalPlayerDiedInGame)
+		{
+			GameInstance->bLocalPlayerDiedInGame = true;
+		}
+	}
+
 }
 
 
@@ -2720,9 +2730,12 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
 
 		// 2. 유효성 검사 후 bool 값 변경
-		/*if (GameInstance)
+
+		// 로컬 플레이어가 죽었을 때만 플래그 설정
+		/*if (IsLocallyControlled() && GameInstance)
 		{
-			GameInstance->bPlydie = true;
+			GameInstance->bLocalPlayerDiedInGame = true;
+			
 		}*/
 
 		
@@ -2730,6 +2743,7 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 		if (HasAuthority())
 		{
 			SpawnPlayerDeathChest();
+			ClientHandleDeath();
 		}
 
 
@@ -2767,6 +2781,19 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 		}
 	}
 
+}
+
+void AMyDCharacter::ClientHandleDeath_Implementation()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[ClientHandleDeath] Called on client"));
+
+	// 클라이언트에서 죽음 플래그 설정
+	UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
+	if (GameInstance)
+	{
+		GameInstance->bLocalPlayerDiedInGame = true;
+		UE_LOG(LogTemp, Warning, TEXT("[ClientHandleDeath] Set bLocalPlayerDiedInGame = TRUE"));
+	}
 }
 
 
@@ -3979,6 +4006,17 @@ void AMyDCharacter::ExecuteEscape()
 
 		if (GameInstance)
 		{
+
+			if (Health <= 0)
+			{
+				
+			}
+			else
+			{
+				// 살아서 탈출하는 경우
+				GameInstance->bLocalPlayerDiedInGame = false;
+			}
+
 			// 1. 장비창의 모든 아이템을 인벤토리/창고로 이동
 			if (EquipmentWidgetInstance && InventoryComponent)
 			{
@@ -4773,10 +4811,10 @@ void AMyDCharacter::UseHotkey(int32 Index)
 	// 포션 타입으로 강제 설정 (기존 로직 유지)
 	if (Item.ItemType == EItemType::Potion)
 	{
-		// Item 데이터가 잘못되었으니 DefaultItem에서 가져오기
 		EPotionEffectType EffectType = DefaultItem->PotionEffect;
+		int32 Amount = 0;
 
-		UE_LOG(LogTemp, Warning, TEXT("Using DefaultItem PotionEffect: %d"), (int32)EffectType);
+		//UE_LOG(LogTemp, Warning, TEXT("Using DefaultItem PotionEffect: %d"), (int32)EffectType);
 
 		switch (EffectType)
 		{
@@ -4785,8 +4823,9 @@ void AMyDCharacter::UseHotkey(int32 Index)
 			APotion* Potion = Cast<APotion>(DefaultItem);
 			if (Potion)
 			{
-				HealPlayer(Potion->GetHealAmount());
-				UE_LOG(LogTemp, Log, TEXT("Used health potion: +%d HP"), Potion->GetHealAmount());
+				Amount = Potion->GetHealAmount();
+				ServerUsePotion(EPotionEffectType::Health, Amount);
+				//UE_LOG(LogTemp, Log, TEXT("Requested health potion: +%d HP"), Amount);
 			}
 			break;
 		}
@@ -4795,10 +4834,9 @@ void AMyDCharacter::UseHotkey(int32 Index)
 			AManaPotion* ManaPotion = Cast<AManaPotion>(DefaultItem);
 			if (ManaPotion)
 			{
-				Knowledge += ManaPotion->ManaAmount;
-				Knowledge = FMath::Clamp(Knowledge, 0.0f, MaxKnowledge);
-				UpdateHUD();
-				UE_LOG(LogTemp, Log, TEXT("Used mana potion: +%d MP"), ManaPotion->ManaAmount);
+				Amount = ManaPotion->ManaAmount;
+				ServerUsePotion(EPotionEffectType::Mana, Amount);
+				//UE_LOG(LogTemp, Log, TEXT("Requested mana potion: +%d MP"), Amount);
 			}
 			break;
 		}
@@ -4807,49 +4845,51 @@ void AMyDCharacter::UseHotkey(int32 Index)
 			AStaminaPotion* StaminaPotion = Cast<AStaminaPotion>(DefaultItem);
 			if (StaminaPotion)
 			{
-				Stamina += StaminaPotion->StaminaAmount;
-				Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
-				UpdateHUD();
-				UE_LOG(LogTemp, Log, TEXT("Used stamina potion: +%d SP"), StaminaPotion->StaminaAmount);
+				Amount = StaminaPotion->StaminaAmount;
+				ServerUsePotion(EPotionEffectType::Stamina, Amount);
+				//UE_LOG(LogTemp, Log, TEXT("Requested stamina potion: +%d SP"), Amount);
 			}
 			break;
 		}
 		default:
-			UE_LOG(LogTemp, Warning, TEXT("Even DefaultItem has None effect! Trying class detection..."));
+			//UE_LOG(LogTemp, Warning, TEXT("Even DefaultItem has None effect! Trying class detection..."));
 
-			// *** 최후의 수단: 클래스명으로 직접 판단 ***
+			// 클래스 감지로 대체
 			if (DefaultItem->IsA<APotion>())
 			{
 				APotion* Potion = Cast<APotion>(DefaultItem);
-				HealPlayer(Potion->GetHealAmount());
-				UE_LOG(LogTemp, Log, TEXT("Used health potion by class detection: +%d HP"), Potion->GetHealAmount());
+				Amount = Potion->GetHealAmount();
+				ServerUsePotion(EPotionEffectType::Health, Amount);
+				//UE_LOG(LogTemp, Log, TEXT("Used health potion by class detection: +%d HP"), Amount);
 			}
 			else if (DefaultItem->IsA<AManaPotion>())
 			{
 				AManaPotion* ManaPotion = Cast<AManaPotion>(DefaultItem);
-				Knowledge += ManaPotion->ManaAmount;
-				Knowledge = FMath::Clamp(Knowledge, 0.0f, MaxKnowledge);
-				UpdateHUD();
-				UE_LOG(LogTemp, Log, TEXT("Used mana potion by class detection: +%d MP"), ManaPotion->ManaAmount);
+				Amount = ManaPotion->ManaAmount;
+				ServerUsePotion(EPotionEffectType::Mana, Amount);
+				//UE_LOG(LogTemp, Log, TEXT("Used mana potion by class detection: +%d MP"), Amount);
 			}
 			else if (DefaultItem->IsA<AStaminaPotion>())
 			{
 				AStaminaPotion* StaminaPotion = Cast<AStaminaPotion>(DefaultItem);
-				Stamina += StaminaPotion->StaminaAmount;
-				Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
-				UpdateHUD();
-				UE_LOG(LogTemp, Log, TEXT("Used stamina potion by class detection: +%d SP"), StaminaPotion->StaminaAmount);
+				Amount = StaminaPotion->StaminaAmount;
+				ServerUsePotion(EPotionEffectType::Stamina, Amount);
+				//UE_LOG(LogTemp, Log, TEXT("Used stamina potion by class detection: +%d SP"), Amount);
 			}
-			return;
+			else
+			{
+				//UE_LOG(LogTemp, Error, TEXT("Unknown potion type!"));
+				return; // 알 수 없는 포션이면 사용하지 않음
+			}
+			break;
 		}
 
-		// 개수 차감
+		// 아이템 개수 감소 (클라이언트에서 즉시 처리 - UI 반응성)
 		Item.Count--;
 		if (Item.Count <= 0)
 		{
 			EquipmentWidgetInstance->ClearSlot(EquipSlotIndex);
 		}
-
 		EquipmentWidgetInstance->RefreshEquipmentSlots();
 		return;
 	}
@@ -5284,3 +5324,23 @@ void AMyDCharacter::MulticastCastScrollSpell_Implementation(int32 SpellIndex, FV
 	}
 }
 
+void AMyDCharacter::ServerUsePotion_Implementation(EPotionEffectType PotionType, int32 Amount)
+{
+	if (!HasAuthority()) return;
+
+	switch (PotionType)
+	{
+	case EPotionEffectType::Health:
+		Health = FMath::Clamp(Health + Amount, 0.0f, MaxHealth);
+		break;
+	case EPotionEffectType::Mana:
+		Knowledge = FMath::Clamp(Knowledge + Amount, 0.0f, MaxKnowledge);
+		break;
+	case EPotionEffectType::Stamina:
+		Stamina = FMath::Clamp(Stamina + Amount, 0.0f, MaxStamina);
+		break;
+	}
+
+	// 네트워크 업데이트 강제
+	//ForceNetUpdate();
+}

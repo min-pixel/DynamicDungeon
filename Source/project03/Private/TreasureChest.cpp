@@ -194,7 +194,7 @@ void ATreasureChest::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor*
     AMyDCharacter* Player = Cast<AMyDCharacter>(OtherActor);
     if (Player)
     {
-        UE_LOG(LogTemp, Log, TEXT("Player overlapped with treasure chest!"));
+        //UE_LOG(LogTemp, Log, TEXT("Player overlapped with treasure chest!"));
 
         Player->OverlappedActor = this;
 
@@ -208,7 +208,7 @@ void ATreasureChest::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* O
     AMyDCharacter* Player = Cast<AMyDCharacter>(OtherActor);
     if (Player)
     {
-        UE_LOG(LogTemp, Log, TEXT("Player exited overlap with treasure chest."));
+        //UE_LOG(LogTemp, Log, TEXT("Player exited overlap with treasure chest."));
 
         CloseChestUI(Player);
 

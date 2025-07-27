@@ -499,7 +499,7 @@ void AEnemyCharacter::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* 
             LootInventory->OwningWidgetInstance = nullptr;
             LootInventoryWidgetInstance->RemoveFromParent();
             LootInventoryWidgetInstance = nullptr;
-            UE_LOG(LogTemp, Log, TEXT("Closed enemy loot UI"));
+            //UE_LOG(LogTemp, Log, TEXT("Closed enemy loot UI"));
 
             // 이 플레이어의 인벤토리도 닫기
             Player->InventoryWidgetInstance->RemoveFromParent();

@@ -134,6 +134,22 @@ void ULobbyWidget::ShowMainLobby()
     UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
     if (GameInstance)
     {
+
+        if (GameInstance->bLocalPlayerDiedInGame)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[LOBBY] Player DIED in game - Setting Gold to 0"));
+            GameInstance->LobbyGold = 0;
+            GameInstance->CurrentCharacterData.Gold = 0;
+
+            // 죽음 플래그 리셋
+            GameInstance->bLocalPlayerDiedInGame = false;
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[LOBBY] Player returned ALIVE - Keeping Gold: %d"),
+                GameInstance->LobbyGold);
+        }
+
         EPlayerClass currentClass = GameInstance->CurrentCharacterData.PlayerClass;
         for (int32 i = 0; i < AvailableClasses.Num(); ++i)
         {

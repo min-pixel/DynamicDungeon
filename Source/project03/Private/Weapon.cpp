@@ -118,7 +118,7 @@ void AWeapon::OnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* O
     AMyDCharacter* Player = Cast<AMyDCharacter>(OtherActor);
     if (Player)
     {
-        UE_LOG(LogTemp, Log, TEXT("Player overlapped with weapon: %s"), *GetName());
+        //UE_LOG(LogTemp, Log, TEXT("Player overlapped with weapon: %s"), *GetName());
         Player->SetOverlappingWeapon(this);  // 플레이어에게 현재 무기를 전달
     }
 }
@@ -131,7 +131,7 @@ void AWeapon::OnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* Oth
     if (Player && Player->GetOverlappingWeapon() == this)
     {
         Player->SetOverlappingWeapon(nullptr);
-        UE_LOG(LogTemp, Log, TEXT("Weapon overlap ended: %s"), *GetName());
+        //UE_LOG(LogTemp, Log, TEXT("Weapon overlap ended: %s"), *GetName());
     }
 }
 

@@ -619,14 +619,16 @@ public:
 
 	void UpdateEscapeProgressBar();
 
-
+	UFUNCTION(Server, Reliable)
+	void ServerUsePotion(EPotionEffectType PotionType, int32 Amount);
 
 	// Escape ÇÔ¼ö
 	void TriggerEscapeSequence();
 	void FadeAndEscape();
 	void ExecuteEscape();
 
-
+	UFUNCTION(Client, Reliable)
+	void ClientHandleDeath();
 
 	void ApplyCharacterData(const FPlayerCharacterData& Data);
 

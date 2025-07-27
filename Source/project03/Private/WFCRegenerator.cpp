@@ -73,7 +73,7 @@ void AWFCRegenerator::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor
 		{
 			MeshComp->SetRenderCustomDepth(true);
 			Player->OverlappedActor = this;
-			UE_LOG(LogTemp, Warning, TEXT("AWFCRegenerator: Registered self as OverlappedActor"));
+			//UE_LOG(LogTemp, Warning, TEXT("AWFCRegenerator: Registered self as OverlappedActor"));
 		}
 
 }
