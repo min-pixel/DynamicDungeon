@@ -13,11 +13,46 @@
 #include "MyPlayerController.h"
 #include "GameFramework/HUD.h"
 
+
+void ULobbyWidget::NativeOnInitialized()
+{
+    Super::NativeOnInitialized();
+
+    // 이미 다른 위젯(=이전 레벨)에서 최초 연결이 끝났다면 더 이상 시도하지 않는다.
+    if (const UWorld* W = GetWorld())
+    {
+        if (W->GetNetMode() != NM_Standalone)          // 이미 네트워크 월드
+        {
+            UE_LOG(LogTemp, Warning,
+                TEXT("[LobbyWidget] Skip initial connect ? already in networked world."));
+            return;
+        }
+    }
+
+    // ★ 최초 1회만 실행되도록 플래그
+    static bool bFirstConnectDone = false;
+    if (bFirstConnectDone)
+        return;
+    bFirstConnectDone = true;
+
+    LoadGameServerConfig();
+
+    FTimerHandle ImmediateConnectTimer;
+    GetWorld()->GetTimerManager().SetTimer(
+        ImmediateConnectTimer,
+        this, &ULobbyWidget::ConnectToGameServerImmediately,
+        0.5f, false);
+}
+
 void ULobbyWidget::NativeConstruct()
 {
     Super::NativeConstruct();
 
     SetIsFocusable(true);
+
+    
+
+
 
     // AuthManager 가져오기
     AuthMgr = GetGameInstance()->GetSubsystem<UAuthManager>();
@@ -1077,5 +1112,111 @@ void ULobbyWidget::OnToggleBSPPreviewClicked()
         ShowAuthScreen(); // 입력모드/커서 세팅 포함.
 
         bBSPPreviewActive = false;
+    }
+}
+
+void ULobbyWidget::LoadGameServerConfig()
+{
+    // 기본값 설정
+    GameServerIP = TEXT("127.0.0.1");
+    GameServerPort = 7777;
+
+    // 설정 파일 경로
+    FString ConfigPath = FPaths::ProjectDir() + TEXT("GameServerConfig.ini");
+
+    // 패키징된 버전에서는 실행 파일 경로 사용
+    if (!FPaths::FileExists(ConfigPath))
+    {
+        ConfigPath = FPaths::LaunchDir() + TEXT("GameServerConfig.ini");
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Looking for game server config at: %s"), *ConfigPath);
+
+    // 설정 파일이 없으면 기본 설정 파일 생성
+    if (!FPaths::FileExists(ConfigPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Game server config not found, creating default..."));
+        CreateDefaultGameServerConfig();
+        return;
+    }
+
+    // 설정 파일 읽기
+    TArray<FString> Lines;
+    if (FFileHelper::LoadFileToStringArray(Lines, *ConfigPath))
+    {
+        for (const FString& Line : Lines)
+        {
+            FString TrimmedLine = Line.TrimStartAndEnd();
+
+            if (TrimmedLine.IsEmpty() || TrimmedLine.StartsWith(TEXT("#")))
+                continue;
+
+            if (TrimmedLine.StartsWith(TEXT("GameServerIP=")))
+            {
+                FString Value = TrimmedLine.RightChop(13);
+                GameServerIP = Value.TrimStartAndEnd();
+                UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Loaded GameServerIP: %s"), *GameServerIP);
+            }
+            else if (TrimmedLine.StartsWith(TEXT("GameServerPort=")))
+            {
+                FString Value = TrimmedLine.RightChop(15);
+                GameServerPort = FCString::Atoi(*Value.TrimStartAndEnd());
+                UE_LOG(LogTemp, Log, TEXT("[LobbyWidget] Loaded GameServerPort: %d"), GameServerPort);
+            }
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Game server config loaded - IP: %s, Port: %d"),
+            *GameServerIP, GameServerPort);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[LobbyWidget] Failed to read game server config, using defaults"));
+    }
+}
+
+void ULobbyWidget::CreateDefaultGameServerConfig()
+{
+    FString ConfigContent = TEXT("# Game Server Configuration File\n");
+    ConfigContent += TEXT("# Edit these values to connect to your dedicated server\n");
+    ConfigContent += TEXT("# \n");
+    ConfigContent += TEXT("# Game Server IP Address\n");
+    ConfigContent += TEXT("GameServerIP=127.0.0.1\n");
+    ConfigContent += TEXT("# \n");
+    ConfigContent += TEXT("# Game Server Port Number\n");
+    ConfigContent += TEXT("GameServerPort=7777\n");
+
+    FString ConfigPath = FPaths::LaunchDir() + TEXT("GameServerConfig.ini");
+
+    if (FFileHelper::SaveStringToFile(ConfigContent, *ConfigPath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Created default game server config at: %s"), *ConfigPath);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("[LobbyWidget] Failed to create default game server config"));
+    }
+}
+
+void ULobbyWidget::ConnectToGameServerImmediately()
+{
+    //UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Auto-connecting to dedicated server in background..."));
+
+    AMyPlayerController* PC = Cast<AMyPlayerController>(UGameplayStatics::GetPlayerController(this, 0));
+
+    if (PC)
+    {
+        // 설정 파일에서 읽은 게임 서버 정보로 연결
+        FString ConnectCommand = FString::Printf(TEXT("open %s:%d"), *GameServerIP, GameServerPort);
+
+        //UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Background connecting to: %s"), *ConnectCommand);
+
+        // 콘솔 명령어 실행으로 데디케이티드 서버 연결 (백그라운드)
+        PC->ConsoleCommand(ConnectCommand);
+
+        //UE_LOG(LogTemp, Warning, TEXT("[LobbyWidget] Dedicated server connection initiated in background. UI will continue normally."));
+    }
+    else
+    {
+        //UE_LOG(LogTemp, Error, TEXT("[LobbyWidget] PlayerController not found for background connect!"));
     }
 }

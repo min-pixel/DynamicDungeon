@@ -30,6 +30,9 @@ public:
 
     virtual void NativeConstruct() override;
 
+    virtual void NativeOnInitialized() override;
+
+
     // UI 상태 전환용 위젯 스위처
     UPROPERTY(meta = (BindWidget))
     class UWidgetSwitcher* MainSwitcher;
@@ -267,5 +270,19 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LoginCamera")
     AActor* LoginCameraActor = nullptr;
+
+    // 게임 서버 연결 정보
+    FString GameServerIP = TEXT("127.0.0.1");
+    int32 GameServerPort = 7777;
+
+    //중복 연결 방지 플래그
+    bool bHasTriedServerConnection = false;
+
+    // 게임 서버 설정 로드
+    void LoadGameServerConfig();
+    void CreateDefaultGameServerConfig();
+
+    // 즉시 연결 함수
+    void ConnectToGameServerImmediately();
 
 };
