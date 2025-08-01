@@ -25,7 +25,8 @@ public:
 	TObjectPtr<UWaveFunctionCollapseModel02> WFCModel;
 
 	// Tile 종류 → 원본 액터 20250531
-	TMap<FWaveFunctionCollapseOptionCustom, AActor*> TilePrefabPool;
+	UPROPERTY(Transient)
+	TMap<FWaveFunctionCollapseOptionCustom, TObjectPtr<AActor>> TilePrefabPool;
 
 	// WFC 완료 여부를 나타내는 플래그
 	UPROPERTY(BlueprintReadOnly, Category = "WFC")

@@ -4080,6 +4080,19 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 	// 서버가 아닐 땐 아무 것도 안 함
 	if (!World->GetAuthGameMode()) return;
 
+	// 풀이 비어있거나 액터가 유효하지 않으면 풀을 다시 생성
+	bool bNeedRebuild = false;
+	for (auto It = TilePrefabPool.CreateIterator(); It; ++It) {
+		if (!IsValid(It.Value()) || !IsValid(It.Value()->GetClass())) {
+			It.RemoveCurrent();
+			bNeedRebuild = true;
+		}
+	}
+	if (bNeedRebuild || TilePrefabPool.Num() == 0) {
+		PrepareTilePrefabPool(World);
+	}
+
+
 	for (int32 Index = 0; Index < Tiles.Num(); ++Index)
 	{
 		const FWaveFunctionCollapseTileCustom& Tile = Tiles[Index];
@@ -4141,6 +4154,25 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 		{
 			// Case 2: 블루프린트 액터라면 동일한 클래스에서 복제
 			UClass* ActorClass = Prefab->GetClass();
+
+			// 1) 클래스 유효성 1차 검증
+			if (!IsValid(ActorClass) || !ActorClass->IsChildOf(AActor::StaticClass())) {
+				// 2) 폴백: 옵션 경로에서 클래스 재로드 (BP면 _C 보정)
+				FString ClassPath = Option.BaseObject.ToString();
+				if (!ClassPath.EndsWith(TEXT("_C"))) {
+					ClassPath += TEXT("_C");
+				}
+				ActorClass = LoadClass<AActor>(nullptr, *ClassPath);
+
+				if (!IsValid(ActorClass)) {
+					// 그래도 실패하면 풀 재빌드 한 번 시도하고 스킵
+					UE_LOG(LogWFC, Warning, TEXT("[WFC] Invalid prefab/class. Rebuilding pool and skipping this tile. %s"),
+						*Option.BaseObject.ToString());
+					PrepareTilePrefabPool(World);
+					continue;
+				}
+			}
+
 			AActor* NewActorTile = World->SpawnActor<AActor>(ActorClass);
 			if (!NewActorTile) continue;
 
