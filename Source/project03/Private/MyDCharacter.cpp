@@ -33,6 +33,7 @@
 #include "GameFramework/SpectatorPawn.h"
 #include "Components/DirectionalLightComponent.h"
 #include "GameFramework/FloatingPawnMovement.h"
+#include "WaveFunctionCollapseSubsystem02.h"
 #include "PlayerCharacterData.h"
 #include "TreasureChest.h"
 #include "EnemyCharacter.h"
@@ -4242,6 +4243,12 @@ void AMyDCharacter::ServerCheckAllPlayersFinished_Implementation()
 	if (ActivePlayers == 0 && SpectatingPlayers > 0)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("All players finished! Returning everyone to lobby..."));
+
+		if (UWaveFunctionCollapseSubsystem02* WFC = GetWorld()->GetGameInstance()->GetSubsystem<UWaveFunctionCollapseSubsystem02>())
+		{
+			WFC->ClearTilePrefabPool();   // 풀 액터 Destroy + 컨테이너 비움
+			//WFC->ResetWFCState();         // UserFixedOptions, LastCollapsedTiles 등 내부 상태도 비우는 함수가 있다면 함께 호출
+		}
 
 		// 모든 플레이어를 로비로 이동
 		GetWorld()->ServerTravel("/Game/Maps/LobbyMap?listen");

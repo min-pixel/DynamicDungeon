@@ -28,6 +28,12 @@ public:
 	UPROPERTY(Transient)
 	TMap<FWaveFunctionCollapseOptionCustom, TObjectPtr<AActor>> TilePrefabPool;
 
+	UFUNCTION(BlueprintCallable, Category = "WFC")
+	void ClearTilePrefabPool();
+
+	//virtual void Deinitialize() override;
+
+
 	// WFC 완료 여부를 나타내는 플래그
 	UPROPERTY(BlueprintReadOnly, Category = "WFC")
 	bool bWFCCompleted = false;

@@ -4000,6 +4000,8 @@ void UWaveFunctionCollapseSubsystem02::PrepareTilePrefabPool(UWorld* World)
 {
 	if (!WFCModel) return;
 
+	TilePrefabPool.Empty();
+
 	for (const auto& Pair : WFCModel->Constraints)
 	{
 		const FWaveFunctionCollapseOptionCustom& Option = Pair.Key;
@@ -4080,6 +4082,8 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 	// 서버가 아닐 땐 아무 것도 안 함
 	if (!World->GetAuthGameMode()) return;
 
+	UE_LOG(LogTemp, Warning, TEXT("ReuseTilePrefabsFromPool: Start | World: %s | Pool Size: %d"), *World->GetName(), TilePrefabPool.Num());
+
 	// 풀이 비어있거나 액터가 유효하지 않으면 풀을 다시 생성
 	bool bNeedRebuild = false;
 	for (auto It = TilePrefabPool.CreateIterator(); It; ++It) {
@@ -4137,9 +4141,9 @@ void UWaveFunctionCollapseSubsystem02::ReuseTilePrefabsFromPool(
 			if (!NewStaticMeshTile) continue;
 
 			// ── 복제 설정 추가 ──
-			NewStaticMeshTile->SetReplicates(true);
+			/*NewStaticMeshTile->SetReplicates(true);
 			NewStaticMeshTile->SetReplicateMovement(true);
-			NewStaticMeshTile->bAlwaysRelevant = true;
+			NewStaticMeshTile->bAlwaysRelevant = true;*/
 
 			UStaticMeshComponent* MeshComp = NewStaticMeshTile->GetStaticMeshComponent();
 			if (!MeshComp) continue;
@@ -5055,4 +5059,23 @@ TSet<int32> UWaveFunctionCollapseSubsystem02::FindDisconnectedRoomIndices(
 	}
 
 	return Result;
+}
+
+void UWaveFunctionCollapseSubsystem02::ClearTilePrefabPool()
+{
+	for (auto& Pair : TilePrefabPool)
+	{
+		if (IsValid(Pair.Value))
+		{
+			Pair.Value->Destroy();
+		}
+	}
+	TilePrefabPool.Empty();
+
+	// 다른 캐시된 데이터도 정리
+	LastCollapsedTiles.Empty();
+	RoomTilePositions.Empty();
+	UserFixedOptions.Empty();
+	bHasCachedTiles = false;
+	bWFCCompleted = false;
 }
