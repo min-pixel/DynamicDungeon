@@ -123,6 +123,8 @@ public:
     UPROPERTY() TArray<FTilePart> Parts_V;
     UPROPERTY() TArray<FTilePart> Parts_C;
 
+
+
 protected:
     virtual void BeginPlay() override;
 

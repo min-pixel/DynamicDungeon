@@ -75,12 +75,6 @@ AMyDCharacter::AMyDCharacter()
 	MaxStamina = 100.0f;
 	Stamina = MaxStamina;
 
-	////스프링암(SprintArm) 생성 (메쉬와 카메라를 독립적으로 배치하기 위해)
-	//SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
-	//SpringArm->SetupAttachment(RootComponent);
-	//SpringArm->TargetArmLength = 0.0f; // 1인칭이므로 거리 없음
-	//SpringArm->bUsePawnControlRotation = false; // 카메라 회전에 영향을 주지 않음
-
 	
 // 캐릭터 메쉬 생성
 	CharacterMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("CharacterMesh"));
@@ -99,11 +93,7 @@ AMyDCharacter::AMyDCharacter()
 		CharacterMesh->SetSkeletalMesh(MeshAsset.Object);
 	}
 
-	/*static ConstructorHelpers::FObjectFinder<USkeletalMesh> MeshAsset(TEXT("/Game/MetaHumans/Trey/Male/Tall/NormalWeight/Body/m_tal_nrw_body.m_tal_nrw_body"));
-	if (MeshAsset.Succeeded())
-	{
-		CharacterMesh->SetSkeletalMesh(MeshAsset.Object);
-	}*/
+	
 
 	//// --- 1) BodyMesh 생성 ---
 	BodyMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("BodyMesh"));
@@ -178,16 +168,6 @@ AMyDCharacter::AMyDCharacter()
 
 	
 	// 애니메이션 블루프린트 로드
-	/*static ConstructorHelpers::FClassFinder<UAnimInstance> AnimBP(TEXT("/Game/Characters/Mannequins/Animations/ABP_Manny.ABP_Manny_C"));
-	if (AnimBP.Succeeded())
-	{
-		UE_LOG(LogTemp, Log, TEXT("Animation Blueprint Loaded Successfully: %s"), *AnimBP.Class->GetName());
-		CharacterMesh->SetAnimInstanceClass(AnimBP.Class);
-	}
-	else {
-		UE_LOG(LogTemp, Error, TEXT("Failed to load Animation Blueprint!"));
-	}*/
-
 	static ConstructorHelpers::FClassFinder<UAnimInstance> AnimBP(TEXT("/Game/BP/character/Retarget/RTA_ABP_Manny.RTA_ABP_Manny_C"));
 	if (AnimBP.Succeeded())
 	{
@@ -273,15 +253,9 @@ AMyDCharacter::AMyDCharacter()
 	ChestMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ChestMesh"));
 	ChestMesh->SetupAttachment(CharacterMesh);
 	ChestMesh->SetMasterPoseComponent(CharacterMesh);
-	//ChestMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceTickThisFrame=*/true, /*bFollowerShouldTickPose=*/true);
-	// --- 3) LeaderPoseComponent 설정 (TorsoMesh와 동일) ---
-	//ChestMesh->SetLeaderPoseComponent(CharacterMesh,
-	//	/*bForceTickThisFrame=*/ true,
-	//	/*bFollowerShouldTickPose=*/ true);
 
 	// --- 4) Transform, Visibility 설정 ---
 	ChestMesh->SetVisibility(true);
-	//ChestMesh->bUseBoundsFromMasterPoseComponent = true;
 
 	// 하의
 	LegsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("LegsMesh"));
@@ -290,12 +264,6 @@ AMyDCharacter::AMyDCharacter()
 	LegsMesh->SetMasterPoseComponent(nullptr); // 먼저 해제
 	LegsMesh->SetMasterPoseComponent(CharacterMesh); // 다시 설정
 		
-
-	//LegsMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceTickThisFrame=*/true, /*bFollowerShouldTickPose=*/true);
-	//LegsMesh->SetMasterPoseComponent(CharacterMesh);
-	/*LegsMesh->SetRelativeLocation(FVector(1.65f, 0.0f, -90.f));
-	LegsMesh->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));*/
-	//LegsMesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
 	LegsMesh->SetVisibility(true);
 	LegsMesh->bNoSkeletonUpdate = false;
 	LegsMesh->bUpdateJointsFromAnimation = true;
@@ -306,12 +274,7 @@ AMyDCharacter::AMyDCharacter()
 	
 	HelmetMesh->SetVisibility(false);
 
-	//idle 포즈 추가 (상체)
-	/*static ConstructorHelpers::FObjectFinder<UAnimMontage> PoseMontageAsset(TEXT("/Game/BP/character/Retarget/RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage.RTA_Male_Sitting_Pose_Anim_mixamo_com_Montage"));
-	if (PoseMontageAsset.Succeeded())
-	{
-		PoseMontage = PoseMontageAsset.Object;
-	}*/
+	
 
 	// 초기 구르기 상태 설정
 	bIsRolling = false;
@@ -486,18 +449,6 @@ void AMyDCharacter::BeginPlay()
 		HideOwnCharacterMeshes();
 	}
 
-
-	//if (ChestMesh && CharacterMesh)
-	//{
-	//	// ChestMesh가 매 Tick마다 CharacterMesh의 Pose를 복사하게 만듭니다.
-	//	ChestMesh->SetLeaderPoseComponent(CharacterMesh, /*bForceTickThisFrame=*/true, /*bFollowerShouldTickPose=*/true);
-	//}
-
-	//if (LegsMesh && CharacterMesh)
-	//{
-	//	LegsMesh->SetLeaderPoseComponent(CharacterMesh, true, true);
-	//}
-
 	if (IsLocallyControlled())
 	{
 		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
@@ -557,44 +508,6 @@ void AMyDCharacter::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is NULL!"));
 	}
 
-	
-
-	//if (IsLocallyControlled())
-	//{
-	//	// 위젯 생성은 항상!
-	//	if (InventoryWidgetClass)
-	//	{
-	//		InventoryWidgetInstance = CreateWidget<UInventoryWidget>(GetWorld(), InventoryWidgetClass);
-	//		if (InventoryWidgetInstance)
-	//		{
-	//			InventoryWidgetInstance->InventoryRef = InventoryComponent;
-	//			InventoryWidgetInstance->RefreshInventoryStruct();
-
-	//			//if (InventoryComponent)
-	//			//{
-	//			//	InventoryComponent->TryAddItemByClass(AGreatWeapon::StaticClass());
-
-	//			//	InventoryWidgetInstance->RefreshInventoryStruct(); // 다시 갱신
-	//			//}
-
-	//		}
-	//	}
-
-	//	if (EquipmentWidgetClass)
-	//	{
-	//		EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
-
-	//		if (EquipmentWidgetClass)
-	//		{
-	//			EquipmentWidgetInstance = CreateWidget<UEquipmentWidget>(GetWorld(), EquipmentWidgetClass);
-
-	//			EquipmentWidgetInstance->InventoryOwner = InventoryWidgetInstance;
-	//		}
-	//	}
-	//}
-	
-
-
 	if (OverheadCameraClass)
 	{
 		OverheadCameraActor = GetWorld()->SpawnActor<ACameraActor>(OverheadCameraClass, FVector(15000, 16000, 50500), FRotator(-90, 0, 0));
@@ -611,43 +524,6 @@ void AMyDCharacter::BeginPlay()
 	{
 		UE_LOG(LogTemp, Error, TEXT("OverheadCameraClass is null!"));
 	}
-
-
-	/*if (InventoryComponent)
-	{
-		AItem* GreatWeaponItem = GetWorld()->SpawnActor<AGreatWeapon>(AGreatWeapon::StaticClass(), GetActorLocation() + FVector(200, 0, 0), FRotator::ZeroRotator);
-		if (GreatWeaponItem)
-		{
-			InventoryComponent->TryAddItem(GreatWeaponItem);
-			UE_LOG(LogTemp, Log, TEXT("GreatWeaponItem added to inventory: %s"), *GreatWeaponItem->GetName());
-
-			if (InventoryWidgetInstance)
-			{
-				InventoryWidgetInstance->RefreshInventory();
-			}
-		}
-	}*/
-
-	//UBlueprint* LightBP = Cast<UBlueprint>(StaticLoadObject(UBlueprint::StaticClass(), nullptr, TEXT("/Game/BP/light.light")));
-	//if (LightBP && LightBP->GeneratedClass)
-	//{
-	//	AttachedTorch = GetWorld()->SpawnActor<AActor>(LightBP->GeneratedClass);
-
-	//	if (AttachedTorch && CharacterMesh && CharacterMesh->DoesSocketExist("hand_l"))
-	//	{
-	//		AttachedTorch->AttachToComponent(CharacterMesh, FAttachmentTransformRules::SnapToTargetNotIncludingScale, FName("hand_l"));
-
-	//		// 회전 적용 (필요하다면 수정 가능)
-	//		FRotator DesiredRotation = FRotator(0.0f, 0.0f, 180.0f);
-	//		AttachedTorch->SetActorRelativeRotation(DesiredRotation);
-
-	//		// 처음엔 숨겨진 상태
-	//		AttachedTorch->SetActorHiddenInGame(true);
-	//		bTorchVisible = false;
-
-	//		UE_LOG(LogTemp, Log, TEXT("Torch attached and hidden on start."));
-	//	}
-	//}
 
 	FSoftObjectPath TorchClassPath(TEXT("/Game/BP/light.light_C"));  // 꼭 "_C" 붙일 것!
 	UClass* TorchClass = Cast<UClass>(TorchClassPath.TryLoad());
@@ -723,34 +599,6 @@ void AMyDCharacter::BeginPlay()
 			UE_LOG(LogTemp, Error, TEXT("Failed to create Gold Widget"));
 		}
 	}
-	
-	
-
-	//UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-	//if (GameInstance)
-	//{
-	//	ApplyCharacterData(GameInstance->CurrentCharacterData);
-
-	//	// 인벤토리 복원
-	//	if (InventoryComponent)
-	//	{
-	//		InventoryComponent->InventoryItemsStruct = GameInstance->SavedInventoryItems;
-	//	}
-
-	//	// 장비창 복원
-	//	if (EquipmentWidgetInstance)
-	//	{
-	//		EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
-	//	}
-
-	//	//골드 복원
-	//	if (GameInstance)
-	//	{
-	//		Gold = GameInstance->LobbyGold;
-	//		GoldWidgetInstance->UpdateGoldAmount(Gold);
-	//	}
-
-	//}
 
 	
 		UFireballSpell* Fireball = NewObject<UFireballSpell>(this);
@@ -918,7 +766,6 @@ void AMyDCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// 구르는 동안 카메라 부드럽게 이동
-	//moothCameraFollow();
 	static float AccumulatedTime = 0.0f;
 	AccumulatedTime += DeltaTime;
 
@@ -2168,97 +2015,6 @@ void AMyDCharacter::PlayMagicMontage()
 
 void AMyDCharacter::PlayAttackAnimation()
 {
-	//if (bIsAttacking)  // 공격 중이면 입력 무시
-	//{
-	//	UE_LOG(LogTemp, Log, TEXT("Already attacking! Ignoring input."));
-	//	return;
-	//}
-
-	//if (bIsAttacking || bIsRolling)  // 구르기 중이면 공격 입력 무시
-	//{
-	//	UE_LOG(LogTemp, Log, TEXT("Already attacking or rolling! Ignoring input."));
-	//	return;
-	//}
-
-	//if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
-	//{
-	//	ReduceStamina(0.0f);
-	//	return;
-	//}
-
-	//// 공격 상태 설정
-	//bIsAttacking = true;
-
-	//ReduceStamina(AttackStaminaCost);
-	//
-
-	//// 사용할 몽타주 결정 (무기 장착 여부에 따라 다르게 설정)
-	//UAnimMontage* SelectedMontage = nullptr;
-
-	//if (EquippedWeapon)
-	//{
-	//	switch (EquippedWeapon->WeaponType)
-	//	{
-	//	case EWeaponType::GreatWeapon:
-	//		SelectedMontage = GreatWeaponMontage; // 이건 변수로 미리 만들어둬야 함
-	//		break;
-	//	case EWeaponType::Dagger:
-	//		SelectedMontage = DaggerWeaponMontage;
-	//		break;
-	//	case EWeaponType::Staff:
-	//		//SelectedMontage = StaffMontage;
-	//		break;
-	//	default:
-	//		SelectedMontage = WeaponAttackMontage; // 기본값
-	//		break;
-	//	}
-	//}
-	//else
-	//{
-	//	SelectedMontage = UnarmedAttackMontage;
-	//}
-	//if (!SelectedMontage || !CharacterMesh->GetAnimInstance())
-	//{
-	//	UE_LOG(LogTemp, Error, TEXT("Attack montage or anim instance is missing!"));
-	//	bIsAttacking = false;
-	//	return;
-	//}
-
-	//UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-
-	//// **현재 콤보 수에 따라 재생할 섹션 선택**
-	//FName SelectedSection = (AttackComboIndex == 0) ? FName("Combo1") : FName("Combo2");
-
-	//// 특정 슬롯에서만 실행 (UpperBody 슬롯에서 재생)
-	//FName UpperBodySlot = FName("UpperBody");
-
-	//// UpperBody 슬롯에서 실행되도록 설정
-	//FAnimMontageInstance* MontageInstance = AnimInstance->GetActiveInstanceForMontage(SelectedMontage); 
-	//if (MontageInstance) 
-	//{
-	//	MontageInstance->Montage->SlotAnimTracks[0].SlotName = UpperBodySlot; 
-	//}
-
-	//if (EquippedWeapon)
-	//{
-	//	EquippedWeapon->StartTrace(); 
-	//}
-
-	//// 애니메이션 실행 (선택된 섹션 처음부터 재생)
-	//AnimInstance->Montage_Play(SelectedMontage, 1.0f);
-	//AnimInstance->Montage_JumpToSection(SelectedSection, SelectedMontage);
-	//
-	//UE_LOG(LogTemp, Log, TEXT("Playing Attack Montage Section: %s"), *SelectedSection.ToString());
-
-	//// **현재 섹션의 길이 가져오기**
-	//float SectionDuration = SelectedMontage->GetSectionLength(SelectedMontage->GetSectionIndex(SelectedSection));
-
-	//// **타이머 설정: 정확한 섹션 종료 후 공격 상태 초기화**
-	//GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetAttack, SectionDuration, false);
-
-	//// **다음 입력 시 다른 섹션 실행되도록 설정 (콤보 증가)**
-	//AttackComboIndex = (AttackComboIndex == 0) ? 1 : 0;
-
 	if (HasAuthority())
 	{
 		MulticastPlayAttackMontage();
@@ -2420,80 +2176,6 @@ void AMyDCharacter::ServerRequestPlayAttackMontage_Implementation()
 
 void AMyDCharacter::PlayRollAnimation()
 {
-	//if (bIsRolling || !RollMontage) return;
-
-	//if (Stamina <= 0)  // 스태미나가 0이면 공격 불가
-	//{
-	//	ReduceStamina(0.0f);
-	//	return;
-	//}
-
-	//bIsRolling = true;
-
-	//// 현재 이동 방향 계산
-	//FVector RollDirection;
-	//FName SelectedSection = "RollF"; // 기본값 (앞구르기)
-
-	//ReduceStamina(RollStaminaCost);
-
-	//if (FMath::Abs(MoveForwardValue) > 0.1f || FMath::Abs(MoveRightValue) > 0.1f)
-	//{
-	//	// 방향키 입력이 있을 경우: 해당 방향으로 구르기
-	//	FRotator ControlRotation = GetControlRotation();
-	//	FVector ForwardVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::X);
-	//	FVector RightVector = FRotationMatrix(ControlRotation).GetScaledAxis(EAxis::Y);
-
-	//	RollDirection = ForwardVector * MoveForwardValue + RightVector * MoveRightValue;
-	//	RollDirection.Normalize();
-
-	//	// **입력 방향에 따라 적절한 섹션 선택**
-	//	if (MoveForwardValue > 0.1f)
-	//	{
-	//		SelectedSection = "RollF";  // 앞구르기
-	//	}
-	//	else if (MoveForwardValue < -0.1f)
-	//	{
-	//		SelectedSection = "RollB";  // 뒤구르기
-	//	}
-	//	else if (MoveRightValue > 0.1f)
-	//	{
-	//		SelectedSection = "RollR";  // 오른쪽 구르기
-	//	}
-	//	else if (MoveRightValue < -0.1f)
-	//	{
-	//		SelectedSection = "RollL";  // 왼쪽 구르기
-	//	}
-	//}
-	//else
-	//{
-	//	// 방향키 입력이 없을 경우: 기본적으로 앞구르기
-	//	RollDirection = GetActorForwardVector();
-	//}
-
-	//// RollDirection을 멤버 변수로 저장 (이동 함수에서 사용)
-	//StoredRollDirection = RollDirection;
-
-	//// **구르기 방향으로 캐릭터 회전 (카메라는 고정)**
-	//if (RollDirection.SizeSquared() > 0)
-	//{
-	//	FRotator NewRotation = RollDirection.Rotation();
-	//	SetActorRotation(NewRotation);
-	//}
-
-	//// **애니메이션 실행 (선택된 섹션으로 점프)**
-	//UAnimInstance* AnimInstance = CharacterMesh->GetAnimInstance();
-	//if (AnimInstance)
-	//{
-	//	AnimInstance->Montage_Play(RollMontage, 1.0f);
-	//	AnimInstance->Montage_JumpToSection(SelectedSection, RollMontage);
-	//	UE_LOG(LogTemp, Log, TEXT("Playing Roll Montage Section: %s"), *SelectedSection.ToString());
-	//}
-
-	//// **구르기 이동 적용**
-	//ApplyRollMovement(RollDirection);
-
-	//// **구르기 후 원래 상태 복구**
-	//GetWorldTimerManager().SetTimer(TimerHandle_Reset, this, &AMyDCharacter::ResetRoll, RollDuration, false);
 	if (HasAuthority())
 	{
 		MulticastPlayRoll(MoveForwardValue, MoveRightValue);
@@ -2677,7 +2359,10 @@ void AMyDCharacter::RegenerateStamina() // 스태미나 회복 진행
 		Stamina = FMath::Clamp(Stamina, 0.0f, MaxStamina);
 
 		//UI 업데이트 반영
-		HUDWidget->UpdateStamina(Stamina, MaxStamina);
+		if (HUDWidget)  // 크래시 방지 널 체크 20250803
+		{
+			HUDWidget->UpdateStamina(Stamina, MaxStamina);
+		}
 	}
 	else
 	{
@@ -2729,17 +2414,6 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 		
 
 		UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-
-		// 2. 유효성 검사 후 bool 값 변경
-
-		// 로컬 플레이어가 죽었을 때만 플래그 설정
-		/*if (IsLocallyControlled() && GameInstance)
-		{
-			GameInstance->bLocalPlayerDiedInGame = true;
-			
-		}*/
-
-		
 
 		if (HasAuthority())
 		{
@@ -3055,11 +2729,6 @@ void AMyDCharacter::ClientEnterSpectatorMode_Implementation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("ClientEnterSpectatorMode - Entering spectator mode"));
 
-
-	
-
-	
-
 	/*if (IsLocallyControlled())
 	{*/
 		UDynamicDungeonInstance* GI = Cast<UDynamicDungeonInstance>(GetGameInstance());
@@ -3139,19 +2808,6 @@ void AMyDCharacter::ToggleInventoryUI()
 		EquipmentWidgetInstance->SetPositionInViewport(FVector2D(100, 0), false);
 		EquipmentWidgetInstance->RefreshEquipmentSlots(); // 나중에 함수에서 슬롯 정보 반영하게 만들 수 있음
 
-		//if (CombinedInventoryWidgetClass)
-		//{
-		//	CombinedInventoryWidgetInstance = CreateWidget<UUserWidget>(GetWorld(), CombinedInventoryWidgetClass);
-		//	if (CombinedInventoryWidgetInstance)
-		//	{
-		//		CombinedInventoryWidgetInstance->AddToViewport(10); // ZOrder 적당히
-		//		//CombinedInventoryWidgetInstance->SetVisibility(ESlateVisibility::Hidden); // 처음엔 숨겨둠
-		//		InventoryWidgetInstance->RefreshInventoryStruct();
-		//		EquipmentWidgetInstance->RefreshEquipmentSlots();
-		//		UE_LOG(LogTemp, Log, TEXT("wrwrwrwrrEQ"));
-		//	}
-		//}
-
 		bIsInventoryVisible = true;
 
 		// 마우스 커서 표시 + UI 입력 모드로 전환
@@ -3169,38 +2825,6 @@ bool AMyDCharacter::IsDead() const
 {
 	return Health <= 0.0f;
 }
-
-//void AMyDCharacter::TriggerDelayedWFC()
-//{
-//	//카메라 쉐이크 효과 또는 화면 페이드 추가 예정
-//	UE_LOG(LogTemp, Warning, TEXT("rereereere"));
-//
-//	if (PendingRegenActor)
-//	{
-//		AWFCRegenerator* Regen = Cast<AWFCRegenerator>(PendingRegenActor);
-//		if (!Regen && PendingRegenActor->GetOwner())
-//		{
-//			Regen = Cast<AWFCRegenerator>(PendingRegenActor->GetOwner());
-//		}
-//
-//		if (Regen)
-//		{
-//			PlayWFCRegenCameraShake();
-//			Regen->GenerateWFCAtLocation();
-//			UE_LOG(LogTemp, Log, TEXT("ggggggggg"));
-//		}
-//		else
-//		{
-//			UE_LOG(LogTemp, Error, TEXT("hhhhhhh"));
-//		}
-//	}
-//
-//	// 리셋
-//	bIsWFCCountdownActive = false;
-//	PendingRegenActor = nullptr;
-//
-//	// UI 숨기기 등 추가 가능
-//}
 
 void AMyDCharacter::PlayWFCRegenCameraShake()
 {
@@ -3224,11 +2848,7 @@ void AMyDCharacter::TriggerDelayedWFC()
 
 void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 {
-	/*if (!IsLocallyControlled())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ShowWFCFadeAndRegenSequence - Not locally controlled, skipping UI"));
-		return;
-	}*/
+	
 
 
 	// 유효성 검사 강화
@@ -3238,26 +2858,11 @@ void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 		return;
 	}
 
-	// 관전자가 아닌 경우만 처리
-	/*APlayerController* PC = GetController<APlayerController>();
-	if (!PC || PC->GetStateName() == NAME_Spectating)
-	{
-		return;
-	}*/
-
 	
-
 	
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	// (1) 이 Pawn이 '내가 조종하는' Pawn 이 아니면 건너뛰기
-	/*if (!IsLocallyControlled())
-	{
-		return;
-	}*/
-
-	// (2) 항상 내 PC 를 가져오기
 
 	
 	// 각 클라이언트에서 자신의 로컬 플레이어 컨트롤러 찾기
@@ -3280,12 +2885,7 @@ void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 			// 위젯 클래스가 설정되어 있다면 다시 생성 시도
 			if (WFCWarningWidgetClass)
 			{
-				//WFCWarningWidgetInstance = CreateWidget<UUserWidget>(PC, WFCWarningWidgetClass);
-				//if (!IsValid(WFCWarningWidgetInstance))
-				//{
-				//	UE_LOG(LogTemp, Error, TEXT("Failed to create WFCWarningWidgetInstance"));
-				//	return; // 위젯 생성 실패시 함수 종료
-				//}
+				
 			}
 			else
 			{
@@ -3297,15 +2897,7 @@ void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 	}
 
 
-
-	/*APlayerController* LocalPC = UGameplayStatics::GetPlayerController(World, 0);
-	if (!LocalPC || !WFCWarningWidgetClass)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Cannot show WFC warning: Missing PC or WidgetClass"));
-		return;
-	}*/
-
-	// (3) 새로 생성해서 바로 띄우기
+	// 새로 생성해서 바로 띄우기
 	DelayedWarningWidget = CreateWidget<UUserWidget>(LocalPC, WFCWarningWidgetClass);
 	if (!DelayedWarningWidget)
 	{
@@ -3314,7 +2906,7 @@ void AMyDCharacter::ShowWFCFadeAndRegenSequence()
 	}
 	DelayedWarningWidget->AddToViewport(20);
 
-	// (4) 2초 뒤에 페이드 & 재생성 호출
+	//  2초 뒤에 페이드 & 재생성 호출
 	FTimerHandle TimerHandle;
 	World->GetTimerManager().SetTimer(
 		TimerHandle,
@@ -3329,10 +2921,6 @@ void AMyDCharacter::FadeAndRegenWFC()
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
-	/*if (!World || !IsLocallyControlled())
-	{
-		return;
-	}*/
 
 	APlayerController* LocalPC = nullptr;
 
@@ -3346,8 +2934,8 @@ void AMyDCharacter::FadeAndRegenWFC()
 		}
 	}
 
-	// (5) WFC 완료 위젯 띄우기
-	 // 1) 항상 내 로컬 PC
+	// WFC 완료 위젯 띄우기
+	 // 항상 내 로컬 PC
 	
 	if (WFCDoneWidgetClass && LocalPC)
 	{
@@ -3370,7 +2958,7 @@ void AMyDCharacter::FadeAndRegenWFC()
 		);
 	}
 
-	// (6) 실제 WFC 재생성 로직
+	//  실제 WFC 재생성 로직
 	bool bPlayerInFixedRoom = IsPlayerInFixedRoomTile();
 	if (bPlayerInFixedRoom)
 	{
@@ -3379,7 +2967,7 @@ void AMyDCharacter::FadeAndRegenWFC()
 	}
 
 
-	// (7) 0.5초 뒤에 맵 재생성
+	//  0.1초 뒤에 맵 재생성
 	FTimerHandle RegenHandle;
 	World->GetTimerManager().SetTimer(
 		RegenHandle,
@@ -3514,23 +3102,12 @@ void AMyDCharacter::ServerPlayWFCRegenEffects_Implementation()
 void AMyDCharacter::MulticastPlayWFCRegenEffects_Implementation()
 {
 
-	////if (IsLocallyControlled())
-	////{
-	//	// 모든 인스턴스에서 실행
-	//	PlayWFCRegenCameraShake();
-	//	//if (IsLocallyControlled())
-	//	
-	//		TriggerDelayedWFC();
-	//	//}
+	
 
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	/*if (bIsWFCCountdownActive)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("WFC already in progress, ignoring duplicate call"));
-		return;
-	}*/
+	
 
 	// 각 클라이언트에서 자신의 로컬 플레이어 컨트롤러 찾기
 	APlayerController* LocalPC = nullptr;
@@ -3744,10 +3321,6 @@ void AMyDCharacter::ExecuteCurseSpell(FVector TargetLocation)
 	FVector EffectLocation = bHit ? Hit.Location : End;
 	MulticastPlayCurseEffect(Start, EffectLocation, HitActor);
 }
-
-// =========================
-// Multicast RPC 구현부
-// =========================
 
 void AMyDCharacter::MulticastPlaySpellCastAnimation_Implementation()
 {
@@ -4093,14 +3666,6 @@ void AMyDCharacter::ExecuteEscape()
 		}
 	}
 
-	// 5. Seamless Travel 사용
-	//APlayerController* PC = Cast<APlayerController>(GetController());
-	//if (PC && IsLocallyControlled())
-	//{
-	//	// Seamless Travel - TRAVEL_Relative 사용
-	//	PC->ClientTravel(TEXT("/Game/Maps/LobbyMap"), ETravelType::TRAVEL_Relative);
-	//}
-
 	// 서버에 탈출 요청
 	ServerHandleEscape();
 
@@ -4247,9 +3812,9 @@ void AMyDCharacter::ServerCheckAllPlayersFinished_Implementation()
 		if (UWaveFunctionCollapseSubsystem02* WFC = GetWorld()->GetGameInstance()->GetSubsystem<UWaveFunctionCollapseSubsystem02>())
 		{
 			WFC->ClearTilePrefabPool();   // 풀 액터 Destroy + 컨테이너 비움
-			//WFC->ResetWFCState();         // UserFixedOptions, LastCollapsedTiles 등 내부 상태도 비우는 함수가 있다면 함께 호출
+			
 		}
-
+		
 		// 모든 플레이어를 로비로 이동
 		GetWorld()->ServerTravel("/Game/Maps/LobbyMap?listen");
 	}
@@ -4448,69 +4013,6 @@ void AMyDCharacter::ToggleMapView()
 }
 
 
-//void AMyDCharacter::ToggleMapView()
-//{
-//
-//
-//
-//
-//
-//	if (!FirstPersonCameraComponent) return;
-//
-//	APlayerController* PC = Cast<APlayerController>(GetController());
-//
-//	if (!bIsInOverheadView)
-//	{
-//		// 현재 카메라 위치 저장 (회전 포함)
-//		DefaultCameraLocation = FirstPersonCameraComponent->GetComponentLocation();
-//		DefaultCameraRotation = FirstPersonCameraComponent->GetComponentRotation();
-//
-//		// 맵 전체 보기 시점 설정
-//		FVector OverheadLocation = FVector(15000.0f, 16000.0f, 50500.0f);
-//		FRotator OverheadRotation = FRotator(-90.0f, 0.0f, 0.0f); // 진짜로 수직으로 내려다봄
-//
-//		FirstPersonCameraComponent->SetWorldLocation(OverheadLocation);
-//		FirstPersonCameraComponent->SetWorldRotation(OverheadRotation);
-//
-//		if (PC)
-//		{
-//			PC->SetControlRotation(OverheadRotation); // ← 중요: 컨트롤러 회전도 고정
-//			PC->SetIgnoreLookInput(true);              // 마우스 회전 막기
-//		}
-//
-//		
-//
-//		if (CachedDirectionalLight)
-//		{
-//			CachedDirectionalLight->SetActorHiddenInGame(false);
-//			CachedDirectionalLight->SetEnabled(true);
-//		}
-//
-//		bUseControllerRotationYaw = false;
-//		bIsInOverheadView = true;
-//	}
-//	else
-//	{
-//		// 원래 시점으로 복구
-//		FirstPersonCameraComponent->SetWorldLocation(DefaultCameraLocation);
-//		FirstPersonCameraComponent->SetWorldRotation(DefaultCameraRotation);
-//
-//		if (PC)
-//		{
-//			PC->SetControlRotation(DefaultCameraRotation); // ← 중요: 복구할 때도 같이 설정
-//			PC->SetIgnoreLookInput(false);
-//		}
-//
-//		if (CachedDirectionalLight)
-//		{
-//			CachedDirectionalLight->SetActorHiddenInGame(true);
-//			CachedDirectionalLight->SetEnabled(false);
-//		}
-//
-//		bUseControllerRotationYaw = true;
-//		bIsInOverheadView = false;
-//	}
-//}
 
 
 void AMyDCharacter::ServerToggleTorch_Implementation()
@@ -4556,61 +4058,6 @@ void AMyDCharacter::ToggleTorch()
 		ServerToggleTorch();
 	}
 
-}
-
-void AMyDCharacter::Die()
-{
-	//// 인벤토리 리셋
-	//if (InventoryComponent)
-	//{
-	//	InventoryComponent->ClearInventory();
-	//}
-
-	// 레벨 이동 (예: LobbyMap이라는 이름의 레벨로 전환)
-	//UGameplayStatics::OpenLevel(this, FName("LobbyMap"));
-
-	//if (!IsLocallyControlled()) return;
-
-	////// GameInstance에 플래그 설정
-	//UDynamicDungeonInstance* GameInstance = Cast<UDynamicDungeonInstance>(GetGameInstance());
-	//if (GameInstance)
-	//{
-	//	GameInstance->bIsReturningFromGame = true;
-	//	if (!GameInstance->CurrentCharacterData.PlayerName.IsEmpty())
-	//	{
-	//		GameInstance->bHasValidCharacterData = true;
-	//	}
-	//}
-
-	////// ClientTravel로 개별 이동
-	////APlayerController* PC = Cast<APlayerController>(GetController());
-	////if (PC && IsLocallyControlled())
-	////{
-	////	// Seamless Travel - TRAVEL_Relative 사용
-	////	PC->ClientTravel(TEXT("/Game/Maps/LobbyMap"), ETravelType::TRAVEL_Relative);
-	////}
-
-	//if (HasAuthority())
-	//{
-	//	ServerHandleDeath();
-	//}
-
-	// 캐릭터 제거 (일정 시간 후)
-	/*if (HasAuthority())
-	{
-		FTimerHandle DestroyTimer;
-		GetWorldTimerManager().SetTimer(DestroyTimer, [this]()
-			{
-				if (IsValid(this))
-				{
-					Destroy();
-				}
-			}, 3.0f, false);
-	}*/
-	ExecuteEscape();
-
-	//// 필요시 로그
-	//UE_LOG(LogTemp, Warning, TEXT("Player died. Returning to lobby..."));
 }
 
 void AMyDCharacter::ServerHostTravel_Implementation()
@@ -5259,28 +4706,6 @@ void AMyDCharacter::RestoreDataFromLobby()
 	{
 		EquipmentWidgetInstance->RestoreEquipmentFromData(GameInstance->SavedEquipmentItems);
 		UE_LOG(LogTemp, Warning, TEXT("Restored equipment data"));
-
-		//// 각 장비 아이템을 실제 캐릭터에 장착
-		//for (int32 i = 0; i < GameInstance->SavedEquipmentItems.Num(); ++i)
-		//{
-		//	const FItemData& EquipData = GameInstance->SavedEquipmentItems[i];
-
-		//	if (EquipData.ItemClass)
-		//	{
-		//		if (EquipData.ItemType == EItemType::Weapon && i == EQUIP_SLOT_WEAPON)
-		//		{
-		//			// 무기 장착
-		//			EquipWeaponFromClass(EquipData.ItemClass, static_cast<EWeaponGrade>(EquipData.Grade));
-		//			UE_LOG(LogTemp, Warning, TEXT("Restored weapon: %s"), *EquipData.ItemName);
-		//		}
-		//		else if (EquipData.ItemType == EItemType::Armor)
-		//		{
-		//			// 방어구 장착
-		//			EquipArmorFromClass(i, EquipData.ItemClass, EquipData.Grade);
-		//			UE_LOG(LogTemp, Warning, TEXT("Restored armor to slot %d: %s"), i, *EquipData.ItemName);
-		//		}
-		//	}
-		//}
 		EquipmentWidgetInstance->RefreshEquipmentSlots();
 	}
 
@@ -5347,7 +4772,4 @@ void AMyDCharacter::ServerUsePotion_Implementation(EPotionEffectType PotionType,
 		Stamina = FMath::Clamp(Stamina + Amount, 0.0f, MaxStamina);
 		break;
 	}
-
-	// 네트워크 업데이트 강제
-	//ForceNetUpdate();
 }

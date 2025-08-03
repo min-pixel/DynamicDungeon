@@ -213,7 +213,7 @@ public:
 	void ExecuteHealSpell();
 	void ExecuteCurseSpell(FVector TargetLocation);
 
-	UUSpellBase* TempScrollSpell;
+	
 
 	UPROPERTY(Replicated)
 	float SpeedMultiplier = 1.0f;
@@ -518,10 +518,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
 	TSubclassOf<class UEquipmentWidget> EquipmentWidgetClass;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	TSubclassOf<UUserWidget> CombinedInventoryWidgetClass;
-
-	UUserWidget* CombinedInventoryWidgetInstance;
+	
 
 
 	// 실제 생성된 인스턴스
@@ -550,13 +547,20 @@ public:
 
 	bool IsPlayerInFixedRoomTile();
 
-
+	
 
 	UPROPERTY()
 	AActor* OverlappedActor;
-	FTimerHandle TimerHandle_StartWFC;
+
+	//크래시 방지용 UPROPERTY() 추가 20250803
+
+	UPROPERTY()
 	FTimerHandle TimerHandle_DelayedWFC;
+
+	UPROPERTY()
 	AActor* PendingRegenActor = nullptr;
+
+	UPROPERTY()
 	bool bIsWFCCountdownActive = false;
 
 	void TriggerDelayedWFC();
@@ -605,16 +609,28 @@ public:
 	TSubclassOf<UUserWidget> EscapeDoneWidgetClass;
 
 
+	//크래시 방지용 UPROPERTY() 추가 20250803
 	// Escape 진행 상태
+
+	UPROPERTY()
 	bool bIsEscapeCountdownActive = false;
+
+	UPROPERTY()
 	AActor* PendingEscapeActor = nullptr;
 
+	UPROPERTY()
 	FTimerHandle TimerHandle_DelayedEscapeFade;
+
+	UPROPERTY()
 	FTimerHandle TimerHandle_DelayedEscapeFinal;
 
+	UPROPERTY()
 	FTimerHandle TimerHandle_EscapeProgressUpdate;
 
+	UPROPERTY()
 	float CurrentEscapeTime = 0.0f;
+
+	UPROPERTY()
 	float MaxEscapeTime = 5.0f;
 
 	void UpdateEscapeProgressBar();
@@ -658,11 +674,9 @@ public:
 	void ToggleTorch();
 
 
-	void Die();
+	
 
 	bool bIsInOverheadView = false;
-	FVector DefaultCameraLocation;
-	FRotator DefaultCameraRotation;
 
 	void ToggleMapView();
 
@@ -672,8 +686,8 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (AllowPrivateAccess = "true"))
 	USkeletalMeshComponent* LegsMesh;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Equipment", meta = (AllowPrivateAccess = "true"))
-	USkeletalMeshComponent* HatMesh;
+	
+
 
 	void EquipArmorMesh(int32 SlotIndex, USkeletalMesh* NewMesh, EArmorGrade Grade, UMaterialInterface* SilverMat, UMaterialInterface* GoldMat, AArmor* Armor);
 
@@ -729,9 +743,7 @@ private:
 
 	
 
-	/** 스프링암 (카메라와 메쉬의 독립적인 배치를 위해 사용) */
-	UPROPERTY(VisibleAnywhere, Category = "Camera")
-	class USpringArmComponent* SpringArm;
+	
 
 	/** 오버랩 감지용 콜리전 박스 */
 	UPROPERTY(VisibleAnywhere, Category = "Interaction")
@@ -778,8 +790,7 @@ private:
 	// 현재 공격 가능한 상태인지 (공격 중이 아닐 때만 새로운 공격 입력 가능)
 	bool bIsAttacking = false;
 
-	// 콤보 가능 여부 (애니메이션 도중 특정 타이밍에만 가능)
-	bool bCanCombo = false;
+	
 
 	// 현재 콤보 인덱스
 	int32 AttackComboIndex = 0;
@@ -808,11 +819,10 @@ private:
 	void ResetAttack();
 
 
-	FTimerHandle TimerHandle_Combo; // 콤보 타이밍 활성화 타이머
-	FTimerHandle TimerHandle_Reset; // 공격 종료 타이머
+	
 
-	FTimerHandle TimerHandle_ComboReset;
-	FTimerHandle ComboTimerHandle;
+	
+	FTimerHandle TimerHandle_Reset;
 	FTimerHandle TimerHandle_SprintDrain;
 	FTimerHandle TimerHandle_StaminaRegen;
 	FTimerHandle TimerHandle_StaminaRegenDelay;

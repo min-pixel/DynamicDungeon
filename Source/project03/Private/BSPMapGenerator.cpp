@@ -601,8 +601,14 @@ void ABSPMapGenerator::SpawnTiles()
             FRotator SpawnRotation = FRotator::ZeroRotator;
             TSubclassOf<AActor> TileClass = nullptr;
 
+            // 방 타일은 무조건 goalt01(CorridorCornerClass)로 설정
+            if (TileMap[x][y] == ETileType::Room)
+            {
+                TileClass = CorridorCornerClass;  // goalt01 타일 사용
+            }
+
             // 기존 로직 그대로 (타일 클래스 결정)
-            if (TileMap[x][y] == ETileType::Room || TileMap[x][y] == ETileType::Corridor)
+            else if ( TileMap[x][y] == ETileType::Corridor)
             {
                 bool bHasNorth = (y > 0 && TileMap[x][y - 1] != ETileType::Empty);
                 bool bHasSouth = (y < MapSize.Y - 1 && TileMap[x][y + 1] != ETileType::Empty);
@@ -632,6 +638,8 @@ void ABSPMapGenerator::SpawnTiles()
                     TileClass = CorridorCornerClass;
                 }
             }
+
+            
 
             // 여기서부터 SpawnActor 대신 인스턴싱
             FTransform TileTransform(SpawnRotation, SpawnLocation, FVector(1));
