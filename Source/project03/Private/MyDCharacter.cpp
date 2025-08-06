@@ -2441,7 +2441,7 @@ void AMyDCharacter::GetHit_Implementation(const FHitResult& HitResult, AActor* I
 			}
 		}
 
-		DoRagDoll();
+		//DoRagDoll();
 
 		ToggleMapView();
 
@@ -3735,18 +3735,64 @@ void AMyDCharacter::ServerHandleEscape_Implementation()
 	ClientEnterSpectatorMode();
 
 	
-	//// 캐릭터 제거 (일정 시간 후)
-	 if (HasAuthority())
-	 { 
-		FTimerHandle DestroyTimer;
-		GetWorldTimerManager().SetTimer(DestroyTimer, [this]()
-			{
-				if (IsValid(this))
-				{
-					Destroy();
-				}
-			}, 3.0f, false);
-	 }
+	
+	 // 1. 시각적으로 숨기기
+	SetActorHiddenInGame(true);
+
+	// 2. 물리/충돌 완전 비활성화
+	SetActorEnableCollision(false);
+
+	// 3. Tick 비활성화 (성능)
+	SetActorTickEnabled(false);
+
+	// 4. 움직임 비활성화
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->DisableMovement();
+		GetCharacterMovement()->StopMovementImmediately();
+		GetCharacterMovement()->SetComponentTickEnabled(false);
+	}
+
+	// 5. 메시 충돌 비활성화
+	if (GetMesh())
+	{
+		GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		GetMesh()->SetComponentTickEnabled(false);
+		GetMesh()->SetVisibility(false);
+	}
+
+	// 6. 모든 메시 컴포넌트 비활성화
+	TArray<USkeletalMeshComponent*> MeshComps = {
+		CharacterMesh, BodyMesh, FaceMesh,
+		LegsMeshmetha, TorsoMesh, FeetMesh,
+		ChestMesh, LegsMesh
+	};
+
+	for (USkeletalMeshComponent* MeshComp : MeshComps)
+	{
+		if (MeshComp)
+		{
+			MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			MeshComp->SetVisibility(false);
+			MeshComp->SetComponentTickEnabled(false);
+		}
+	}
+
+	// 7. 헬멧도 비활성화
+	if (HelmetMesh)
+	{
+		HelmetMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		HelmetMesh->SetVisibility(false);
+		HelmetMesh->SetComponentTickEnabled(false);
+	}
+
+	// 8. 인터랙션 박스 비활성화
+	if (InteractionBox)
+	{
+		InteractionBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		InteractionBox->SetComponentTickEnabled(false);
+	}
+
 	// GameMode에서 체크하도록 변경
 	ADynamicDungeonModeBase* GameMode = Cast<ADynamicDungeonModeBase>(GetWorld()->GetAuthGameMode());
 	if (GameMode)
