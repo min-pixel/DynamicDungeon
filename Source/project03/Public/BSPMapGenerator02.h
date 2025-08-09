@@ -36,7 +36,8 @@ enum class ETileType02 : uint8
     Empty,
     Room,
     Corridor,
-    Door
+    Door,
+    BridgeCorridor
 };
 
 UCLASS()
@@ -160,6 +161,12 @@ private:
 
     // 벽 생성 함수
     void SpawnWallsForRoom(TSharedPtr<FBSPNode02> Node, AActor* RoomActor);
+
+    // 문과 복도 사이의 연결을 보장하는 함수
+    void EnsureCorridorConnection(const FIntVector& DoorPos, const FIntVector& Direction, TSharedPtr<FBSPNode02> Node);
+
+    // 단일 복도 타일을 스폰하는 함수 (연결 복도용)
+    void SpawnSingleCorridorTile(const FIntVector& TilePos);
 
     // 복도 연결 방향 확인
     TArray<FString> GetCorridorDirections(TSharedPtr<FBSPNode02> Node);

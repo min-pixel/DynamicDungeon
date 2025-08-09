@@ -423,6 +423,12 @@ void ABSPMapGenerator02::SpawnTiles()
         for (int32 y = 0; y < MapSize.Y; ++y)
         {
             // 방 타일은 이미 처리했으므로 건너뛰기
+            if (TileMap[x][y] == ETileType02::Room) continue;
+            if (TileMap[x][y] == ETileType02::BridgeCorridor)
+            {
+                UE_LOG(LogTemp, Verbose, TEXT("Skipping already spawned bridge corridor at (%d, %d)"), x, y);
+                continue;
+            }
             if (TileMap[x][y] != ETileType02::Corridor) continue;
             if (ProcessedRoomTiles.Contains(FIntVector(x, y, 0))) continue;
 
@@ -655,29 +661,48 @@ void ABSPMapGenerator02::SpawnDoorsForRoom(TSharedPtr<FBSPNode02> Node, AActor* 
         // 방의 실제 크기 (스케일 적용된 크기)
         float HalfSize = TileSize * RoomScale.X / 2.0f;
 
+        // 문 위치와 회전 설정
+        FIntVector DoorTilePos;
+
         if (Direction == "North")
         {
             // 북쪽 문 (Y+ 방향)
             DoorOffset = FVector(0, HalfSize, 0);
             DoorRotation = FRotator(0, 0, 0);
+            DoorTilePos = FIntVector(GetRoomCenter(Node).X, Node->RoomMax.Y-1, 0);
+
+            // 복도 연결 확인 및 생성
+            EnsureCorridorConnection(DoorTilePos, FIntVector(0, 1, 0), Node);
         }
         else if (Direction == "South")
         {
             // 남쪽 문 (Y- 방향)
             DoorOffset = FVector(0, -HalfSize, 0);
             DoorRotation = FRotator(0, 180, 0);
+            DoorTilePos = FIntVector(GetRoomCenter(Node).X, Node->RoomMin.Y, 0);
+
+            // 복도 연결 확인 및 생성
+            EnsureCorridorConnection(DoorTilePos, FIntVector(0, -1, 0), Node);
         }
         else if (Direction == "East")
         {
             // 동쪽 문 (X+ 방향)
             DoorOffset = FVector(HalfSize, 0, 0);
             DoorRotation = FRotator(0, 90, 0);
+            DoorTilePos = FIntVector(Node->RoomMax.X-1, GetRoomCenter(Node).Y, 0);
+
+            // 복도 연결 확인 및 생성
+            EnsureCorridorConnection(DoorTilePos, FIntVector(1, 0, 0), Node);
         }
         else if (Direction == "West")
         {
             // 서쪽 문 (X- 방향)
             DoorOffset = FVector(-HalfSize, 0, 0);
             DoorRotation = FRotator(0, -90, 0);
+            DoorTilePos = FIntVector(Node->RoomMin.X, GetRoomCenter(Node).Y, 0);
+
+            // 복도 연결 확인 및 생성
+            EnsureCorridorConnection(DoorTilePos, FIntVector(-1, 0, 0), Node);
         }
 
         // 문 스폰
@@ -834,5 +859,58 @@ void ABSPMapGenerator02::SpawnWallsForRoom(TSharedPtr<FBSPNode02> Node, AActor* 
             UE_LOG(LogTemp, Verbose, TEXT("Spawned wall at %s direction for room at (%f, %f)"),
                 *Direction, RoomLocation.X / TileSize, RoomLocation.Y / TileSize);
         }
+    }
+}
+
+void ABSPMapGenerator02::EnsureCorridorConnection(const FIntVector& DoorPos, const FIntVector& Direction, TSharedPtr<FBSPNode02> Node)
+{
+    // 문 위치에서 Direction 방향으로 1칸 위치
+    FIntVector CorridorPos = DoorPos + Direction;
+
+    // 맵 범위 확인
+    if (CorridorPos.X < 0 || CorridorPos.X >= MapSize.X ||
+        CorridorPos.Y < 0 || CorridorPos.Y >= MapSize.Y)
+    {
+        return;
+    }
+
+    // 해당 위치가 비어있으면 복도 생성
+    if (TileMap[CorridorPos.X][CorridorPos.Y] == ETileType02::Empty)
+    {
+        // 타일맵에 복도 표시
+        TileMap[CorridorPos.X][CorridorPos.Y] = ETileType02::BridgeCorridor;
+
+        // 복도 타일 즉시 스폰
+        SpawnSingleCorridorTile(CorridorPos);
+
+        UE_LOG(LogTemp, Warning, TEXT("Created bridge BridgeCorridor at (%d, %d) for door connection"),
+            CorridorPos.X, CorridorPos.Y);
+    }
+    // 이미 복도나 방이 있으면 아무것도 안 함 (정상적으로 연결됨)
+}
+
+// 단일 복도 타일 스폰 함수 (새로 추가된 연결 복도용)
+void ABSPMapGenerator02::SpawnSingleCorridorTile(const FIntVector& TilePos)
+{
+    UWorld* World = GetWorld();
+    if (!World || !CorridorCornerClass) return;
+
+    FVector SpawnLocation = FVector(TilePos.X * TileSize, TilePos.Y * TileSize, 0);
+    FRotator SpawnRotation = FRotator::ZeroRotator;
+
+    // 연결 복도는 항상 CorridorCornerClass(goalt01) 사용
+    // 모든 방향과 연결 가능하므로 가장 안전함
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+    AActor* SpawnedTile = World->SpawnActor<AActor>(CorridorCornerClass, SpawnLocation, SpawnRotation, SpawnParams);
+    if (SpawnedTile)
+    {
+        SpawnedTile->Tags.Add("BSPGenerated");
+        SpawnedTile->Tags.Add("BridgeCorridor"); // 연결 복도임을 표시
+
+        UE_LOG(LogTemp, Verbose, TEXT("Spawned bridge corridor (corner tile) at (%d, %d)"),
+            TilePos.X, TilePos.Y);
     }
 }
