@@ -103,6 +103,22 @@ public:
     UPROPERTY(EditAnywhere, Category = "Tiles")
     TSubclassOf<AActor> CorridorCornerClass;
 
+    // 추가 연결 설정
+    UPROPERTY(EditAnywhere, Category = "Maze Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float ExtraConnectionChance = 0.3f;  // 추가 연결 생성 확률
+
+    UPROPERTY(EditAnywhere, Category = "Maze Settings", meta = (ClampMin = "0", ClampMax = "20"))
+    int32 MinExtraConnections = 3;  // 최소 추가 연결 수
+
+    UPROPERTY(EditAnywhere, Category = "Maze Settings", meta = (ClampMin = "0", ClampMax = "50"))
+    int32 MaxExtraConnections = 10;  // 최대 추가 연결 수
+
+    UPROPERTY(EditAnywhere, Category = "Maze Settings")
+    float MaxConnectionDistance = 20.0f;  // 추가 연결 최대 거리 (타일 단위)
+
+    UPROPERTY(EditAnywhere, Category = "Maze Settings")
+    bool bCreateLoops = true;  // 순환 경로 생성 여부
+
     UFUNCTION(BlueprintCallable, Category = "BSP")
     void GenerateBSPMap();
 
@@ -170,4 +186,15 @@ private:
 
     // 복도 연결 방향 확인
     TArray<FString> GetCorridorDirections(TSharedPtr<FBSPNode02> Node);
+
+    // 추가 연결 생성 함수
+    void CreateExtraConnections();
+
+    void CreateZigzagCorridor(const FIntVector& Start, const FIntVector& End);
+
+    // 두 방 사이의 거리가 적절한지 확인
+    bool IsValidConnectionDistance(int32 RoomA, int32 RoomB);
+
+    // 복도가 이미 존재하는지 확인 (중복 방지)
+    bool CorridorExists(const FIntVector& Start, const FIntVector& End);
 };

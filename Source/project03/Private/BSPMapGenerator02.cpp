@@ -68,6 +68,13 @@ void ABSPMapGenerator02::GenerateBSPMap()
     // 방 연결
     ConnectRooms();
 
+    // 추가 연결 생성 (미로 복잡도 증가)
+    if (bCreateLoops)
+    {
+        CreateExtraConnections();
+    }
+
+
     // 타일 스폰
     SpawnTiles();
 
@@ -889,7 +896,7 @@ void ABSPMapGenerator02::EnsureCorridorConnection(const FIntVector& DoorPos, con
     // 이미 복도나 방이 있으면 아무것도 안 함 (정상적으로 연결됨)
 }
 
-// 단일 복도 타일 스폰 함수 (새로 추가된 연결 복도용)
+// 단일 복도 타일 스폰 함수
 void ABSPMapGenerator02::SpawnSingleCorridorTile(const FIntVector& TilePos)
 {
     UWorld* World = GetWorld();
@@ -913,4 +920,154 @@ void ABSPMapGenerator02::SpawnSingleCorridorTile(const FIntVector& TilePos)
         UE_LOG(LogTemp, Verbose, TEXT("Spawned bridge corridor (corner tile) at (%d, %d)"),
             TilePos.X, TilePos.Y);
     }
+}
+
+void ABSPMapGenerator02::CreateExtraConnections()
+{
+    if (LeafNodes.Num() < 3) return;  // 방이 3개 미만이면 추가 연결 불필요
+
+    int32 ConnectionsAdded = 0;
+    int32 TargetConnections = RandomStream.RandRange(MinExtraConnections, MaxExtraConnections);
+
+    UE_LOG(LogTemp, Warning, TEXT("Creating extra connections. Target: %d"), TargetConnections);
+
+    // 모든 방 쌍에 대해 검토
+    TArray<TPair<int32, int32>> PotentialConnections;
+
+    for (int32 i = 0; i < LeafNodes.Num(); ++i)
+    {
+        for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
+        {
+            // 거리가 적절한 방들만 후보로 추가
+            if (IsValidConnectionDistance(i, j))
+            {
+                PotentialConnections.Add(TPair<int32, int32>(i, j));
+            }
+        }
+    }
+
+    // 후보들을 섞어서 랜덤하게 선택
+    for (int32 i = PotentialConnections.Num() - 1; i > 0; --i)
+    {
+        int32 j = RandomStream.RandRange(0, i);
+        PotentialConnections.Swap(i, j);
+    }
+
+    // 추가 연결 생성
+    for (const auto& Connection : PotentialConnections)
+    {
+        if (ConnectionsAdded >= TargetConnections)
+        {
+            break;
+        }
+
+        // 확률적으로 연결 생성
+        if (RandomStream.FRand() < ExtraConnectionChance)
+        {
+            TSharedPtr<FBSPNode02> NodeA = LeafNodes[Connection.Key];
+            TSharedPtr<FBSPNode02> NodeB = LeafNodes[Connection.Value];
+
+            FIntVector CenterA = GetRoomCenter(NodeA);
+            FIntVector CenterB = GetRoomCenter(NodeB);
+
+            // 이미 복도가 존재하는지 확인
+            if (!CorridorExists(CenterA, CenterB))
+            {
+                // 다양한 복도 스타일 중 랜덤 선택
+                float CorridorStyle = RandomStream.FRand();
+
+                if (CorridorStyle < 0.5f)
+                {
+                    // L자 복도 (기존 스타일)
+                    CreateLShapedCorridor(CenterA, CenterB);
+                }
+                else if (CorridorStyle < 0.8f)
+                {
+                    // 역 L자 복도 (반대 방향)
+                    CreateLShapedCorridor(CenterB, CenterA);
+                }
+                else
+                {
+                    // 지그재그 복도 (더 복잡한 경로)
+                    CreateZigzagCorridor(CenterA, CenterB);
+                }
+
+                ConnectionsAdded++;
+
+                UE_LOG(LogTemp, Verbose, TEXT("Added extra connection %d between room %d and %d"),
+                    ConnectionsAdded, Connection.Key, Connection.Value);
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections for maze complexity"), ConnectionsAdded);
+}
+
+// 두 방 사이의 거리가 적절한지 확인
+bool ABSPMapGenerator02::IsValidConnectionDistance(int32 RoomA, int32 RoomB)
+{
+    if (RoomA < 0 || RoomA >= LeafNodes.Num() ||
+        RoomB < 0 || RoomB >= LeafNodes.Num())
+    {
+        return false;
+    }
+
+    FIntVector CenterA = GetRoomCenter(LeafNodes[RoomA]);
+    FIntVector CenterB = GetRoomCenter(LeafNodes[RoomB]);
+
+    float Distance = FVector::Dist(FVector(CenterA), FVector(CenterB));
+
+    // 너무 가깝거나 너무 먼 방은 제외
+    return Distance > 5.0f && Distance < MaxConnectionDistance;
+}
+
+// 복도가 이미 존재하는지 확인
+bool ABSPMapGenerator02::CorridorExists(const FIntVector& Start, const FIntVector& End)
+{
+    // 두 방 사이의 직선 경로상에 이미 복도가 많이 있는지 체크
+    int32 CorridorCount = 0;
+    int32 CheckPoints = 5;  // 5개 지점만 샘플링
+
+    for (int32 i = 1; i < CheckPoints; ++i)
+    {
+        float t = (float)i / (float)CheckPoints;
+        int32 CheckX = FMath::Lerp(Start.X, End.X, t);
+        int32 CheckY = FMath::Lerp(Start.Y, End.Y, t);
+
+        if (CheckX >= 0 && CheckX < MapSize.X &&
+            CheckY >= 0 && CheckY < MapSize.Y)
+        {
+            if (TileMap[CheckX][CheckY] == ETileType02::Corridor ||
+                TileMap[CheckX][CheckY] == ETileType02::BridgeCorridor)
+            {
+                CorridorCount++;
+            }
+        }
+    }
+
+    // 이미 절반 이상이 복도면 연결되어 있다고 판단
+    return CorridorCount > CheckPoints / 2;
+}
+
+// 지그재그 복도 생성
+void ABSPMapGenerator02::CreateZigzagCorridor(const FIntVector& Start, const FIntVector& End)
+{
+    // 중간 지점 계산
+    int32 MidX = (Start.X + End.X) / 2;
+    int32 MidY = (Start.Y + End.Y) / 2;
+
+    // 랜덤 오프셋 추가
+    int32 OffsetRange = 3;
+    MidX += RandomStream.RandRange(-OffsetRange, OffsetRange);
+    MidY += RandomStream.RandRange(-OffsetRange, OffsetRange);
+
+    // 맵 범위 제한
+    MidX = FMath::Clamp(MidX, 0, MapSize.X - 1);
+    MidY = FMath::Clamp(MidY, 0, MapSize.Y - 1);
+
+    FIntVector MidPoint(MidX, MidY, 0);
+
+    // Start -> Mid -> End 경로 생성
+    CreateLShapedCorridor(Start, MidPoint);
+    CreateLShapedCorridor(MidPoint, End);
 }
