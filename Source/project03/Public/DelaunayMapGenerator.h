@@ -123,7 +123,7 @@ public:
     UPROPERTY(EditAnywhere, Category = "Map Settings")
     float TileSize = 500.0f;
 
-    UPROPERTY(EditAnywhere, Category = "Map Settings", meta = (ClampMin = "0.0", ClampMax = "0.5"))
+    UPROPERTY(EditAnywhere, Category = "Map Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float ExtraConnectionRatio = 0.15f;
 
     UPROPERTY(EditAnywhere, Category = "Map Settings")

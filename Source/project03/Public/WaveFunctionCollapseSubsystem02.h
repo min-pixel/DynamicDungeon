@@ -152,6 +152,16 @@ public:
 		const FIntVector& Resolution);
 
 
+	// ========== 방 개수 설정 ==========
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFC Room Settings")
+	int32 MinRoomCount = 15;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFC Room Settings")
+	int32 MaxRoomCount = 15;
+
+	void SimpleRoomCountControl(TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+	void ReplaceRoomWithGoaltTiles(int32 RoomIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles);
+
 
 	/**
 	* Solve a grid using a WFC model.  If successful, spawn an actor.

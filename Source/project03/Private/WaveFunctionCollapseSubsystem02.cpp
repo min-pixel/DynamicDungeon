@@ -167,7 +167,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		RemoveIsolatedCorridorTiles(Tiles);
 		RemoveDisconnectedCorridors(Tiles);
 		
-
+		
 		
 		// 루프 내부에서 SelectedOption 및 TileIndex를 참조
 		for (int32 TileIndex = 0; TileIndex < Tiles.Num(); ++TileIndex)
@@ -381,6 +381,9 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 			UE_LOG(LogTemp, Warning, TEXT("[WFC] Room Tile timer end (1.5): %.3f SESESE"), TileLoopEnd - TileLoopStart);
 
 		}
+
+		//20250815
+		SimpleRoomCountControl(Tiles);
 
 		// ========== ConnectIsolatedRooms ==========   병목의 주 원인, 해결책: ...
 		double ConnectStart = FPlatformTime::Seconds();
@@ -5078,4 +5081,184 @@ void UWaveFunctionCollapseSubsystem02::ClearTilePrefabPool()
 	UserFixedOptions.Empty();
 	bHasCachedTiles = false;
 	bWFCCompleted = false;
+}
+
+void UWaveFunctionCollapseSubsystem02::SimpleRoomCountControl(TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+{
+	// 현재 방 개수 세기
+	int32 CurrentRooms = 0;
+	TArray<int32> RoomIndices;
+
+	for (int32 i = 0; i < Tiles.Num(); ++i)
+	{
+		if (Tiles[i].RemainingOptions.Num() == 1 &&
+			Tiles[i].RemainingOptions[0].bIsRoomTile)
+		{
+			CurrentRooms++;
+			RoomIndices.Add(i);
+		}
+	}
+
+	// 목표 방 개수 정하기
+	int32 TargetRooms = FMath::RandRange(MinRoomCount, MaxRoomCount);
+
+	UE_LOG(LogWFC, Warning, TEXT("Room Control: Current=%d, Target=%d"), CurrentRooms, TargetRooms);
+
+	// === 방이 부족하면 추가 ===
+	if (CurrentRooms < TargetRooms)
+	{
+		int32 RoomsToAdd = TargetRooms - CurrentRooms;
+		TArray<int32> EmptyTiles;
+
+		// 비어있는 타일 찾기
+		for (int32 i = 0; i < Tiles.Num(); ++i)
+		{
+			if (Tiles[i].RemainingOptions.IsEmpty() ||
+				(Tiles[i].RemainingOptions.Num() == 1 &&
+					Tiles[i].RemainingOptions[0].BaseObject.ToString().Contains("Option_Empty")))
+			{
+				// 가장자리는 피하기
+				FIntVector Pos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(i, Resolution);
+				if (Pos.X > 5 && Pos.X < Resolution.X - 5 && Pos.Y > 5 && Pos.Y < Resolution.Y - 5)
+				{
+					EmptyTiles.Add(i);
+				}
+			}
+		}
+
+		// 랜덤하게 방 추가
+		for (int32 i = 0; i < RoomsToAdd && EmptyTiles.Num() > 0; ++i)
+		{
+			int32 RandomIndex = FMath::RandRange(0, EmptyTiles.Num() - 1);
+			int32 TileIndex = EmptyTiles[RandomIndex];
+			EmptyTiles.RemoveAt(RandomIndex);
+
+			// 방 타일로 바꾸기
+			FWaveFunctionCollapseOptionCustom RoomOption(TEXT("/Game/BP/BSP/romm.romm"));
+			RoomOption.bIsRoomTile = true;
+			RoomOption.bIsCorridorTile = false;
+			RoomOption.BaseScale3D = FVector(3.0f);
+
+			Tiles[TileIndex].RemainingOptions.Empty();
+			Tiles[TileIndex].RemainingOptions.Add(RoomOption);
+
+			UE_LOG(LogWFC, Log, TEXT("Added room at index %d"), TileIndex);
+		}
+	}
+
+	// === 방이 너무 많으면 제거 ===
+	else if (CurrentRooms > TargetRooms)
+	{
+		int32 RoomsToRemove = CurrentRooms - TargetRooms;
+
+		// 맵 가장자리부터 제거
+		FVector MapCenter = FVector(Resolution.X / 2, Resolution.Y / 2, 0);
+
+		RoomIndices.Sort([this, MapCenter](const int32& A, const int32& B) {
+			FVector PosA = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(A, Resolution));
+			FVector PosB = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(B, Resolution));
+
+			float DistA = FVector::DistSquared(PosA, MapCenter);
+			float DistB = FVector::DistSquared(PosB, MapCenter);
+
+			return DistA > DistB; // 멀리 있는 것부터
+			});
+
+		for (int32 i = 0; i < RoomsToRemove && i < RoomIndices.Num(); ++i)
+		{
+			int32 TileIndex = RoomIndices[i];
+
+			// 고정된 방은 건드리지 않기
+			FIntVector GridPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+			if (UserFixedOptions.Contains(GridPos)) continue;
+
+			// Empty 타일로 바꾸기
+			FWaveFunctionCollapseOptionCustom EmptyOption(TEXT("/Game/WFCCORE/wfc/SpecialOption/Option_Empty.Option_Empty"));
+			Tiles[TileIndex].RemainingOptions.Empty();
+			Tiles[TileIndex].RemainingOptions.Add(EmptyOption);
+
+			UE_LOG(LogWFC, Log, TEXT("Removed room at index %d"), TileIndex);
+		}
+	}
+
+	//// === 방이 너무 많으면 goalt01로 대체 ===
+	//else if (CurrentRooms > TargetRooms)
+	//{
+	//	int32 RoomsToRemove = CurrentRooms - TargetRooms;
+
+	//	// 맵 가장자리부터 제거
+	//	FVector MapCenter = FVector(Resolution.X / 2, Resolution.Y / 2, 0);
+
+	//	RoomIndices.Sort([this, MapCenter](const int32& A, const int32& B) {
+	//		FVector PosA = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(A, Resolution));
+	//		FVector PosB = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(B, Resolution));
+
+	//		float DistA = FVector::DistSquared(PosA, MapCenter);
+	//		float DistB = FVector::DistSquared(PosB, MapCenter);
+
+	//		return DistA > DistB; // 멀리 있는 것부터
+	//		});
+
+	//	for (int32 i = 0; i < RoomsToRemove && i < RoomIndices.Num(); ++i)
+	//	{
+	//		int32 TileIndex = RoomIndices[i];
+
+	//		// 고정된 방은 건드리지 않기
+	//		FIntVector GridPos = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution);
+	//		if (UserFixedOptions.Contains(GridPos)) continue;
+
+	//		// 방 타일을 3x3 goalt01 타일로 대체
+	//		ReplaceRoomWithGoaltTiles(TileIndex, Tiles);
+	//	}
+	//}
+
+	// 최종 방 개수 확인
+	int32 FinalRooms = 0;
+	for (const auto& Tile : Tiles)
+	{
+		if (Tile.RemainingOptions.Num() == 1 && Tile.RemainingOptions[0].bIsRoomTile)
+		{
+			FinalRooms++;
+		}
+	}
+
+	UE_LOG(LogWFC, Warning, TEXT("Final room count: %d"), FinalRooms);
+}
+
+
+void UWaveFunctionCollapseSubsystem02::ReplaceRoomWithGoaltTiles(int32 RoomIndex, TArray<FWaveFunctionCollapseTileCustom>& Tiles)
+{
+	// 방 타일의 중심 위치
+	FIntVector RoomCenter = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(RoomIndex, Resolution);
+
+	// 3x3 영역 설정 (방 타일이 차지하는 공간)
+	for (int32 dx = -1; dx <= 1; ++dx)
+	{
+		for (int32 dy = -1; dy <= 1; ++dy)
+		{
+			FIntVector TilePos = RoomCenter + FIntVector(dx, dy, 0);
+
+			// 유효한 위치인지 확인
+			if (TilePos.X >= 0 && TilePos.X < Resolution.X &&
+				TilePos.Y >= 0 && TilePos.Y < Resolution.Y)
+			{
+				int32 TileIndex = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(TilePos, Resolution);
+
+				if (Tiles.IsValidIndex(TileIndex))
+				{
+					// goalt01 타일로 대체
+					FWaveFunctionCollapseOptionCustom GoaltOption(TEXT("/Game/BP/goalt01.goalt01"));
+					GoaltOption.bIsCorridorTile = true;
+					GoaltOption.bIsRoomTile = false;
+
+					Tiles[TileIndex].RemainingOptions.Empty();
+					Tiles[TileIndex].RemainingOptions.Add(GoaltOption);
+					Tiles[TileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
+						Tiles[TileIndex].RemainingOptions, WFCModel);
+				}
+			}
+		}
+	}
+
+	UE_LOG(LogWFC, Log, TEXT("Replaced room at index %d with 3x3 goalt01 tiles"), RoomIndex);
 }

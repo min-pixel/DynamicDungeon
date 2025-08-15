@@ -69,7 +69,12 @@ void Awfcex::BeginPlay()
         /*UE_LOG(LogTemp, Warning, TEXT("=== EXPERIMENT %d/50 - SEED: %d ==="),
             CurrentExperimentIndex + 1, EXPERIMENT_SEED);*/
 
-        
+        UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem();
+        if (WFCSubsystem)
+        {
+            WFCSubsystem->MinRoomCount = 15;  
+            WFCSubsystem->MaxRoomCount = 15;  
+        }
        
         const double StartTime = FPlatformTime::Seconds();
 
@@ -91,10 +96,10 @@ void Awfcex::BeginPlay()
         bExperimentCompleted = true;*/
 
         //풀링
-        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        /*if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
         {
             WFCSubsystem->PrepareTilePrefabPool(GetWorld());
-        }
+        }*/
 
 
 
@@ -110,10 +115,15 @@ void Awfcex::BeginPlay()
         
 
         // WFC 완료 플래그 설정
-        if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        //if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())
+        //{
+        //    WFCSubsystem->bWFCCompleted = true;
+        //    UE_LOG(LogTemp, Log, TEXT("WFC completed, players can now spawn"));
+        //}
+
+        if (WFCSubsystem) 
         {
             WFCSubsystem->bWFCCompleted = true;
-            UE_LOG(LogTemp, Log, TEXT("WFC completed, players can now spawn"));
         }
 
     }
