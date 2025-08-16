@@ -37,7 +37,43 @@ enum class ETileType02 : uint8
     Room,
     Corridor,
     Door,
-    BridgeCorridor
+    BridgeCorridor,
+    DeadEnd,        // 막다른 길 추가
+    Junction,       // 갈림길 추가
+    CrossRoad       // 교차로 추가
+};
+
+// 맵 통계 구조체 추가
+USTRUCT(BlueprintType)
+struct FMapStatistics
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 RoomCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 CorridorCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 DeadEndCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 JunctionCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 CrossRoadCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 DoorCount = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    float TotalCorridorLength = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    float AverageRoomSize = 0;
+
+    FMapStatistics() {}
 };
 
 UCLASS()
@@ -103,6 +139,16 @@ public:
     UPROPERTY(EditAnywhere, Category = "Tiles")
     TSubclassOf<AActor> CorridorCornerClass;
 
+    //20250816
+    UPROPERTY(EditAnywhere, Category = "Tiles")
+    TSubclassOf<AActor> DeadEndClass;
+
+    UPROPERTY(EditAnywhere, Category = "Tiles")
+    TSubclassOf<AActor> JunctionClass;
+
+    UPROPERTY(EditAnywhere, Category = "Tiles")
+    TSubclassOf<AActor> CrossRoadClass;
+
     // 추가 연결 설정
     UPROPERTY(EditAnywhere, Category = "Maze Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))
     float ExtraConnectionChance = 0.3f;  // 추가 연결 생성 확률
@@ -119,11 +165,37 @@ public:
     UPROPERTY(EditAnywhere, Category = "Maze Settings")
     bool bCreateLoops = true;  // 순환 경로 생성 여부
 
+    // 통계 표시 옵션
+    UPROPERTY(EditAnywhere, Category = "Debug")
+    bool bShowStatistics = true;
+
+    // 맵 통계 (읽기 전용)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Statistics")
+    FMapStatistics MapStats;
+
+
     UFUNCTION(BlueprintCallable, Category = "BSP")
     void GenerateBSPMap();
 
     UFUNCTION(BlueprintCallable, Category = "BSP")
     void ClearMap();
+
+    // 통계 관련 함수 20250816
+    UFUNCTION(BlueprintCallable, Category = "Statistics")
+    FMapStatistics AnalyzeMap();
+
+    UFUNCTION(BlueprintCallable, Category = "Statistics")
+    void PrintMapStatistics();
+
+    UFUNCTION(BlueprintCallable, Category = "Statistics")
+    int32 GetDeadEndCount() const { return MapStats.DeadEndCount; }
+
+    UFUNCTION(BlueprintCallable, Category = "Statistics")
+    int32 GetJunctionCount() const { return MapStats.JunctionCount; }
+
+    UFUNCTION(BlueprintCallable, Category = "Statistics")
+    int32 GetRoomCount() const { return MapStats.RoomCount; }
+
 
 protected:
     virtual void BeginPlay() override;
@@ -197,4 +269,11 @@ private:
 
     // 복도가 이미 존재하는지 확인 (중복 방지)
     bool CorridorExists(const FIntVector& Start, const FIntVector& End);
+
+    //20250816
+    void AnalyzeCorridorTypes();
+    int32 CountConnections(int32 x, int32 y);
+    ETileType02 DetermineCorridorType(int32 x, int32 y);
+    bool IsCorridorTile(int32 x, int32 y);
+    void DrawDebugVisualization();
 };
