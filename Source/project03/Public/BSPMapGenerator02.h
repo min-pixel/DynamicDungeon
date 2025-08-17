@@ -201,6 +201,40 @@ protected:
     virtual void BeginPlay() override;
 
 private:
+
+    // 그래프 분석용 구조체
+    struct GraphNode
+    {
+        FIntVector Position;
+        ETileType02 Type;
+        TArray<int32> Edges; // 연결된 다른 노드들의 인덱스
+        int32 RoomId; // 방인 경우 어느 방에 속하는지 (-1이면 방 아님)
+    };
+
+    struct GraphEdge
+    {
+        int32 StartNode;
+        int32 EndNode;
+        int32 Length; // 복도 길이
+        TArray<FIntVector> Path;
+    };
+
+    // 그래프 분석 함수들
+    void BuildGraphFromMap();
+    void CalculateCyclomaticComplexity();
+    int32 CountGraphComponents();
+    void DFSComponent(int32 NodeIndex, TArray<bool>& Visited);
+    bool IsNodeTile(int32 x, int32 y);
+    FIntVector FindRoomCenter(int32 RoomId);
+    bool FindCorridorPath(const FIntVector& Start, const FIntVector& End, TArray<FIntVector>& OutPath);
+
+
+    // 그래프 데이터
+    TArray<GraphNode> GraphNodes;
+    TArray<GraphEdge> GraphEdges;
+    TMap<FIntVector, int32> NodePositionToIndex;
+
+
     TSharedPtr<FBSPNode02> RootNode;
     TArray<TSharedPtr<FBSPNode02>> LeafNodes;
     TArray<TArray<ETileType02>> TileMap;
