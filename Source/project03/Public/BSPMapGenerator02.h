@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "DungeonGraphAnalyzer.h"
 #include "BSPMapGenerator02.generated.h"
 
 USTRUCT()
@@ -196,6 +197,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Statistics")
     int32 GetRoomCount() const { return MapStats.RoomCount; }
 
+    // 그래프 분석기
+    UPROPERTY()
+    UDungeonGraphAnalyzer* GraphAnalyzer;
 
 protected:
     virtual void BeginPlay() override;
@@ -227,7 +231,13 @@ private:
     bool IsNodeTile(int32 x, int32 y);
     FIntVector FindRoomCenter(int32 RoomId);
     bool FindCorridorPath(const FIntVector& Start, const FIntVector& End, TArray<FIntVector>& OutPath);
+    TArray<TPair<int32, int32>> ExtraConnectionPairs;
 
+    bool IsGraphPassable(int32 x, int32 y) const;
+
+    void CleanupParallelCorridors();
+
+    bool WouldCreateLongParallel(const FIntVector& Start, const FIntVector& End, float Tolerance);
 
     // 그래프 데이터
     TArray<GraphNode> GraphNodes;

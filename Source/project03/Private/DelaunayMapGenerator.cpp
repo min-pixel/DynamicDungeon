@@ -485,36 +485,74 @@ void ADelaunayMapGenerator::UnionNodes(TArray<int32>& Parent, int32 Node1, int32
 }
 
 // ========== 4단계: 추가 연결 ==========
+//void ADelaunayMapGenerator::AddExtraConnections()
+//{
+//    AllConnections = MST;
+//
+//    // 드로네에서 MST에 없는 간선들 수집
+//    TArray<FDelaunayEdge> CandidateEdges;
+//
+//    for (const FDelaunayTriangle& Tri : Triangles)
+//    {
+//        FDelaunayEdge E1(Tri.V1, Tri.V2, GetDistance2D(RoomPoints[Tri.V1], RoomPoints[Tri.V2]));
+//        FDelaunayEdge E2(Tri.V2, Tri.V3, GetDistance2D(RoomPoints[Tri.V2], RoomPoints[Tri.V3]));
+//        FDelaunayEdge E3(Tri.V3, Tri.V1, GetDistance2D(RoomPoints[Tri.V3], RoomPoints[Tri.V1]));
+//
+//        if (!MST.Contains(E1)) CandidateEdges.AddUnique(E1);
+//        if (!MST.Contains(E2)) CandidateEdges.AddUnique(E2);
+//        if (!MST.Contains(E3)) CandidateEdges.AddUnique(E3);
+//    }
+//
+//    // 랜덤하게 추가 연결 선택
+//    int32 ExtraCount = FMath::RoundToInt(MST.Num() * ExtraConnectionRatio);
+//
+//    for (int32 i = 0; i < ExtraCount && CandidateEdges.Num() > 0; i++)
+//    {
+//        int32 RandomIndex = RandomStream.RandRange(0, CandidateEdges.Num() - 1);
+//        AllConnections.Add(CandidateEdges[RandomIndex]);
+//        CandidateEdges.RemoveAt(RandomIndex);
+//    }
+//
+//    UE_LOG(LogTemp, Warning, TEXT("Added %d extra connections (total: %d)"),
+//        AllConnections.Num() - MST.Num(), AllConnections.Num());
+//}
+
 void ADelaunayMapGenerator::AddExtraConnections()
 {
     AllConnections = MST;
 
     // 드로네에서 MST에 없는 간선들 수집
     TArray<FDelaunayEdge> CandidateEdges;
+    CandidateEdges.Reserve(Triangles.Num() * 3);
+
+    auto AddIfNotInMST = [&](int32 A, int32 B)
+        {
+            const FDelaunayEdge E(A, B, GetDistance2D(RoomPoints[A], RoomPoints[B]));
+            if (!MST.Contains(E)) CandidateEdges.AddUnique(E);
+        };
 
     for (const FDelaunayTriangle& Tri : Triangles)
     {
-        FDelaunayEdge E1(Tri.V1, Tri.V2, GetDistance2D(RoomPoints[Tri.V1], RoomPoints[Tri.V2]));
-        FDelaunayEdge E2(Tri.V2, Tri.V3, GetDistance2D(RoomPoints[Tri.V2], RoomPoints[Tri.V3]));
-        FDelaunayEdge E3(Tri.V3, Tri.V1, GetDistance2D(RoomPoints[Tri.V3], RoomPoints[Tri.V1]));
-
-        if (!MST.Contains(E1)) CandidateEdges.AddUnique(E1);
-        if (!MST.Contains(E2)) CandidateEdges.AddUnique(E2);
-        if (!MST.Contains(E3)) CandidateEdges.AddUnique(E3);
+        AddIfNotInMST(Tri.V1, Tri.V2);
+        AddIfNotInMST(Tri.V2, Tri.V3);
+        AddIfNotInMST(Tri.V3, Tri.V1);
     }
 
-    // 랜덤하게 추가 연결 선택
-    int32 ExtraCount = FMath::RoundToInt(MST.Num() * ExtraConnectionRatio);
+    const int32 OriginalCandidates = CandidateEdges.Num();
 
-    for (int32 i = 0; i < ExtraCount && CandidateEdges.Num() > 0; i++)
+    // ? 후보 간선 수 × 비율
+    int32 ExtraCount = FMath::RoundToInt(CandidateEdges.Num() * ExtraConnectionRatio);
+    ExtraCount = FMath::Clamp(ExtraCount, 0, CandidateEdges.Num());
+
+    while (ExtraCount-- > 0 && CandidateEdges.Num() > 0)
     {
-        int32 RandomIndex = RandomStream.RandRange(0, CandidateEdges.Num() - 1);
-        AllConnections.Add(CandidateEdges[RandomIndex]);
-        CandidateEdges.RemoveAt(RandomIndex);
+        const int32 Idx = RandomStream.RandRange(0, CandidateEdges.Num() - 1);
+        AllConnections.AddUnique(CandidateEdges[Idx]); // 중복 방지
+        CandidateEdges.RemoveAtSwap(Idx);
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Added %d extra connections (total: %d)"),
-        AllConnections.Num() - MST.Num(), AllConnections.Num());
+    UE_LOG(LogTemp, Warning, TEXT("Added %d extra (candidates=%d, MST=%d, total=%d)"),
+        AllConnections.Num() - MST.Num(), OriginalCandidates, MST.Num(), AllConnections.Num());
 }
 
 // ========== 5단계: 타일맵에 방 배치 ==========

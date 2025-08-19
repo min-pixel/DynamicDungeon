@@ -35,7 +35,12 @@ ABSPMapGenerator02::ABSPMapGenerator02()
 void ABSPMapGenerator02::BeginPlay()
 {
     Super::BeginPlay();
+
+    GraphAnalyzer = NewObject<UDungeonGraphAnalyzer>(this);
+
     GenerateBSPMap();
+
+    
 }
 
 void ABSPMapGenerator02::GenerateBSPMap()
@@ -74,17 +79,105 @@ void ABSPMapGenerator02::GenerateBSPMap()
         CreateExtraConnections();
     }
 
+    CleanupParallelCorridors();
+
+   
 
     // 타일 스폰
     SpawnTiles();
 
     UE_LOG(LogTemp, Warning, TEXT("BSP Map Generation Completed. Created %d rooms"), LeafNodes.Num());
 
-    // 맵 통계 분석 및 출력
-    if (bShowStatistics)
+    // ===== 그래프 분석 시작 =====
+    if (GraphAnalyzer)
     {
-        PrintMapStatistics();
+        // TileMap을 EDungeonTileType으로 변환
+        TArray<TArray<EDungeonTileType>> ConvertedTileMap;
+        ConvertedTileMap.SetNum(MapSize.X);
+
+        for (int32 x = 0; x < MapSize.X; ++x)
+        {
+            ConvertedTileMap[x].SetNum(MapSize.Y);
+            for (int32 y = 0; y < MapSize.Y; ++y)
+            {
+                // ETileType02를 EDungeonTileType으로 변환
+                switch (TileMap[x][y])
+                {
+                case ETileType02::Empty:
+                    ConvertedTileMap[x][y] = EDungeonTileType::Empty;
+                    break;
+                case ETileType02::Room:
+                    ConvertedTileMap[x][y] = EDungeonTileType::Room;
+                    break;
+                case ETileType02::Corridor:
+                    ConvertedTileMap[x][y] = EDungeonTileType::Corridor;
+                    break;
+                case ETileType02::BridgeCorridor:
+                    ConvertedTileMap[x][y] = EDungeonTileType::BridgeCorridor;
+                    break;
+                case ETileType02::Door:
+                    ConvertedTileMap[x][y] = EDungeonTileType::Door;
+                    break;
+                case ETileType02::DeadEnd:
+                    ConvertedTileMap[x][y] = EDungeonTileType::DeadEnd;
+                    break;
+                case ETileType02::Junction:
+                    ConvertedTileMap[x][y] = EDungeonTileType::Junction;
+                    break;
+                case ETileType02::CrossRoad:
+                    ConvertedTileMap[x][y] = EDungeonTileType::CrossRoad;
+                    break;
+                default:
+                    ConvertedTileMap[x][y] = EDungeonTileType::Empty;
+                    break;
+                }
+            }
+        }
+
+        // 방 정보 준비
+        TArray<FRoomInfo> RoomInfos;
+        for (int32 i = 0; i < LeafNodes.Num(); ++i)
+        {
+            if (LeafNodes[i]->bHasRoom)
+            {
+                FRoomInfo Info;
+                Info.RoomId = i;
+                Info.Center = GetRoomCenter(LeafNodes[i]);
+                Info.Min = LeafNodes[i]->RoomMin;
+                Info.Max = LeafNodes[i]->RoomMax;
+                RoomInfos.Add(Info);
+            }
+        }
+
+        // 그래프 분석 실행 (C++ 함수 직접 호출)
+        GraphAnalyzer->AnalyzeDungeon(ConvertedTileMap, RoomInfos, TileSize);
+
+        // 통계 출력
+        if (bShowStatistics)
+        {
+            GraphAnalyzer->PrintStatistics();
+
+            // 디버그 시각화
+            GraphAnalyzer->DrawDebugVisualization(GetWorld(), -1.0f);
+        }
+
+        // 분석 결과를 MapStats에 반영 (선택사항)
+        FDungeonGraphAnalysis GraphAnalysis = GraphAnalyzer->GetAnalysis();
+        MapStats.RoomCount = GraphAnalysis.RoomCount;
+        MapStats.DeadEndCount = GraphAnalysis.DeadEndCount;
+        MapStats.JunctionCount = GraphAnalysis.JunctionCount;
+        MapStats.CrossRoadCount = GraphAnalysis.CrossRoadCount;
+
+        // 간선 수 로그
+        UE_LOG(LogTemp, Warning, TEXT("Graph Analysis: Found %d nodes and %d edges"),
+            GraphAnalysis.NodeCount, GraphAnalysis.EdgeCount);
     }
+
+    //// 맵 통계 분석 및 출력
+    //if (bShowStatistics)
+    //{
+    //    PrintMapStatistics();
+    //}
 
 }
 
@@ -228,113 +321,422 @@ void ABSPMapGenerator02::CreateRooms()
     }
 }
 
-void ABSPMapGenerator02::ConnectRooms()
-{
-    // 인접한 리프 노드들 연결
-    for (int32 i = 0; i < LeafNodes.Num() - 1; ++i)
-    {
-        // 가장 가까운 방 찾기
-        int32 NearestIndex = -1;
-        float MinDistance = FLT_MAX;
-
-        FIntVector CenterA = GetRoomCenter(LeafNodes[i]);
-
-        for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
-        {
-            FIntVector CenterB = GetRoomCenter(LeafNodes[j]);
-            float Distance = FVector::Dist(FVector(CenterA), FVector(CenterB));
-
-            if (Distance < MinDistance)
-            {
-                MinDistance = Distance;
-                NearestIndex = j;
-            }
-        }
-
-        if (NearestIndex != -1)
-        {
-            CreateCorridor(LeafNodes[i], LeafNodes[NearestIndex]);
-        }
-    }
-}
+//void ABSPMapGenerator02::ConnectRooms()
+//{
+//    // 인접한 리프 노드들 연결
+//    for (int32 i = 0; i < LeafNodes.Num() - 1; ++i)
+//    {
+//        // 가장 가까운 방 찾기
+//        int32 NearestIndex = -1;
+//        float MinDistance = FLT_MAX;
+//
+//        FIntVector CenterA = GetRoomCenter(LeafNodes[i]);
+//
+//        for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
+//        {
+//            FIntVector CenterB = GetRoomCenter(LeafNodes[j]);
+//            float Distance = FVector::Dist(FVector(CenterA), FVector(CenterB));
+//
+//            if (Distance < MinDistance)
+//            {
+//                MinDistance = Distance;
+//                NearestIndex = j;
+//            }
+//        }
+//
+//        if (NearestIndex != -1)
+//        {
+//            CreateCorridor(LeafNodes[i], LeafNodes[NearestIndex]);
+//        }
+//    }
+//}
+//
+//void ABSPMapGenerator02::CreateCorridor(TSharedPtr<FBSPNode02> NodeA, TSharedPtr<FBSPNode02> NodeB)
+//{
+//    if (!NodeA->bHasRoom || !NodeB->bHasRoom) return;
+//
+//    FIntVector CenterA = GetRoomCenter(NodeA);
+//    FIntVector CenterB = GetRoomCenter(NodeB);
+//
+//    CreateLShapedCorridor(CenterA, CenterB);
+//}
 
 void ABSPMapGenerator02::CreateCorridor(TSharedPtr<FBSPNode02> NodeA, TSharedPtr<FBSPNode02> NodeB)
 {
+    if (!NodeA.IsValid() || !NodeB.IsValid()) return;
     if (!NodeA->bHasRoom || !NodeB->bHasRoom) return;
 
+    auto Carve = [&](int32 x, int32 y)
+        {
+            if (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y)
+                if (TileMap[x][y] == ETileType02::Empty) TileMap[x][y] = ETileType02::Corridor;
+        };
+    auto CarveHorizontal = [&](int32 y, int32 x0, int32 x1)
+        {
+            if (x0 > x1) Swap(x0, x1);
+            for (int32 x = x0; x <= x1; ++x) Carve(x, y);
+        };
+    auto CarveVertical = [&](int32 x, int32 y0, int32 y1)
+        {
+            if (y0 > y1) Swap(y0, y1);
+            for (int32 y = y0; y <= y1; ++y) Carve(x, y);
+        };
+
+    const auto& A = *NodeA.Get();
+    const auto& B = *NodeB.Get();
+
+    // 좌우 이웃(또는 좌우로 더 가까움) + Y 구간 겹침 → 수평 직선
+    bool bLeftRight = (A.RoomMax.X <= B.RoomMin.X) || (B.RoomMax.X <= A.RoomMin.X);
+    if (bLeftRight)
+    {
+        const FBSPNode02* Left = (A.RoomMax.X <= B.RoomMin.X) ? &A : &B;
+        const FBSPNode02* Right = (Left == &A) ? &B : &A;
+
+        int32 Y0 = FMath::Max(Left->RoomMin.Y, Right->RoomMin.Y);
+        int32 Y1 = FMath::Min(Left->RoomMax.Y - 1, Right->RoomMax.Y - 1);
+        if (Y0 <= Y1)
+        {
+            int32 Y = RandomStream.RandRange(Y0, Y1);
+            CarveHorizontal(Y, Left->RoomMax.X, Right->RoomMin.X);
+            return; // 직선 성공
+        }
+    }
+
+    // 상하 이웃(또는 상하로 더 가까움) + X 구간 겹침 → 수직 직선
+    bool bTopBottom = (A.RoomMax.Y <= B.RoomMin.Y) || (B.RoomMax.Y <= A.RoomMin.Y);
+    if (bTopBottom)
+    {
+        const FBSPNode02* Bottom = (A.RoomMax.Y <= B.RoomMin.Y) ? &A : &B;
+        const FBSPNode02* Top = (Bottom == &A) ? &B : &A;
+
+        int32 X0 = FMath::Max(Bottom->RoomMin.X, Top->RoomMin.X);
+        int32 X1 = FMath::Min(Bottom->RoomMax.X - 1, Top->RoomMax.X - 1);
+        if (X0 <= X1)
+        {
+            int32 X = RandomStream.RandRange(X0, X1);
+            CarveVertical(X, Bottom->RoomMax.Y, Top->RoomMin.Y);
+            return; // 직선 성공
+        }
+    }
+
+    // 직선 불가 → L자(개선된 피벗 버전)
     FIntVector CenterA = GetRoomCenter(NodeA);
     FIntVector CenterB = GetRoomCenter(NodeB);
-
     CreateLShapedCorridor(CenterA, CenterB);
 }
 
+void ABSPMapGenerator02::ConnectRooms()
+{
+    if (!RootNode) return;
+
+    // 리프(방 가진 노드) 모으기
+    std::function<void(TSharedPtr<FBSPNode02>, TArray<TSharedPtr<FBSPNode02>>&)> GatherLeavesWithRooms;
+    GatherLeavesWithRooms = [&](TSharedPtr<FBSPNode02> Node, TArray<TSharedPtr<FBSPNode02>>& Out)
+        {
+            if (!Node) return;
+            if (Node->bIsLeaf)
+            {
+                if (Node->bHasRoom) Out.Add(Node);
+                return;
+            }
+            GatherLeavesWithRooms(Node->LeftChild, Out);
+            GatherLeavesWithRooms(Node->RightChild, Out);
+        };
+
+    // 두 서브트리 사이에서 가장 가까운 방 쌍을 골라 연결
+    auto ConnectClosestBetween = [&](TArray<TSharedPtr<FBSPNode02>>& Ls, TArray<TSharedPtr<FBSPNode02>>& Rs)
+        {
+            if (Ls.Num() == 0 || Rs.Num() == 0) return;
+
+            float Best = FLT_MAX;
+            TSharedPtr<FBSPNode02> BestA, BestB;
+
+            for (auto& A : Ls)
+            {
+                const FIntVector CA = GetRoomCenter(A);
+                for (auto& B : Rs)
+                {
+                    const FIntVector CB = GetRoomCenter(B);
+                    const float D = FVector::Dist(FVector(CA), FVector(CB));
+                    if (D < Best)
+                    {
+                        Best = D; BestA = A; BestB = B;
+                    }
+                }
+            }
+            if (BestA && BestB) CreateCorridor(BestA, BestB);
+        };
+
+    // BSP 트리를 재귀로 내려가며: LeftChild ↔ RightChild만 연결
+    std::function<void(TSharedPtr<FBSPNode02>)> ConnectSiblingRooms;
+    ConnectSiblingRooms = [&](TSharedPtr<FBSPNode02> Node)
+        {
+            if (!Node || Node->bIsLeaf) return;
+
+            ConnectSiblingRooms(Node->LeftChild);
+            ConnectSiblingRooms(Node->RightChild);
+
+            TArray<TSharedPtr<FBSPNode02>> Ls, Rs;
+            GatherLeavesWithRooms(Node->LeftChild, Ls);
+            GatherLeavesWithRooms(Node->RightChild, Rs);
+            ConnectClosestBetween(Ls, Rs);
+        };
+
+    ConnectSiblingRooms(RootNode);
+}
+
+
+//void ABSPMapGenerator02::CreateLShapedCorridor(const FIntVector& Start, const FIntVector& End)
+//{
+//    // 수평 먼저, 수직 나중에
+//    if (RandomStream.FRand() > 0.5f)
+//    {
+//        // 수평 복도
+//        int32 StartX = FMath::Min(Start.X, End.X);
+//        int32 EndX = FMath::Max(Start.X, End.X);
+//
+//        for (int32 x = StartX; x <= EndX; ++x)
+//        {
+//
+//            // 내 위나 아래에 이미 복도 타일이 있는지 확인 (평행 감지)
+//            if ((Start.Y > 0 && IsCorridorTile(x, Start.Y - 1)) ||
+//                (Start.Y < MapSize.Y - 1 && IsCorridorTile(x, Start.Y + 1)))
+//            {
+//                // 평행이 감지되면, 이 L자 복도 생성 자체를 중단하고 함수를 빠져나감
+//                // 다른 연결 시도에서 더 나은 경로가 그려지길 기대
+//                return;
+//            }
+//
+//            if (x >= 0 && x < MapSize.X && Start.Y >= 0 && Start.Y < MapSize.Y)
+//            {
+//                if (TileMap[x][Start.Y] == ETileType02::Empty)
+//                {
+//                    TileMap[x][Start.Y] = ETileType02::Corridor;
+//                }
+//            }
+//        }
+//
+//        // 수직 복도
+//        int32 StartY = FMath::Min(Start.Y, End.Y);
+//        int32 EndY = FMath::Max(Start.Y, End.Y);
+//
+//        for (int32 y = StartY; y <= EndY; ++y)
+//        {
+//
+//            if ((End.X > 0 && IsCorridorTile(End.X - 1, y)) ||
+//                (End.X < MapSize.X - 1 && IsCorridorTile(End.X + 1, y)))
+//            {
+//                return;
+//            }
+//
+//            if (End.X >= 0 && End.X < MapSize.X && y >= 0 && y < MapSize.Y)
+//            {
+//                if (TileMap[End.X][y] == ETileType02::Empty)
+//                {
+//                    TileMap[End.X][y] = ETileType02::Corridor;
+//                }
+//            }
+//        }
+//    }
+//    else
+//    {
+//        // 수직 먼저, 수평 나중에
+//        int32 StartY = FMath::Min(Start.Y, End.Y);
+//        int32 EndY = FMath::Max(Start.Y, End.Y);
+//
+//        for (int32 y = StartY; y <= EndY; ++y)
+//        {
+//            if (Start.X >= 0 && Start.X < MapSize.X && y >= 0 && y < MapSize.Y)
+//            {
+//                if (TileMap[Start.X][y] == ETileType02::Empty)
+//                {
+//                    TileMap[Start.X][y] = ETileType02::Corridor;
+//                }
+//            }
+//        }
+//
+//        int32 StartX = FMath::Min(Start.X, End.X);
+//        int32 EndX = FMath::Max(Start.X, End.X);
+//
+//        for (int32 x = StartX; x <= EndX; ++x)
+//        {
+//            if (x >= 0 && x < MapSize.X && End.Y >= 0 && End.Y < MapSize.Y)
+//            {
+//                if (TileMap[x][End.Y] == ETileType02::Empty)
+//                {
+//                    TileMap[x][End.Y] = ETileType02::Corridor;
+//                }
+//            }
+//        }
+//    }
+//}
+
+//void ABSPMapGenerator02::CreateLShapedCorridor(const FIntVector& Start, const FIntVector& End)
+//{
+//    auto Carve = [&](int32 x, int32 y)
+//        {
+//            if (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y)
+//            {
+//                if (TileMap[x][y] == ETileType02::Empty)
+//                {
+//                    TileMap[x][y] = ETileType02::Corridor;
+//                }
+//            }
+//        };
+//
+//    auto CarveHorizontal = [&](int32 y, int32 x0, int32 x1)
+//        {
+//            int32 step = (x0 <= x1) ? 1 : -1;
+//            for (int32 x = x0; x != x1 + step; x += step) Carve(x, y);
+//        };
+//
+//    auto CarveVertical = [&](int32 x, int32 y0, int32 y1)
+//        {
+//            int32 step = (y0 <= y1) ? 1 : -1;
+//            for (int32 y = y0; y != y1 + step; y += step) Carve(x, y);
+//        };
+//
+//    auto HorizontalFirst = [&]()
+//        {
+//            int32 y = Start.Y;
+//            int32 startX = Start.X;
+//            int32 endX = End.X;
+//            int32 step = (startX <= endX) ? 1 : -1;
+//
+//            // 수평으로 진행하다가 평행 감지 시 "그 지점에서" pivot
+//            int32 pivotX = endX;
+//            bool  bPivot = false;
+//
+//            for (int32 x = startX; x != endX + step; x += step)
+//            {
+//                const bool up = (y < MapSize.Y - 1) && IsCorridorTile(x, y + 1);
+//                const bool down = (y > 0) && IsCorridorTile(x, y - 1);
+//                if (up || down)
+//                {
+//                    pivotX = x;         // 여기서 꺾는다
+//                    bPivot = true;
+//                    break;
+//                }
+//                Carve(x, y);
+//            }
+//
+//            if (!bPivot)
+//            {
+//                // 평행 없이 끝까지 옴: 기존 방식대로 마지막 X에서 수직
+//                CarveVertical(endX, y, End.Y);
+//                return;
+//            }
+//
+//            // 1) 수평을 pivotX에서 멈추고, pivotX 열에서 Start.Y -> End.Y로 수직으로 먼저 연결
+//            CarveVertical(pivotX, y, End.Y);
+//
+//            // 2) End.Y 레벨에서 pivotX -> End.X로 수평으로 마무리
+//            CarveHorizontal(End.Y, pivotX, endX);
+//        };
+//
+//    auto VerticalFirst = [&]()
+//        {
+//            int32 x = Start.X;
+//            int32 startY = Start.Y;
+//            int32 endY = End.Y;
+//            int32 step = (startY <= endY) ? 1 : -1;
+//
+//            int32 pivotY = endY;
+//            bool  bPivot = false;
+//
+//            for (int32 y = startY; y != endY + step; y += step)
+//            {
+//                const bool left = (x > 0) && IsCorridorTile(x - 1, y);
+//                const bool right = (x < MapSize.X - 1) && IsCorridorTile(x + 1, y);
+//                if (left || right)
+//                {
+//                    pivotY = y;         // 여기서 꺾는다
+//                    bPivot = true;
+//                    break;
+//                }
+//                Carve(x, y);
+//            }
+//
+//            if (!bPivot)
+//            {
+//                // 평행 없이 끝까지 옴: 기존 방식대로 마지막 Y에서 수평
+//                CarveHorizontal(endY, x, End.X);
+//                return;
+//            }
+//
+//            // 1) 수직을 pivotY에서 멈추고, pivotY 행에서 Start.X -> End.X로 수평으로 먼저 연결
+//            CarveHorizontal(pivotY, x, End.X);
+//
+//            // 2) End.X 열에서 pivotY -> End.Y로 수직으로 마무리
+//            CarveVertical(End.X, pivotY, endY);
+//        };
+//
+//    if (RandomStream.FRand() > 0.5f) HorizontalFirst();
+//    else                             VerticalFirst();
+//}
+
 void ABSPMapGenerator02::CreateLShapedCorridor(const FIntVector& Start, const FIntVector& End)
 {
-    // 수평 먼저, 수직 나중에
-    if (RandomStream.FRand() > 0.5f)
-    {
-        // 수평 복도
-        int32 StartX = FMath::Min(Start.X, End.X);
-        int32 EndX = FMath::Max(Start.X, End.X);
-
-        for (int32 x = StartX; x <= EndX; ++x)
+    auto Carve = [&](int32 x, int32 y)
         {
-            if (x >= 0 && x < MapSize.X && Start.Y >= 0 && Start.Y < MapSize.Y)
-            {
-                if (TileMap[x][Start.Y] == ETileType02::Empty)
-                {
-                    TileMap[x][Start.Y] = ETileType02::Corridor;
-                }
-            }
-        }
-
-        // 수직 복도
-        int32 StartY = FMath::Min(Start.Y, End.Y);
-        int32 EndY = FMath::Max(Start.Y, End.Y);
-
-        for (int32 y = StartY; y <= EndY; ++y)
+            if (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y)
+                if (TileMap[x][y] == ETileType02::Empty) TileMap[x][y] = ETileType02::Corridor;
+        };
+    auto CarveHorizontal = [&](int32 y, int32 x0, int32 x1)
         {
-            if (End.X >= 0 && End.X < MapSize.X && y >= 0 && y < MapSize.Y)
-            {
-                if (TileMap[End.X][y] == ETileType02::Empty)
-                {
-                    TileMap[End.X][y] = ETileType02::Corridor;
-                }
-            }
-        }
-    }
-    else
-    {
-        // 수직 먼저, 수평 나중에
-        int32 StartY = FMath::Min(Start.Y, End.Y);
-        int32 EndY = FMath::Max(Start.Y, End.Y);
-
-        for (int32 y = StartY; y <= EndY; ++y)
+            int32 step = (x0 <= x1) ? 1 : -1;
+            for (int32 x = x0; x != x1 + step; x += step) Carve(x, y);
+        };
+    auto CarveVertical = [&](int32 x, int32 y0, int32 y1)
         {
-            if (Start.X >= 0 && Start.X < MapSize.X && y >= 0 && y < MapSize.Y)
-            {
-                if (TileMap[Start.X][y] == ETileType02::Empty)
-                {
-                    TileMap[Start.X][y] = ETileType02::Corridor;
-                }
-            }
-        }
+            int32 step = (y0 <= y1) ? 1 : -1;
+            for (int32 y = y0; y != y1 + step; y += step) Carve(x, y);
+        };
 
-        int32 StartX = FMath::Min(Start.X, End.X);
-        int32 EndX = FMath::Max(Start.X, End.X);
-
-        for (int32 x = StartX; x <= EndX; ++x)
+    auto HorizontalFirst = [&]()
         {
-            if (x >= 0 && x < MapSize.X && End.Y >= 0 && End.Y < MapSize.Y)
+            int32 y = Start.Y;
+            int32 step = (Start.X <= End.X) ? 1 : -1;
+            int32 pivotX = End.X;
+            bool  bPivot = false;
+
+            for (int32 x = Start.X; x != End.X + step; x += step)
             {
-                if (TileMap[x][End.Y] == ETileType02::Empty)
-                {
-                    TileMap[x][End.Y] = ETileType02::Corridor;
-                }
+                bool up = (y < MapSize.Y - 1) && IsCorridorTile(x, y + 1);
+                bool down = (y > 0) && IsCorridorTile(x, y - 1);
+                if (up || down) { pivotX = x; bPivot = true; break; }
+                Carve(x, y);
             }
-        }
-    }
+
+            if (!bPivot) { CarveVertical(End.X, y, End.Y); return; }
+            CarveVertical(pivotX, y, End.Y);          // 피벗 지점에서 세로로
+            CarveHorizontal(End.Y, pivotX, End.X);    // 목표 Y에서 가로로 마무리
+        };
+
+    auto VerticalFirst = [&]()
+        {
+            int32 x = Start.X;
+            int32 step = (Start.Y <= End.Y) ? 1 : -1;
+            int32 pivotY = End.Y;
+            bool  bPivot = false;
+
+            for (int32 y = Start.Y; y != End.Y + step; y += step)
+            {
+                bool left = (x > 0) && IsCorridorTile(x - 1, y);
+                bool right = (x < MapSize.X - 1) && IsCorridorTile(x + 1, y);
+                if (left || right) { pivotY = y; bPivot = true; break; }
+                Carve(x, y);
+            }
+
+            if (!bPivot) { CarveHorizontal(End.Y, x, End.X); return; }
+            CarveHorizontal(pivotY, x, End.X);       // 피벗 지점에서 가로로
+            CarveVertical(End.X, pivotY, End.Y);     // 목표 X에서 세로로 마무리
+        };
+
+    if (RandomStream.FRand() > 0.5f) HorizontalFirst();
+    else                             VerticalFirst();
 }
+
 
 void ABSPMapGenerator02::SpawnTiles()
 {
@@ -451,10 +853,15 @@ void ABSPMapGenerator02::SpawnTiles()
             TSubclassOf<AActor> TileClass = nullptr;
 
             // 복도 타일 방향 확인
-            bool bHasNorth = (y < MapSize.Y - 1 && TileMap[x][y + 1] != ETileType02::Empty);
+            /*bool bHasNorth = (y < MapSize.Y - 1 && TileMap[x][y + 1] != ETileType02::Empty);
             bool bHasSouth = (y > 0 && TileMap[x][y - 1] != ETileType02::Empty);
             bool bHasEast = (x < MapSize.X - 1 && TileMap[x + 1][y] != ETileType02::Empty);
-            bool bHasWest = (x > 0 && TileMap[x - 1][y] != ETileType02::Empty);
+            bool bHasWest = (x > 0 && TileMap[x - 1][y] != ETileType02::Empty);*/
+            bool bHasNorth = (y < MapSize.Y - 1) && IsCorridorTile(x, y + 1);
+            bool bHasSouth = (y > 0) && IsCorridorTile(x, y - 1);
+            bool bHasEast = (x < MapSize.X - 1) && IsCorridorTile(x + 1, y);
+            bool bHasWest = (x > 0) && IsCorridorTile(x - 1, y);
+
 
             int32 ConnectionCount = (bHasNorth ? 1 : 0) + (bHasSouth ? 1 : 0) +
                 (bHasEast ? 1 : 0) + (bHasWest ? 1 : 0);
@@ -929,23 +1336,142 @@ void ABSPMapGenerator02::SpawnSingleCorridorTile(const FIntVector& TilePos)
     }
 }
 
+//void ABSPMapGenerator02::CreateExtraConnections()
+//{
+//    if (LeafNodes.Num() < 3) return;  // 방이 3개 미만이면 추가 연결 불필요
+//
+//    int32 ConnectionsAdded = 0;
+//    int32 TargetConnections = RandomStream.RandRange(MinExtraConnections, MaxExtraConnections);
+//
+//    UE_LOG(LogTemp, Warning, TEXT("Creating extra connections. Target: %d"), TargetConnections);
+//
+//    // 추가 간선을 저장할 임시 배열
+//    TArray<TPair<int32, int32>> ExtraEdges;
+//
+//    // 모든 방 쌍에 대해 검토
+//    TArray<TPair<int32, int32>> PotentialConnections;
+//
+//    for (int32 i = 0; i < LeafNodes.Num(); ++i)
+//    {
+//        for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
+//        {
+//            // 거리가 적절한 방들만 후보로 추가
+//            if (IsValidConnectionDistance(i, j))
+//            {
+//                PotentialConnections.Add(TPair<int32, int32>(i, j));
+//            }
+//        }
+//    }
+//
+//    // 후보들을 섞어서 랜덤하게 선택
+//    for (int32 i = PotentialConnections.Num() - 1; i > 0; --i)
+//    {
+//        int32 j = RandomStream.RandRange(0, i);
+//        PotentialConnections.Swap(i, j);
+//    }
+//
+//    // 추가 연결 생성
+//    for (const auto& Connection : PotentialConnections)
+//    {
+//        if (ConnectionsAdded >= TargetConnections)
+//        {
+//            break;
+//        }
+//
+//        // 확률적으로 연결 생성
+//        if (RandomStream.FRand() < ExtraConnectionChance)
+//        {
+//            TSharedPtr<FBSPNode02> NodeA = LeafNodes[Connection.Key];
+//            TSharedPtr<FBSPNode02> NodeB = LeafNodes[Connection.Value];
+//
+//            FIntVector CenterA = GetRoomCenter(NodeA);
+//            FIntVector CenterB = GetRoomCenter(NodeB);
+//
+//            // 이미 복도가 존재하는지 확인
+//            if (!CorridorExists(CenterA, CenterB))
+//            {
+//                // 다양한 복도 스타일 중 랜덤 선택
+//                float CorridorStyle = RandomStream.FRand();
+//
+//                if (CorridorStyle < 0.5f)
+//                {
+//                    // L자 복도 (기존 스타일)
+//                    CreateLShapedCorridor(CenterA, CenterB);
+//                }
+//                else if (CorridorStyle < 0.8f)
+//                {
+//                    // 역 L자 복도 (반대 방향)
+//                    CreateLShapedCorridor(CenterB, CenterA);
+//                }
+//                else
+//                {
+//                    // 지그재그 복도 (더 복잡한 경로)
+//                    CreateZigzagCorridor(CenterA, CenterB);
+//                }
+//
+//                ExtraEdges.Add(TPair<int32, int32>(Connection.Key, Connection.Value));
+//
+//                ConnectionsAdded++;
+//
+//                UE_LOG(LogTemp, Verbose, TEXT("Added extra connection %d between room %d and %d"),
+//                    ConnectionsAdded, Connection.Key, Connection.Value);
+//            }
+//        }
+//    }
+//
+//    ExtraConnectionPairs = ExtraEdges;
+//
+//    UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections for maze complexity"), ConnectionsAdded);
+//}
+
+// 추가: 후보 경로가 기존 복도에 "바짝 평행"하게 붙을 위험이 큰지 평가
+bool ABSPMapGenerator02::WouldCreateLongParallel(const FIntVector& Start, const FIntVector& End, float Tolerance /*=0.6f*/)
+{
+    int32 CheckPoints = 7; // 샘플 지점 수 (홀수 권장)
+    int32 AdjacentCount = 0;
+
+    auto InBounds = [&](int32 x, int32 y)
+        {
+            return (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y);
+        };
+
+    for (int32 i = 1; i < CheckPoints; ++i)
+    {
+        float t = (float)i / (float)CheckPoints;
+        int32 x = FMath::Lerp(Start.X, End.X, t);
+        int32 y = FMath::Lerp(Start.Y, End.Y, t);
+
+        if (!InBounds(x, y)) continue;
+
+        // 상하좌우 중 어느 한 칸이라도 복도면 "평행 인접"으로 센다
+        bool bAdj =
+            (InBounds(x + 1, y) && TileMap[x + 1][y] == ETileType02::Corridor) ||
+            (InBounds(x - 1, y) && TileMap[x - 1][y] == ETileType02::Corridor) ||
+            (InBounds(x, y + 1) && TileMap[x][y + 1] == ETileType02::Corridor) ||
+            (InBounds(x, y - 1) && TileMap[x][y - 1] == ETileType02::Corridor);
+
+        AdjacentCount += (bAdj ? 1 : 0);
+    }
+
+    // 샘플의 Tolerance(60% 등) 이상이 인접해 있으면 "평행 위험 높음"으로 간주
+    return AdjacentCount > (int32)(Tolerance * (float)CheckPoints);
+}
+
 void ABSPMapGenerator02::CreateExtraConnections()
 {
-    if (LeafNodes.Num() < 3) return;  // 방이 3개 미만이면 추가 연결 불필요
+    if (!bCreateLoops) return;
 
-    int32 ConnectionsAdded = 0;
     int32 TargetConnections = RandomStream.RandRange(MinExtraConnections, MaxExtraConnections);
+    int32 ConnectionsAdded = 0;
 
     UE_LOG(LogTemp, Warning, TEXT("Creating extra connections. Target: %d"), TargetConnections);
 
-    // 모든 방 쌍에 대해 검토
+    // 모든 방 쌍 중 거리 요건을 만족하는 후보 수집
     TArray<TPair<int32, int32>> PotentialConnections;
-
     for (int32 i = 0; i < LeafNodes.Num(); ++i)
     {
         for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
         {
-            // 거리가 적절한 방들만 후보로 추가
             if (IsValidConnectionDistance(i, j))
             {
                 PotentialConnections.Add(TPair<int32, int32>(i, j));
@@ -953,62 +1479,56 @@ void ABSPMapGenerator02::CreateExtraConnections()
         }
     }
 
-    // 후보들을 섞어서 랜덤하게 선택
+    // 셔플
     for (int32 i = PotentialConnections.Num() - 1; i > 0; --i)
     {
         int32 j = RandomStream.RandRange(0, i);
         PotentialConnections.Swap(i, j);
     }
 
-    // 추가 연결 생성
-    for (const auto& Connection : PotentialConnections)
+    // 추가 간선 결과 저장
+    TArray<TPair<int32, int32>> ExtraEdges;
+
+    for (const auto& Conn : PotentialConnections)
     {
-        if (ConnectionsAdded >= TargetConnections)
-        {
-            break;
-        }
+        if (ConnectionsAdded >= TargetConnections) break;
 
-        // 확률적으로 연결 생성
-        if (RandomStream.FRand() < ExtraConnectionChance)
-        {
-            TSharedPtr<FBSPNode02> NodeA = LeafNodes[Connection.Key];
-            TSharedPtr<FBSPNode02> NodeB = LeafNodes[Connection.Value];
+        // 생성 확률
+        if (RandomStream.FRand() >= ExtraConnectionChance) continue;
 
-            FIntVector CenterA = GetRoomCenter(NodeA);
-            FIntVector CenterB = GetRoomCenter(NodeB);
+        TSharedPtr<FBSPNode02> NodeA = LeafNodes[Conn.Key];
+        TSharedPtr<FBSPNode02> NodeB = LeafNodes[Conn.Value];
 
-            // 이미 복도가 존재하는지 확인
-            if (!CorridorExists(CenterA, CenterB))
-            {
-                // 다양한 복도 스타일 중 랜덤 선택
-                float CorridorStyle = RandomStream.FRand();
+        FIntVector CenterA = GetRoomCenter(NodeA);
+        FIntVector CenterB = GetRoomCenter(NodeB);
 
-                if (CorridorStyle < 0.5f)
-                {
-                    // L자 복도 (기존 스타일)
-                    CreateLShapedCorridor(CenterA, CenterB);
-                }
-                else if (CorridorStyle < 0.8f)
-                {
-                    // 역 L자 복도 (반대 방향)
-                    CreateLShapedCorridor(CenterB, CenterA);
-                }
-                else
-                {
-                    // 지그재그 복도 (더 복잡한 경로)
-                    CreateZigzagCorridor(CenterA, CenterB);
-                }
+        // 1) 기존 경로와 "거의 동일한" 직선이 이미 깔려 있으면 스킵 (중복 방지)
+        if (CorridorExists(CenterA, CenterB)) continue; // 기존 구현 활용. 
 
-                ConnectionsAdded++;
+        // 2) 후보가 기존 복도에 바짝 붙어 (=, ||) 달릴 가능성이 크면 스킵
+        if (WouldCreateLongParallel(CenterA, CenterB, /*Tolerance=*/0.6f)) continue;
 
-                UE_LOG(LogTemp, Verbose, TEXT("Added extra connection %d between room %d and %d"),
-                    ConnectionsAdded, Connection.Key, Connection.Value);
-            }
-        }
+        // 3) 복도 생성: "직선 우선 → 불가 시 L-피벗" 로직 재사용
+        CreateCorridor(NodeA, NodeB); // 기존 L/역-L/지그재그 랜덤 호출을 대체. 
+
+        ExtraEdges.Add(TPair<int32, int32>(Conn.Key, Conn.Value));
+        ++ConnectionsAdded;
+
+        UE_LOG(LogTemp, Verbose, TEXT("Added extra connection %d between room %d and %d"),
+            ConnectionsAdded, Conn.Key, Conn.Value);
     }
 
+    ExtraConnectionPairs = ExtraEdges;
+
     UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections for maze complexity"), ConnectionsAdded);
+
+    // 후처리로 평행 라인 잔여 정리(연결성 유지한 채 ||, =만 걷어냄)
+    CleanupParallelCorridors(); 
+
+
+
 }
+
 
 // 두 방 사이의 거리가 적절한지 확인
 bool ABSPMapGenerator02::IsValidConnectionDistance(int32 RoomA, int32 RoomB)
@@ -1596,21 +2116,21 @@ void ABSPMapGenerator02::DrawDebugVisualization()
                 DrawDebugLine(World, StartLocation, EndLocation, FColor::Magenta, true, 10.0f, 0, 10.0f);
             }
         }
-        else if (Edge.StartNode < GraphNodes.Num() && Edge.EndNode < GraphNodes.Num())
-        {
-            // 경로가 없으면 직선으로 (폴백)
-            const GraphNode& StartNode = GraphNodes[Edge.StartNode];
-            const GraphNode& EndNode = GraphNodes[Edge.EndNode];
+        //else if (Edge.StartNode < GraphNodes.Num() && Edge.EndNode < GraphNodes.Num())
+        //{
+        //    // 경로가 없으면 직선으로 (폴백)
+        //    const GraphNode& StartNode = GraphNodes[Edge.StartNode];
+        //    const GraphNode& EndNode = GraphNodes[Edge.EndNode];
 
-            FVector StartLocation = FVector(StartNode.Position.X * TileSize,
-                StartNode.Position.Y * TileSize,
-                150.0f);
-            FVector EndLocation = FVector(EndNode.Position.X * TileSize,
-                EndNode.Position.Y * TileSize,
-                150.0f);
+        //    FVector StartLocation = FVector(StartNode.Position.X * TileSize,
+        //        StartNode.Position.Y * TileSize,
+        //        150.0f);
+        //    FVector EndLocation = FVector(EndNode.Position.X * TileSize,
+        //        EndNode.Position.Y * TileSize,
+        //        150.0f);
 
-            DrawDebugLine(World, StartLocation, EndLocation, FColor::Cyan, true, 10.0f, 0, 6.0f);
-        }
+        //    DrawDebugLine(World, StartLocation, EndLocation, FColor::Cyan, true, 10.0f, 0, 6.0f);
+        //}
     }
 
     UE_LOG(LogTemp, Warning, TEXT("Drew %d edges"), GraphEdges.Num());
@@ -1829,7 +2349,7 @@ void ABSPMapGenerator02::BuildGraphFromMap()
                             }
                         }
                         // 복도 타일이면 계속 진행
-                        else if (IsCorridorTile(NextPos.X, NextPos.Y) &&
+                        else if (IsGraphPassable(NextPos.X, NextPos.Y) &&
                             !IsNodeTile(NextPos.X, NextPos.Y))
                         {
                             PrevPos = CurrentPos;
@@ -1845,6 +2365,81 @@ void ABSPMapGenerator02::BuildGraphFromMap()
             }
         }
     }
+
+    auto FindDirectCorridorPath =
+        [&](const FIntVector& Start, const FIntVector& Goal,
+            TArray<FIntVector>& OutPath, int32 StartNodeIndex, int32 EndNodeIndex) -> bool
+        {
+            OutPath.Reset();
+
+            auto InBounds = [&](int x, int y) {
+                return (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y);
+                };
+
+            // 복도/브릿지/문만 통과, 중간 노드(시작/끝 제외)는 차단
+            auto IsPassableDirect = [&](const FIntVector& P) -> bool {
+                if (!InBounds(P.X, P.Y)) return false;
+                ETileType02 T = TileMap[P.X][P.Y];
+                bool bPass = (T == ETileType02::Corridor ||
+                    T == ETileType02::BridgeCorridor ||
+                    T == ETileType02::Door);
+                if (!bPass) return false;
+
+                if (NodePositionToIndex.Contains(P)) {
+                    int32 idx = NodePositionToIndex[P];
+                    if (idx != StartNodeIndex && idx != EndNodeIndex) return false; // 중간 노드 차단
+                }
+                return true;
+                };
+
+            // BFS
+            TQueue<FIntVector> Q;
+            TSet<FIntVector> Visited;
+            TMap<FIntVector, FIntVector> Parent;
+
+            Q.Enqueue(Start);
+            Visited.Add(Start);
+
+            const FIntVector Dirs[4] = { {1,0,0},{-1,0,0},{0,1,0},{0,-1,0} };
+
+            auto Reconstruct = [&](FIntVector cur) {
+                OutPath.Empty();
+                while (Parent.Contains(cur)) { OutPath.Add(cur); cur = Parent[cur]; }
+                OutPath.Add(Start);
+                Algo::Reverse(OutPath);
+                };
+
+            while (!Q.IsEmpty()) {
+                FIntVector cur; Q.Dequeue(cur);
+
+                // 목표 판정: 목표 좌표에 도달하거나, End 노드 타일에 닿으면 성공
+                if (cur == Goal ||
+                    (NodePositionToIndex.Contains(cur) && NodePositionToIndex[cur] == EndNodeIndex)) {
+                    Reconstruct(cur);
+                    return true;
+                }
+
+                for (auto d : Dirs) {
+                    FIntVector nxt = cur + d;
+                    if (Visited.Contains(nxt)) continue;
+
+                    // End 노드 타일은 바로 허용
+                    if (NodePositionToIndex.Contains(nxt) && NodePositionToIndex[nxt] == EndNodeIndex) {
+                        Parent.Add(nxt, cur);
+                        Visited.Add(nxt);
+                        Reconstruct(nxt);
+                        return true;
+                    }
+
+                    if (!IsPassableDirect(nxt)) continue;
+
+                    Visited.Add(nxt);
+                    Parent.Add(nxt, cur);
+                    Q.Enqueue(nxt);
+                }
+            }
+            return false;
+        };
 
     // 3.5단계: 놓친 연결 찾기 (추가 복도로 인한 직접 연결)
     // 모든 노드 쌍을 확인하여 복도로 직접 연결되어 있는지 확인
@@ -1868,7 +2463,7 @@ void ABSPMapGenerator02::BuildGraphFromMap()
             {
                 // BFS로 복도를 통한 직접 경로 찾기
                 TArray<FIntVector> Path;
-                if (FindCorridorPath(GraphNodes[i].Position, GraphNodes[j].Position, Path))
+                if (FindDirectCorridorPath(GraphNodes[i].Position, GraphNodes[j].Position, Path, i, j))
                 {
                     GraphEdge NewEdge;
                     NewEdge.StartNode = i;
@@ -1880,6 +2475,86 @@ void ABSPMapGenerator02::BuildGraphFromMap()
                     GraphNodes[i].Edges.Add(j);
                     GraphNodes[j].Edges.Add(i);
                 }
+            }
+        }
+    }
+
+    // 마지막에 추가 연결 간선들을 그래프에 추가
+    for (const auto& ExtraPair : ExtraConnectionPairs)
+    {
+        // 방 인덱스를 노드 인덱스로 변환
+        int32 NodeIndexA = -1;
+        int32 NodeIndexB = -1;
+
+        // 방 ID로 노드 인덱스 찾기
+        for (int32 i = 0; i < GraphNodes.Num(); ++i)
+        {
+            if (GraphNodes[i].Type == ETileType02::Room)
+            {
+                if (GraphNodes[i].RoomId == ExtraPair.Key)
+                    NodeIndexA = i;
+                if (GraphNodes[i].RoomId == ExtraPair.Value)
+                    NodeIndexB = i;
+            }
+        }
+
+        if (NodeIndexA != -1 && NodeIndexB != -1)
+        {
+            // 중복 체크
+            bool bAlreadyExists = false;
+            for (const GraphEdge& Edge : GraphEdges)
+            {
+                if ((Edge.StartNode == NodeIndexA && Edge.EndNode == NodeIndexB) ||
+                    (Edge.StartNode == NodeIndexB && Edge.EndNode == NodeIndexA))
+                {
+                    bAlreadyExists = true;
+                    break;
+                }
+            }
+
+            if (!bAlreadyExists)
+            {
+                /*GraphEdge NewEdge;
+                NewEdge.StartNode = NodeIndexA;
+                NewEdge.EndNode = NodeIndexB;*/
+
+                //// 경로 찾기 (옵션)
+                //TArray<FIntVector> Path;
+                //if (FindCorridorPath(GraphNodes[NodeIndexA].Position,
+                //    GraphNodes[NodeIndexB].Position, Path))
+                //{
+                //    NewEdge.Path = Path;
+                //    NewEdge.Length = Path.Num();
+                //}
+                //else
+                //{
+                //    // 경로를 못 찾으면 직선 거리 사용
+                //    NewEdge.Length = FVector::Dist(
+                //        FVector(GraphNodes[NodeIndexA].Position),
+                //        FVector(GraphNodes[NodeIndexB].Position)
+                //    );
+                //}
+
+                TArray<FIntVector> Path;
+                if (FindDirectCorridorPath(GraphNodes[NodeIndexA].Position,
+                    GraphNodes[NodeIndexB].Position, Path, NodeIndexA, NodeIndexB))
+                {
+                    GraphEdge NewEdge;
+                    NewEdge.StartNode = NodeIndexA;
+                    NewEdge.EndNode = NodeIndexB;
+                    NewEdge.Path = Path;
+                    NewEdge.Length = Path.Num();
+
+                    GraphEdges.Add(NewEdge);
+                    GraphNodes[NodeIndexA].Edges.AddUnique(NodeIndexB);
+                    GraphNodes[NodeIndexB].Edges.AddUnique(NodeIndexA);
+                }
+
+                /*GraphEdges.Add(NewEdge);
+                GraphNodes[NodeIndexA].Edges.AddUnique(NodeIndexB);
+                GraphNodes[NodeIndexB].Edges.AddUnique(NodeIndexA);*/
+
+               
             }
         }
     }
@@ -2155,4 +2830,84 @@ bool ABSPMapGenerator02::FindCorridorPath(const FIntVector& Start, const FIntVec
     Algo::Reverse(Rev);
     OutPath = MoveTemp(Rev);
     return true;
+}
+
+bool ABSPMapGenerator02::IsGraphPassable(int32 x, int32 y) const
+{
+    if (x < 0 || x >= MapSize.X || y < 0 || y >= MapSize.Y) return false;
+    ETileType02 t = TileMap[x][y];
+    // 그래프 추적용: 복도 계열 + Door는 통과 허용 (Room은 불가)
+    return (t == ETileType02::Corridor ||
+        t == ETileType02::BridgeCorridor ||
+        t == ETileType02::DeadEnd ||
+        t == ETileType02::Junction ||
+        t == ETileType02::CrossRoad ||
+        t == ETileType02::Door);
+}
+
+void ABSPMapGenerator02::CleanupParallelCorridors()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Starting parallel corridor cleanup..."));
+
+    int32 RemovedCount = 0;
+
+    // 정확히 || 패턴이나 = 패턴만 찾아서 제거
+    for (int32 x = 1; x < MapSize.X - 2; ++x)  // 여유 공간 확보
+    {
+        for (int32 y = 1; y < MapSize.Y - 2; ++y)
+        {
+            // 현재 위치가 복도인지 확인
+            if (TileMap[x][y] != ETileType02::Corridor) continue;
+
+            // 수직 평행 복도 체크 (|| 패턴)
+            // 현재와 오른쪽이 모두 복도이고, 둘 다 위아래로만 연결된 경우
+            if (TileMap[x + 1][y] == ETileType02::Corridor)
+            {
+                // 현재 타일: 위아래만 연결, 좌우는 연결 안됨
+                bool currentVerticalOnly =
+                    IsCorridorTile(x, y - 1) && IsCorridorTile(x, y + 1) &&  // 위아래 연결
+                    !IsCorridorTile(x - 1, y) && !IsCorridorTile(x + 2, y);  // 양옆 끊김
+
+                // 오른쪽 타일: 위아래만 연결, 좌우는 연결 안됨 (현재 제외)
+                bool rightVerticalOnly =
+                    IsCorridorTile(x + 1, y - 1) && IsCorridorTile(x + 1, y + 1) &&  // 위아래 연결
+                    !IsCorridorTile(x + 2, y);  // 오른쪽 끊김 (왼쪽은 현재라 체크 안함)
+
+                if (currentVerticalOnly && rightVerticalOnly)
+                {
+                    // 둘 중 하나 제거 (오른쪽 제거)
+                    TileMap[x + 1][y] = ETileType02::Empty;
+                    RemovedCount++;
+
+                    UE_LOG(LogTemp, Verbose, TEXT("Removed vertical parallel corridor at (%d, %d)"), x + 1, y);
+                }
+            }
+
+            // 수평 평행 복도 체크 (= 패턴)  
+            // 현재와 위쪽이 모두 복도이고, 둘 다 좌우로만 연결된 경우
+            if (TileMap[x][y + 1] == ETileType02::Corridor)
+            {
+                // 현재 타일: 좌우만 연결, 위아래는 연결 안됨
+                bool currentHorizontalOnly =
+                    IsCorridorTile(x - 1, y) && IsCorridorTile(x + 1, y) &&  // 좌우 연결
+                    !IsCorridorTile(x, y - 1) && !IsCorridorTile(x, y + 2);  // 위아래 끊김
+
+                // 위쪽 타일: 좌우만 연결, 위아래는 연결 안됨 (현재 제외)
+                bool upHorizontalOnly =
+                    IsCorridorTile(x - 1, y + 1) && IsCorridorTile(x + 1, y + 1) &&  // 좌우 연결
+                    !IsCorridorTile(x, y + 2);  // 위쪽 끊김 (아래는 현재라 체크 안함)
+
+                if (currentHorizontalOnly && upHorizontalOnly)
+                {
+                    // 둘 중 하나 제거 (위쪽 제거)
+                    TileMap[x][y + 1] = ETileType02::Empty;
+                    RemovedCount++;
+
+                    UE_LOG(LogTemp, Verbose, TEXT("Removed horizontal parallel corridor at (%d, %d)"), x, y + 1);
+                }
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("Removed %d parallel corridor tiles"), RemovedCount);
 }
