@@ -73,6 +73,8 @@ void ABSPMapGenerator02::GenerateBSPMap()
     // 방 연결
     ConnectRooms();
 
+    CleanupParallelCorridors();
+
     // 추가 연결 생성 (미로 복잡도 증가)
     if (bCreateLoops)
     {
@@ -81,8 +83,8 @@ void ABSPMapGenerator02::GenerateBSPMap()
 
     CleanupParallelCorridors();
 
-   
-
+    CollapseThickCorridorBlobsFavorDoor();
+    PatchCorridorSingleTileGaps();
     // 타일 스폰
     SpawnTiles();
 
@@ -321,45 +323,8 @@ void ABSPMapGenerator02::CreateRooms()
     }
 }
 
-//void ABSPMapGenerator02::ConnectRooms()
-//{
-//    // 인접한 리프 노드들 연결
-//    for (int32 i = 0; i < LeafNodes.Num() - 1; ++i)
-//    {
-//        // 가장 가까운 방 찾기
-//        int32 NearestIndex = -1;
-//        float MinDistance = FLT_MAX;
-//
-//        FIntVector CenterA = GetRoomCenter(LeafNodes[i]);
-//
-//        for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
-//        {
-//            FIntVector CenterB = GetRoomCenter(LeafNodes[j]);
-//            float Distance = FVector::Dist(FVector(CenterA), FVector(CenterB));
-//
-//            if (Distance < MinDistance)
-//            {
-//                MinDistance = Distance;
-//                NearestIndex = j;
-//            }
-//        }
-//
-//        if (NearestIndex != -1)
-//        {
-//            CreateCorridor(LeafNodes[i], LeafNodes[NearestIndex]);
-//        }
-//    }
-//}
-//
-//void ABSPMapGenerator02::CreateCorridor(TSharedPtr<FBSPNode02> NodeA, TSharedPtr<FBSPNode02> NodeB)
-//{
-//    if (!NodeA->bHasRoom || !NodeB->bHasRoom) return;
-//
-//    FIntVector CenterA = GetRoomCenter(NodeA);
-//    FIntVector CenterB = GetRoomCenter(NodeB);
-//
-//    CreateLShapedCorridor(CenterA, CenterB);
-//}
+
+
 
 void ABSPMapGenerator02::CreateCorridor(TSharedPtr<FBSPNode02> NodeA, TSharedPtr<FBSPNode02> NodeB)
 {
@@ -385,7 +350,7 @@ void ABSPMapGenerator02::CreateCorridor(TSharedPtr<FBSPNode02> NodeA, TSharedPtr
     const auto& A = *NodeA.Get();
     const auto& B = *NodeB.Get();
 
-    // 좌우 이웃(또는 좌우로 더 가까움) + Y 구간 겹침 → 수평 직선
+    // 좌우 이웃 + Y 구간 겹침 → 수평 직선 시도
     bool bLeftRight = (A.RoomMax.X <= B.RoomMin.X) || (B.RoomMax.X <= A.RoomMin.X);
     if (bLeftRight)
     {
@@ -397,12 +362,20 @@ void ABSPMapGenerator02::CreateCorridor(TSharedPtr<FBSPNode02> NodeA, TSharedPtr
         if (Y0 <= Y1)
         {
             int32 Y = RandomStream.RandRange(Y0, Y1);
-            CarveHorizontal(Y, Left->RoomMax.X, Right->RoomMin.X);
-            return; // 직선 성공
+
+            // 직선 연결도 평행 체크
+            FIntVector StraightStart(Left->RoomMax.X, Y, 0);
+            FIntVector StraightEnd(Right->RoomMin.X, Y, 0);
+
+            if (!WouldCreateParallelCorridor(StraightStart, StraightEnd, 1.5f))
+            {
+                CarveHorizontal(Y, Left->RoomMax.X, Right->RoomMin.X);
+                return; // 직선 성공
+            }
         }
     }
 
-    // 상하 이웃(또는 상하로 더 가까움) + X 구간 겹침 → 수직 직선
+    // 상하 이웃 + X 구간 겹침 → 수직 직선 시도
     bool bTopBottom = (A.RoomMax.Y <= B.RoomMin.Y) || (B.RoomMax.Y <= A.RoomMin.Y);
     if (bTopBottom)
     {
@@ -414,16 +387,34 @@ void ABSPMapGenerator02::CreateCorridor(TSharedPtr<FBSPNode02> NodeA, TSharedPtr
         if (X0 <= X1)
         {
             int32 X = RandomStream.RandRange(X0, X1);
-            CarveVertical(X, Bottom->RoomMax.Y, Top->RoomMin.Y);
-            return; // 직선 성공
+
+            // 직선 연결도 평행 체크
+            FIntVector StraightStart(X, Bottom->RoomMax.Y, 0);
+            FIntVector StraightEnd(X, Top->RoomMin.Y, 0);
+
+            if (!WouldCreateParallelCorridor(StraightStart, StraightEnd, 1.5f))
+            {
+                CarveVertical(X, Bottom->RoomMax.Y, Top->RoomMin.Y);
+                return; // 직선 성공
+            }
         }
     }
 
-    // 직선 불가 → L자(개선된 피벗 버전)
+    // 직선 불가능 또는 평행 위험 → L자 (개선된 버전 사용)
     FIntVector CenterA = GetRoomCenter(NodeA);
     FIntVector CenterB = GetRoomCenter(NodeB);
-    CreateLShapedCorridor(CenterA, CenterB);
+
+    // L자도 평행 체크
+    if (WouldCreateParallelCorridor(CenterA, CenterB, 2.0f))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Skipping corridor due to high parallel risk between rooms"));
+        return; // 연결 포기
+    }
+
+    CreateLShapedCorridorSafe(CenterA, CenterB);
 }
+
+
 
 void ABSPMapGenerator02::ConnectRooms()
 {
@@ -443,14 +434,16 @@ void ABSPMapGenerator02::ConnectRooms()
             GatherLeavesWithRooms(Node->RightChild, Out);
         };
 
-    // 두 서브트리 사이에서 가장 가까운 방 쌍을 골라 연결
+    // 두 서브트리 사이에서 가장 가까운 방 쌍을 골라 연결 (평행 체크 포함)
     auto ConnectClosestBetween = [&](TArray<TSharedPtr<FBSPNode02>>& Ls, TArray<TSharedPtr<FBSPNode02>>& Rs)
         {
             if (Ls.Num() == 0 || Rs.Num() == 0) return;
 
             float Best = FLT_MAX;
             TSharedPtr<FBSPNode02> BestA, BestB;
+            bool bFoundSafeConnection = false;
 
+            // 1차: 평행 위험이 없는 가장 가까운 연결 찾기
             for (auto& A : Ls)
             {
                 const FIntVector CA = GetRoomCenter(A);
@@ -458,13 +451,51 @@ void ABSPMapGenerator02::ConnectRooms()
                 {
                     const FIntVector CB = GetRoomCenter(B);
                     const float D = FVector::Dist(FVector(CA), FVector(CB));
-                    if (D < Best)
+
+                    // 평행 위험 체크
+                    bool bSafe = !WouldCreateParallelCorridor(CA, CB, 2.0f);
+
+                    if (bSafe && D < Best)
                     {
-                        Best = D; BestA = A; BestB = B;
+                        Best = D;
+                        BestA = A;
+                        BestB = B;
+                        bFoundSafeConnection = true;
                     }
                 }
             }
-            if (BestA && BestB) CreateCorridor(BestA, BestB);
+
+            // 안전한 연결이 없으면 어쩔 수 없이 가장 가까운 것 사용
+            if (!bFoundSafeConnection)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("No safe BSP connection found, using closest with parallel risk"));
+
+                Best = FLT_MAX;
+                for (auto& A : Ls)
+                {
+                    const FIntVector CA = GetRoomCenter(A);
+                    for (auto& B : Rs)
+                    {
+                        const FIntVector CB = GetRoomCenter(B);
+                        const float D = FVector::Dist(FVector(CA), FVector(CB));
+                        if (D < Best)
+                        {
+                            Best = D;
+                            BestA = A;
+                            BestB = B;
+                        }
+                    }
+                }
+            }
+
+            if (BestA && BestB)
+            {
+                if (bFoundSafeConnection)
+                {
+                    UE_LOG(LogTemp, Verbose, TEXT("Creating safe BSP connection"));
+                }
+                CreateCorridor(BestA, BestB);
+            }
         };
 
     // BSP 트리를 재귀로 내려가며: LeftChild ↔ RightChild만 연결
@@ -472,10 +503,8 @@ void ABSPMapGenerator02::ConnectRooms()
     ConnectSiblingRooms = [&](TSharedPtr<FBSPNode02> Node)
         {
             if (!Node || Node->bIsLeaf) return;
-
             ConnectSiblingRooms(Node->LeftChild);
             ConnectSiblingRooms(Node->RightChild);
-
             TArray<TSharedPtr<FBSPNode02>> Ls, Rs;
             GatherLeavesWithRooms(Node->LeftChild, Ls);
             GatherLeavesWithRooms(Node->RightChild, Rs);
@@ -486,194 +515,6 @@ void ABSPMapGenerator02::ConnectRooms()
 }
 
 
-//void ABSPMapGenerator02::CreateLShapedCorridor(const FIntVector& Start, const FIntVector& End)
-//{
-//    // 수평 먼저, 수직 나중에
-//    if (RandomStream.FRand() > 0.5f)
-//    {
-//        // 수평 복도
-//        int32 StartX = FMath::Min(Start.X, End.X);
-//        int32 EndX = FMath::Max(Start.X, End.X);
-//
-//        for (int32 x = StartX; x <= EndX; ++x)
-//        {
-//
-//            // 내 위나 아래에 이미 복도 타일이 있는지 확인 (평행 감지)
-//            if ((Start.Y > 0 && IsCorridorTile(x, Start.Y - 1)) ||
-//                (Start.Y < MapSize.Y - 1 && IsCorridorTile(x, Start.Y + 1)))
-//            {
-//                // 평행이 감지되면, 이 L자 복도 생성 자체를 중단하고 함수를 빠져나감
-//                // 다른 연결 시도에서 더 나은 경로가 그려지길 기대
-//                return;
-//            }
-//
-//            if (x >= 0 && x < MapSize.X && Start.Y >= 0 && Start.Y < MapSize.Y)
-//            {
-//                if (TileMap[x][Start.Y] == ETileType02::Empty)
-//                {
-//                    TileMap[x][Start.Y] = ETileType02::Corridor;
-//                }
-//            }
-//        }
-//
-//        // 수직 복도
-//        int32 StartY = FMath::Min(Start.Y, End.Y);
-//        int32 EndY = FMath::Max(Start.Y, End.Y);
-//
-//        for (int32 y = StartY; y <= EndY; ++y)
-//        {
-//
-//            if ((End.X > 0 && IsCorridorTile(End.X - 1, y)) ||
-//                (End.X < MapSize.X - 1 && IsCorridorTile(End.X + 1, y)))
-//            {
-//                return;
-//            }
-//
-//            if (End.X >= 0 && End.X < MapSize.X && y >= 0 && y < MapSize.Y)
-//            {
-//                if (TileMap[End.X][y] == ETileType02::Empty)
-//                {
-//                    TileMap[End.X][y] = ETileType02::Corridor;
-//                }
-//            }
-//        }
-//    }
-//    else
-//    {
-//        // 수직 먼저, 수평 나중에
-//        int32 StartY = FMath::Min(Start.Y, End.Y);
-//        int32 EndY = FMath::Max(Start.Y, End.Y);
-//
-//        for (int32 y = StartY; y <= EndY; ++y)
-//        {
-//            if (Start.X >= 0 && Start.X < MapSize.X && y >= 0 && y < MapSize.Y)
-//            {
-//                if (TileMap[Start.X][y] == ETileType02::Empty)
-//                {
-//                    TileMap[Start.X][y] = ETileType02::Corridor;
-//                }
-//            }
-//        }
-//
-//        int32 StartX = FMath::Min(Start.X, End.X);
-//        int32 EndX = FMath::Max(Start.X, End.X);
-//
-//        for (int32 x = StartX; x <= EndX; ++x)
-//        {
-//            if (x >= 0 && x < MapSize.X && End.Y >= 0 && End.Y < MapSize.Y)
-//            {
-//                if (TileMap[x][End.Y] == ETileType02::Empty)
-//                {
-//                    TileMap[x][End.Y] = ETileType02::Corridor;
-//                }
-//            }
-//        }
-//    }
-//}
-
-//void ABSPMapGenerator02::CreateLShapedCorridor(const FIntVector& Start, const FIntVector& End)
-//{
-//    auto Carve = [&](int32 x, int32 y)
-//        {
-//            if (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y)
-//            {
-//                if (TileMap[x][y] == ETileType02::Empty)
-//                {
-//                    TileMap[x][y] = ETileType02::Corridor;
-//                }
-//            }
-//        };
-//
-//    auto CarveHorizontal = [&](int32 y, int32 x0, int32 x1)
-//        {
-//            int32 step = (x0 <= x1) ? 1 : -1;
-//            for (int32 x = x0; x != x1 + step; x += step) Carve(x, y);
-//        };
-//
-//    auto CarveVertical = [&](int32 x, int32 y0, int32 y1)
-//        {
-//            int32 step = (y0 <= y1) ? 1 : -1;
-//            for (int32 y = y0; y != y1 + step; y += step) Carve(x, y);
-//        };
-//
-//    auto HorizontalFirst = [&]()
-//        {
-//            int32 y = Start.Y;
-//            int32 startX = Start.X;
-//            int32 endX = End.X;
-//            int32 step = (startX <= endX) ? 1 : -1;
-//
-//            // 수평으로 진행하다가 평행 감지 시 "그 지점에서" pivot
-//            int32 pivotX = endX;
-//            bool  bPivot = false;
-//
-//            for (int32 x = startX; x != endX + step; x += step)
-//            {
-//                const bool up = (y < MapSize.Y - 1) && IsCorridorTile(x, y + 1);
-//                const bool down = (y > 0) && IsCorridorTile(x, y - 1);
-//                if (up || down)
-//                {
-//                    pivotX = x;         // 여기서 꺾는다
-//                    bPivot = true;
-//                    break;
-//                }
-//                Carve(x, y);
-//            }
-//
-//            if (!bPivot)
-//            {
-//                // 평행 없이 끝까지 옴: 기존 방식대로 마지막 X에서 수직
-//                CarveVertical(endX, y, End.Y);
-//                return;
-//            }
-//
-//            // 1) 수평을 pivotX에서 멈추고, pivotX 열에서 Start.Y -> End.Y로 수직으로 먼저 연결
-//            CarveVertical(pivotX, y, End.Y);
-//
-//            // 2) End.Y 레벨에서 pivotX -> End.X로 수평으로 마무리
-//            CarveHorizontal(End.Y, pivotX, endX);
-//        };
-//
-//    auto VerticalFirst = [&]()
-//        {
-//            int32 x = Start.X;
-//            int32 startY = Start.Y;
-//            int32 endY = End.Y;
-//            int32 step = (startY <= endY) ? 1 : -1;
-//
-//            int32 pivotY = endY;
-//            bool  bPivot = false;
-//
-//            for (int32 y = startY; y != endY + step; y += step)
-//            {
-//                const bool left = (x > 0) && IsCorridorTile(x - 1, y);
-//                const bool right = (x < MapSize.X - 1) && IsCorridorTile(x + 1, y);
-//                if (left || right)
-//                {
-//                    pivotY = y;         // 여기서 꺾는다
-//                    bPivot = true;
-//                    break;
-//                }
-//                Carve(x, y);
-//            }
-//
-//            if (!bPivot)
-//            {
-//                // 평행 없이 끝까지 옴: 기존 방식대로 마지막 Y에서 수평
-//                CarveHorizontal(endY, x, End.X);
-//                return;
-//            }
-//
-//            // 1) 수직을 pivotY에서 멈추고, pivotY 행에서 Start.X -> End.X로 수평으로 먼저 연결
-//            CarveHorizontal(pivotY, x, End.X);
-//
-//            // 2) End.X 열에서 pivotY -> End.Y로 수직으로 마무리
-//            CarveVertical(End.X, pivotY, endY);
-//        };
-//
-//    if (RandomStream.FRand() > 0.5f) HorizontalFirst();
-//    else                             VerticalFirst();
-//}
 
 void ABSPMapGenerator02::CreateLShapedCorridor(const FIntVector& Start, const FIntVector& End)
 {
@@ -876,12 +717,12 @@ void ABSPMapGenerator02::SpawnTiles()
             else if (bHasNorth || bHasSouth)
             {
                 // Y축 방향 연결 = 세로 복도
-                TileClass = CorridorHorizontalClass;
+                TileClass =  CorridorVerticalClass;
             }
             else if (bHasEast || bHasWest)
             {
                 // X축 방향 연결 = 가로 복도
-                TileClass = CorridorVerticalClass;
+                TileClass = CorridorHorizontalClass;
             }
 
             if (TileClass)
@@ -1283,31 +1124,25 @@ void ABSPMapGenerator02::SpawnWallsForRoom(TSharedPtr<FBSPNode02> Node, AActor* 
     }
 }
 
-void ABSPMapGenerator02::EnsureCorridorConnection(const FIntVector& DoorPos, const FIntVector& Direction, TSharedPtr<FBSPNode02> Node)
+
+void ABSPMapGenerator02::EnsureCorridorConnection(const FIntVector& DoorPos,
+    const FIntVector& Direction,
+    TSharedPtr<FBSPNode02> /*Node*/)
 {
-    // 문 위치에서 Direction 방향으로 1칸 위치
-    FIntVector CorridorPos = DoorPos + Direction;
+    const FIntVector P = DoorPos + Direction;
 
-    // 맵 범위 확인
-    if (CorridorPos.X < 0 || CorridorPos.X >= MapSize.X ||
-        CorridorPos.Y < 0 || CorridorPos.Y >= MapSize.Y)
+    // 경계 체크
+    if (!IsValidPosition(P.X, P.Y)) return;
+
+    // 이미 복도 계열이면 그대로 둠(다시 덮지 않음)
+    if (IsCorridorTile(P.X, P.Y)) return;
+
+    // 빈칸일 때만 1칸 다리 생성 (※ 평행/대각 선검사 없음)
+    if (TileMap[P.X][P.Y] == ETileType02::Empty)
     {
-        return;
+        TileMap[P.X][P.Y] = ETileType02::BridgeCorridor;
+        SpawnSingleCorridorTile(P);
     }
-
-    // 해당 위치가 비어있으면 복도 생성
-    if (TileMap[CorridorPos.X][CorridorPos.Y] == ETileType02::Empty)
-    {
-        // 타일맵에 복도 표시
-        TileMap[CorridorPos.X][CorridorPos.Y] = ETileType02::BridgeCorridor;
-
-        // 복도 타일 즉시 스폰
-        SpawnSingleCorridorTile(CorridorPos);
-
-        UE_LOG(LogTemp, Warning, TEXT("Created bridge BridgeCorridor at (%d, %d) for door connection"),
-            CorridorPos.X, CorridorPos.Y);
-    }
-    // 이미 복도나 방이 있으면 아무것도 안 함 (정상적으로 연결됨)
 }
 
 // 단일 복도 타일 스폰 함수
@@ -1336,95 +1171,9 @@ void ABSPMapGenerator02::SpawnSingleCorridorTile(const FIntVector& TilePos)
     }
 }
 
-//void ABSPMapGenerator02::CreateExtraConnections()
-//{
-//    if (LeafNodes.Num() < 3) return;  // 방이 3개 미만이면 추가 연결 불필요
-//
-//    int32 ConnectionsAdded = 0;
-//    int32 TargetConnections = RandomStream.RandRange(MinExtraConnections, MaxExtraConnections);
-//
-//    UE_LOG(LogTemp, Warning, TEXT("Creating extra connections. Target: %d"), TargetConnections);
-//
-//    // 추가 간선을 저장할 임시 배열
-//    TArray<TPair<int32, int32>> ExtraEdges;
-//
-//    // 모든 방 쌍에 대해 검토
-//    TArray<TPair<int32, int32>> PotentialConnections;
-//
-//    for (int32 i = 0; i < LeafNodes.Num(); ++i)
-//    {
-//        for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
-//        {
-//            // 거리가 적절한 방들만 후보로 추가
-//            if (IsValidConnectionDistance(i, j))
-//            {
-//                PotentialConnections.Add(TPair<int32, int32>(i, j));
-//            }
-//        }
-//    }
-//
-//    // 후보들을 섞어서 랜덤하게 선택
-//    for (int32 i = PotentialConnections.Num() - 1; i > 0; --i)
-//    {
-//        int32 j = RandomStream.RandRange(0, i);
-//        PotentialConnections.Swap(i, j);
-//    }
-//
-//    // 추가 연결 생성
-//    for (const auto& Connection : PotentialConnections)
-//    {
-//        if (ConnectionsAdded >= TargetConnections)
-//        {
-//            break;
-//        }
-//
-//        // 확률적으로 연결 생성
-//        if (RandomStream.FRand() < ExtraConnectionChance)
-//        {
-//            TSharedPtr<FBSPNode02> NodeA = LeafNodes[Connection.Key];
-//            TSharedPtr<FBSPNode02> NodeB = LeafNodes[Connection.Value];
-//
-//            FIntVector CenterA = GetRoomCenter(NodeA);
-//            FIntVector CenterB = GetRoomCenter(NodeB);
-//
-//            // 이미 복도가 존재하는지 확인
-//            if (!CorridorExists(CenterA, CenterB))
-//            {
-//                // 다양한 복도 스타일 중 랜덤 선택
-//                float CorridorStyle = RandomStream.FRand();
-//
-//                if (CorridorStyle < 0.5f)
-//                {
-//                    // L자 복도 (기존 스타일)
-//                    CreateLShapedCorridor(CenterA, CenterB);
-//                }
-//                else if (CorridorStyle < 0.8f)
-//                {
-//                    // 역 L자 복도 (반대 방향)
-//                    CreateLShapedCorridor(CenterB, CenterA);
-//                }
-//                else
-//                {
-//                    // 지그재그 복도 (더 복잡한 경로)
-//                    CreateZigzagCorridor(CenterA, CenterB);
-//                }
-//
-//                ExtraEdges.Add(TPair<int32, int32>(Connection.Key, Connection.Value));
-//
-//                ConnectionsAdded++;
-//
-//                UE_LOG(LogTemp, Verbose, TEXT("Added extra connection %d between room %d and %d"),
-//                    ConnectionsAdded, Connection.Key, Connection.Value);
-//            }
-//        }
-//    }
-//
-//    ExtraConnectionPairs = ExtraEdges;
-//
-//    UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections for maze complexity"), ConnectionsAdded);
-//}
 
-// 추가: 후보 경로가 기존 복도에 "바짝 평행"하게 붙을 위험이 큰지 평가
+
+// 후보 경로가 기존 복도에 "바짝 평행"하게 붙을 위험이 큰지 평가
 bool ABSPMapGenerator02::WouldCreateLongParallel(const FIntVector& Start, const FIntVector& End, float Tolerance /*=0.6f*/)
 {
     int32 CheckPoints = 7; // 샘플 지점 수 (홀수 권장)
@@ -1463,10 +1212,10 @@ void ABSPMapGenerator02::CreateExtraConnections()
 
     int32 TargetConnections = RandomStream.RandRange(MinExtraConnections, MaxExtraConnections);
     int32 ConnectionsAdded = 0;
+    int32 RejectedCount = 0; // 거부된 연결 수 카운트
 
     UE_LOG(LogTemp, Warning, TEXT("Creating extra connections. Target: %d"), TargetConnections);
 
-    // 모든 방 쌍 중 거리 요건을 만족하는 후보 수집
     TArray<TPair<int32, int32>> PotentialConnections;
     for (int32 i = 0; i < LeafNodes.Num(); ++i)
     {
@@ -1486,14 +1235,12 @@ void ABSPMapGenerator02::CreateExtraConnections()
         PotentialConnections.Swap(i, j);
     }
 
-    // 추가 간선 결과 저장
     TArray<TPair<int32, int32>> ExtraEdges;
 
     for (const auto& Conn : PotentialConnections)
     {
         if (ConnectionsAdded >= TargetConnections) break;
 
-        // 생성 확률
         if (RandomStream.FRand() >= ExtraConnectionChance) continue;
 
         TSharedPtr<FBSPNode02> NodeA = LeafNodes[Conn.Key];
@@ -1502,15 +1249,25 @@ void ABSPMapGenerator02::CreateExtraConnections()
         FIntVector CenterA = GetRoomCenter(NodeA);
         FIntVector CenterB = GetRoomCenter(NodeB);
 
-        // 1) 기존 경로와 "거의 동일한" 직선이 이미 깔려 있으면 스킵 (중복 방지)
-        if (CorridorExists(CenterA, CenterB)) continue; // 기존 구현 활용. 
+        // 1) 기존 중복 체크
+        if (CorridorExists(CenterA, CenterB))
+        {
+            RejectedCount++;
+            continue;
+        }
 
-        // 2) 후보가 기존 복도에 바짝 붙어 (=, ||) 달릴 가능성이 크면 스킵
-        if (WouldCreateLongParallel(CenterA, CenterB, /*Tolerance=*/0.6f)) continue;
+        // 2) 개선된 평행 복도 체크 - 더 엄격하게
+        if (WouldCreateParallelCorridor(CenterA, CenterB, 2.0f)) // 2칸 이내 평행 금지
+        {
+            RejectedCount++;
+            UE_LOG(LogTemp, Verbose, TEXT("Rejected connection between room %d and %d due to parallel corridor risk"),
+                Conn.Key, Conn.Value);
+            continue;
+        }
 
-        // 3) 복도 생성: "직선 우선 → 불가 시 L-피벗" 로직 재사용
-        CreateCorridor(NodeA, NodeB); // 기존 L/역-L/지그재그 랜덤 호출을 대체. 
-
+        // 3) 통과하면 복도 생성
+        CreateCorridor(NodeA, NodeB);
+        //CreateCorridorStopAtContact(NodeA, NodeB);
         ExtraEdges.Add(TPair<int32, int32>(Conn.Key, Conn.Value));
         ++ConnectionsAdded;
 
@@ -1520,14 +1277,10 @@ void ABSPMapGenerator02::CreateExtraConnections()
 
     ExtraConnectionPairs = ExtraEdges;
 
-    UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections for maze complexity"), ConnectionsAdded);
-
-    // 후처리로 평행 라인 잔여 정리(연결성 유지한 채 ||, =만 걷어냄)
-    CleanupParallelCorridors(); 
-
-
-
+    UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections, rejected %d due to parallel risk"),
+        ConnectionsAdded, RejectedCount);
 }
+
 
 
 // 두 방 사이의 거리가 적절한지 확인
@@ -1576,27 +1329,84 @@ bool ABSPMapGenerator02::CorridorExists(const FIntVector& Start, const FIntVecto
     return CorridorCount > CheckPoints / 2;
 }
 
-// 지그재그 복도 생성
 void ABSPMapGenerator02::CreateZigzagCorridor(const FIntVector& Start, const FIntVector& End)
 {
-    // 중간 지점 계산
+    auto ClampIn = [&](int32& v, int32 lo, int32 hi) { v = FMath::Clamp(v, lo, hi); };
+    auto HasDiag = [&](int x, int y) {
+        auto C = [&](int cx, int cy) { return IsValidPosition(cx, cy) && IsCorridorTile(cx, cy); };
+        return C(x - 1, y - 1) || C(x + 1, y - 1) || C(x - 1, y + 1) || C(x + 1, y + 1);
+        };
+
+    // L-경로 한 구간(수평/수직)에 대해 "대각 접촉"이 나는지 빠르게 검사
+    auto LDiagUnsafe = [&](const FIntVector& A, const FIntVector& B, bool bHorizontalFirst) {
+        // 수평/수직 진행 순서에 맞춰 경로를 미리 스캔(타일을 아직 쓰지 않음)
+        if (bHorizontalFirst) {
+            int stepX = (A.X <= B.X) ? 1 : -1;
+            for (int x = A.X; x != B.X + stepX; x += stepX)
+                if (HasDiag(x, A.Y)) return true;
+            int stepY = (A.Y <= B.Y) ? 1 : -1;
+            for (int y = A.Y; y != B.Y + stepY; y += stepY)
+                if (HasDiag(B.X, y)) return true;
+        }
+        else {
+            int stepY = (A.Y <= B.Y) ? 1 : -1;
+            for (int y = A.Y; y != B.Y + stepY; y += stepY)
+                if (HasDiag(A.X, y)) return true;
+            int stepX = (A.X <= B.X) ? 1 : -1;
+            for (int x = A.X; x != B.X + stepX; x += stepX)
+                if (HasDiag(x, B.Y)) return true;
+        }
+        return false;
+        };
+
+    // 한 구간이 "평행 위험" 또는 "대각 접촉" 없이 안전한지
+    auto SegmentSafe = [&](const FIntVector& A, const FIntVector& B) {
+        if (WouldCreateParallelCorridor(A, B, /*MinDistance=*/2.0f)) return false; // 평행 위험 차단
+        // 두 가지 L 순서 중 하나라도 대각 접촉이 안 나면 통과
+        if (LDiagUnsafe(A, B, true) && LDiagUnsafe(A, B, false)) return false;
+        return true;
+        };
+
+    auto TryWithMid = [&](FIntVector Mid)->bool {
+        if (!IsValidPosition(Mid.X, Mid.Y)) return false;
+
+        // 두 구간 모두 선검사
+        if (!SegmentSafe(Start, Mid)) return false;
+        if (!SegmentSafe(Mid, End))   return false;
+
+        // 둘 다 OK면 커밋(실제 쓰기)
+        CreateLShapedCorridorSafe(Start, Mid);
+        CreateLShapedCorridorSafe(Mid, End);
+        return true;
+        };
+
+    // (1) 기본 중간점 산출 + 범위 보정
     int32 MidX = (Start.X + End.X) / 2;
     int32 MidY = (Start.Y + End.Y) / 2;
-
-    // 랜덤 오프셋 추가
     int32 OffsetRange = 3;
     MidX += RandomStream.RandRange(-OffsetRange, OffsetRange);
     MidY += RandomStream.RandRange(-OffsetRange, OffsetRange);
+    ClampIn(MidX, 0, MapSize.X - 1);
+    ClampIn(MidY, 0, MapSize.Y - 1);
+    FIntVector Mid(MidX, MidY, 0);
 
-    // 맵 범위 제한
-    MidX = FMath::Clamp(MidX, 0, MapSize.X - 1);
-    MidY = FMath::Clamp(MidY, 0, MapSize.Y - 1);
+    // (2) 기본 시도 → 실패 시 여러 오프셋 대안 시도
+    if (TryWithMid(Mid)) return;
 
-    FIntVector MidPoint(MidX, MidY, 0);
+    const FIntVector Alts[] = {
+        FIntVector(Mid.X + 2, Mid.Y, 0), FIntVector(Mid.X - 2, Mid.Y, 0),
+        FIntVector(Mid.X, Mid.Y + 2, 0), FIntVector(Mid.X, Mid.Y - 2, 0),
+        FIntVector(Mid.X + 3, Mid.Y, 0), FIntVector(Mid.X - 3, Mid.Y, 0)
+    };
+    for (const auto& A : Alts) if (TryWithMid(A)) return;
 
-    // Start -> Mid -> End 경로 생성
-    CreateLShapedCorridor(Start, MidPoint);
-    CreateLShapedCorridor(MidPoint, End);
+    // (3) 지그재그가 전부 위험하면, 최후 수단으로 안전한 L-직결만 시도
+    if (!WouldCreateParallelCorridor(Start, End, 2.0f)) {
+        CreateLShapedCorridorSafe(Start, End);
+    }
+    else {
+        UE_LOG(LogTemp, Verbose, TEXT("Zigzag skipped: parallel/diagonal risk"));
+    }
 }
 
 // 맵 분석 및 통계 생성
@@ -1681,216 +1491,6 @@ void ABSPMapGenerator02::AnalyzeCorridorTypes()
     }
 }
 
-// 특정 위치의 복도 타입 결정
-//ETileType02 ABSPMapGenerator02::DetermineCorridorType(int32 x, int32 y)
-//{
-//    int32 Connections = CountConnections(x, y);
-//
-//    switch (Connections)
-//    {
-//    case 0:
-//        // 고립된 타일 (일반적으로 발생하지 않음)
-//        return ETileType02::Corridor;
-//
-//    case 1:
-//        // 막다른 길
-//        return ETileType02::DeadEnd;
-//
-//    case 2:
-//        // 일반 복도
-//        return ETileType02::Corridor;
-//
-//    case 3:
-//        // T자 갈림길
-//        return ETileType02::Junction;
-//
-//    case 4:
-//        // 십자 교차로
-//        return ETileType02::CrossRoad;
-//
-//    default:
-//        // 예외 상황
-//        return ETileType02::Corridor;
-//    }
-//}
-
-//ETileType02 ABSPMapGenerator02::DetermineCorridorType(int32 x, int32 y)
-//{
-//    // 복도끼리의 연결 개수
-//    int32 CorridorConnections = CountConnections(x, y);
-//
-//    // 전체 연결 개수 (방 포함) 계산
-//    int32 TotalConnections = CorridorConnections;
-//
-//    // 방과의 연결 확인
-//    bool bConnectedToRoom = false;
-//
-//    // 북쪽 확인
-//    if (y < MapSize.Y - 1 && TileMap[x][y + 1] == ETileType02::Room)
-//    {
-//        TotalConnections++;
-//        bConnectedToRoom = true;
-//    }
-//
-//    // 남쪽 확인
-//    if (y > 0 && TileMap[x][y - 1] == ETileType02::Room)
-//    {
-//        TotalConnections++;
-//        bConnectedToRoom = true;
-//    }
-//
-//    // 동쪽 확인
-//    if (x < MapSize.X - 1 && TileMap[x + 1][y] == ETileType02::Room)
-//    {
-//        TotalConnections++;
-//        bConnectedToRoom = true;
-//    }
-//
-//    // 서쪽 확인
-//    if (x > 0 && TileMap[x - 1][y] == ETileType02::Room)
-//    {
-//        TotalConnections++;
-//        bConnectedToRoom = true;
-//    }
-//
-//    // 복도끼리의 연결만으로 타입 결정
-//    switch (CorridorConnections)
-//    {
-//    case 0:
-//        // 복도 연결이 없는 경우
-//        if (bConnectedToRoom)
-//        {
-//            // 방과만 연결된 경우 - 막다른 길
-//            return ETileType02::DeadEnd;
-//        }
-//        else
-//        {
-//            // 완전히 고립 (일반적으로 발생하지 않음)
-//            return ETileType02::Corridor;
-//        }
-//
-//    case 1:
-//        // 복도 1개와 연결
-//        if (bConnectedToRoom)
-//        {
-//            // 방과도 연결되어 있으면 일반 복도 (방-복도-복도 구조)
-//            return ETileType02::Corridor;
-//        }
-//        else
-//        {
-//            // 순수하게 복도 1개만 연결 - 막다른 길
-//            return ETileType02::DeadEnd;
-//        }
-//
-//    case 2:
-//        // 복도 2개와 연결 - 일반 복도
-//        return ETileType02::Corridor;
-//
-//    case 3:
-//        // 복도 3개와 연결 - T자 갈림길
-//        return ETileType02::Junction;
-//
-//    case 4:
-//        // 복도 4개와 연결 - 십자로
-//        return ETileType02::CrossRoad;
-//
-//    default:
-//        return ETileType02::Corridor;
-//    }
-//}
-
-//ETileType02 ABSPMapGenerator02::DetermineCorridorType(int32 x, int32 y)
-//{
-//    // 이웃(복도 계열만) ? IsCorridorTile은 DeadEnd/Junction/CrossRoad도 복도로 봄
-//    // (현 구조 유지)  :contentReference[oaicite:3]{index=3}
-//    const bool N = (y < MapSize.Y - 1) && IsCorridorTile(x, y + 1);
-//    const bool S = (y > 0) && IsCorridorTile(x, y - 1);
-//    const bool E = (x < MapSize.X - 1) && IsCorridorTile(x + 1, y);
-//    const bool W = (x > 0) && IsCorridorTile(x - 1, y);
-//
-//    // 보조: 해당 좌표가 가로/세로 "밴드(평행 레인)"의 일부인지
-//    auto IsHorizontalBand = [this](int32 cx, int32 cy)->bool {
-//        return IsCorridorTile(cx - 1, cy) && IsCorridorTile(cx + 1, cy);
-//        };
-//    auto IsVerticalBand = [this](int32 cx, int32 cy)->bool {
-//        return IsCorridorTile(cx, cy - 1) && IsCorridorTile(cx, cy + 1);
-//        };
-//
-//    // ── 평행 레인(폭 확장) 예외 처리 ─────────────────────────────
-//    // 가로 진행(E&W) + 위/아래 한쪽만 열린 경우: 위/아래 이웃이 가로 밴드면 분기 아님
-//    if (E && W && (N ^ S)) {
-//        const int ny = N ? (y + 1) : (y - 1);
-//        if (IsHorizontalBand(x, ny)) {
-//            return ETileType02::Corridor; // 폭 확장된 직선으로 취급
-//        }
-//    }
-//    // 세로 진행(N&S) + 좌/우 한쪽만 열린 경우: 좌/우 이웃이 세로 밴드면 분기 아님
-//    if (N && S && (E ^ W)) {
-//        const int nx = E ? (x + 1) : (x - 1);
-//        if (IsVerticalBand(nx, y)) {
-//            return ETileType02::Corridor;
-//        }
-//    }
-//    // ────────────────────────────────────────────────────────────
-//
-//    // 평행 레인 예외에 안 걸리면 기존 규칙으로 판단
-//    const int connections = (N ? 1 : 0) + (S ? 1 : 0) + (E ? 1 : 0) + (W ? 1 : 0);
-//
-//    switch (connections)
-//    {
-//    case 1:  return ETileType02::DeadEnd;    // 막다른 길
-//    case 2:  return ETileType02::Corridor;   // 직선/코너(스폰에서 회전)
-//    case 3:  return ETileType02::Junction;   // T 갈림길
-//    case 4:  return ETileType02::CrossRoad;  // 십자
-//    default: return ETileType02::Corridor;
-//    }
-//}
-
-//ETileType02 ABSPMapGenerator02::DetermineCorridorType(int32 x, int32 y)
-//{
-//    // 1) 현재 복도 이웃들
-//    bool N = (y < MapSize.Y - 1 && IsCorridorTile(x, y + 1));
-//    bool S = (y > 0 && IsCorridorTile(x, y - 1));
-//    bool E = (x < MapSize.X - 1 && IsCorridorTile(x + 1, y));
-//    bool W = (x > 0 && IsCorridorTile(x - 1, y));
-//    int32 CorridorConnections = (int)N + (int)S + (int)E + (int)W;
-//
-//    // 2) 방 인접 여부
-//    bool RoomAdj =
-//        (y < MapSize.Y - 1 && TileMap[x][y + 1] == ETileType02::Room) ||
-//        (y > 0 && TileMap[x][y - 1] == ETileType02::Room) ||
-//        (x < MapSize.X - 1 && TileMap[x + 1][y] == ETileType02::Room) ||
-//        (x > 0 && TileMap[x - 1][y] == ETileType02::Room);
-//
-//    // 3) BridgeCorridor는 항상 일반 복도 취급 (문 앞 한 칸 보호)
-//    if (TileMap[x][y] == ETileType02::BridgeCorridor)
-//        return ETileType02::Corridor;
-//
-//    // 4) 방에 붙은 복도는 DeadEnd로 보지 않기
-//    if (RoomAdj && CorridorConnections <= 1)
-//        return ETileType02::Corridor;
-//
-//    // 5) 2칸 폭 복도(평행 복도) 예외: 한쪽 옆만 붙었더라도 옆 칸이 직선복도면 일반 복도
-//    auto conn = [&](int32 cx, int32 cy) { return CountConnections(cx, cy); }; // :contentReference[oaicite:4]{index=4}
-//    if ((N && S && (E ^ W))) {
-//        int sx = E ? x + 1 : x - 1;
-//        if (sx >= 0 && sx < MapSize.X && conn(sx, y) == 2) return ETileType02::Corridor;
-//    }
-//    if ((E && W && (N ^ S))) {
-//        int sy = N ? y + 1 : y - 1;
-//        if (sy >= 0 && sy < MapSize.Y && conn(x, sy) == 2) return ETileType02::Corridor;
-//    }
-//
-//    // 6) 기본 규칙
-//    switch (CorridorConnections) {
-//    case 0: return ETileType02::DeadEnd;
-//    case 1: return ETileType02::DeadEnd;
-//    case 2: return ETileType02::Corridor;
-//    case 3: return ETileType02::Junction;
-//    case 4: return ETileType02::CrossRoad;
-//    default: return ETileType02::Corridor;
-//    }
-//}
 
 ETileType02 ABSPMapGenerator02::DetermineCorridorType(int32 x, int32 y)
 {
@@ -2847,67 +2447,904 @@ bool ABSPMapGenerator02::IsGraphPassable(int32 x, int32 y) const
 
 void ABSPMapGenerator02::CleanupParallelCorridors()
 {
-    UE_LOG(LogTemp, Warning, TEXT("Starting parallel corridor cleanup..."));
-
-    int32 RemovedCount = 0;
-
-    // 정확히 || 패턴이나 = 패턴만 찾아서 제거
-    for (int32 x = 1; x < MapSize.X - 2; ++x)  // 여유 공간 확보
-    {
-        for (int32 y = 1; y < MapSize.Y - 2; ++y)
+    auto IsIn = [this](int32 x, int32 y)
         {
-            // 현재 위치가 복도인지 확인
-            if (TileMap[x][y] != ETileType02::Corridor) continue;
+            return x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y;
+        };
 
-            // 수직 평행 복도 체크 (|| 패턴)
-            // 현재와 오른쪽이 모두 복도이고, 둘 다 위아래로만 연결된 경우
-            if (TileMap[x + 1][y] == ETileType02::Corridor)
+    const int dx[4] = { 0, 0, 1, -1 };
+    const int dy[4] = { 1, -1, 0, 0 };
+
+    int Pass = 0;
+    int TotalRemoved = 0;
+
+    // 여러 군데에 흩어진 스텁을 한 번에 지우기 위해 소규모 반복(침식 방지용으로 최대 4회)
+    while (Pass++ < 4)
+    {
+        TArray<FIntVector> ToRemove;
+
+        for (int32 x = 0; x < MapSize.X; ++x)
+        {
+            for (int32 y = 0; y < MapSize.Y; ++y)
             {
-                // 현재 타일: 위아래만 연결, 좌우는 연결 안됨
-                bool currentVerticalOnly =
-                    IsCorridorTile(x, y - 1) && IsCorridorTile(x, y + 1) &&  // 위아래 연결
-                    !IsCorridorTile(x - 1, y) && !IsCorridorTile(x + 2, y);  // 양옆 끊김
+                // 문 앞 1칸(BridgeCorridor)은 건드리지 않고, 순수 Corridor만 검사
+                if (TileMap[x][y] != ETileType02::Corridor)
+                    continue;
 
-                // 오른쪽 타일: 위아래만 연결, 좌우는 연결 안됨 (현재 제외)
-                bool rightVerticalOnly =
-                    IsCorridorTile(x + 1, y - 1) && IsCorridorTile(x + 1, y + 1) &&  // 위아래 연결
-                    !IsCorridorTile(x + 2, y);  // 오른쪽 끊김 (왼쪽은 현재라 체크 안함)
+                // 1) 자신이 잎(연결 1개)이어야 함
+                if (CountConnections(x, y) != 1)
+                    continue;
 
-                if (currentVerticalOnly && rightVerticalOnly)
+                // 2) 붙어있는 이웃 찾기(복도 계열)
+                int nx = 0, ny = 0;
+                bool bFound = false;
+                for (int k = 0; k < 4; ++k)
                 {
-                    // 둘 중 하나 제거 (오른쪽 제거)
-                    TileMap[x + 1][y] = ETileType02::Empty;
-                    RemovedCount++;
+                    int tx = x + dx[k], ty = y + dy[k];
+                    if (IsIn(tx, ty) && IsCorridorTile(tx, ty))
+                    {
+                        nx = tx; ny = ty; bFound = true; break;
+                    }
+                }
+                if (!bFound) continue;
 
-                    UE_LOG(LogTemp, Verbose, TEXT("Removed vertical parallel corridor at (%d, %d)"), x + 1, y);
+                // 3) 이웃의 연결 상황 파악
+                bool N = IsCorridorTile(nx, ny + 1);
+                bool S = IsCorridorTile(nx, ny - 1);
+                bool E = IsCorridorTile(nx + 1, ny);
+                bool W = IsCorridorTile(nx - 1, ny);
+                int  c = (N ? 1 : 0) + (S ? 1 : 0) + (E ? 1 : 0) + (W ? 1 : 0);
+
+                // 이웃이 직선 통과(세로 또는 가로) + 스텁 1개 → 총 3연결이어야 함
+                bool VerticalThrough = N && S;
+                bool HorizontalThrough = E && W;
+
+                if (c == 3 && (VerticalThrough ^ HorizontalThrough))
+                {
+                    // 세로 통과면 우리의 연결은 좌/우 방향(수직)이어야 함
+                    if (VerticalThrough && x != nx && FMath::Abs(x - nx) == 1 && y == ny)
+                    {
+                        ToRemove.Add({ x, y, 0 });
+                        continue;
+                    }
+                    // 가로 통과면 우리의 연결은 위/아래 방향(수직)이어야 함
+                    if (HorizontalThrough && y != ny && FMath::Abs(y - ny) == 1 && x == nx)
+                    {
+                        ToRemove.Add({ x, y, 0 });
+                        continue;
+                    }
                 }
             }
+        }
 
-            // 수평 평행 복도 체크 (= 패턴)  
-            // 현재와 위쪽이 모두 복도이고, 둘 다 좌우로만 연결된 경우
-            if (TileMap[x][y + 1] == ETileType02::Corridor)
+        if (ToRemove.Num() == 0) break;
+
+        for (const FIntVector& P : ToRemove)
+        {
+            TileMap[P.X][P.Y] = ETileType02::Empty;
+        }
+        TotalRemoved += ToRemove.Num();
+    }
+
+#if !UE_BUILD_SHIPPING
+    UE_LOG(LogTemp, Warning, TEXT("CleanupParallelCorridors: removed %d side-stubs in %d passes"),
+        TotalRemoved, Pass);
+#endif
+}
+
+
+// 1. 더 엄격한 평행 감지
+bool ABSPMapGenerator02::WouldCreateParallelCorridor(const FIntVector& Start, const FIntVector& End, float MinDistance = 2.0f)
+{
+    // L자 경로의 두 가지 가능성 모두 체크
+    bool bHorizontalFirstBlocked = CheckLShapePathForParallel(Start, End, true, MinDistance);
+    bool bVerticalFirstBlocked = CheckLShapePathForParallel(Start, End, false, MinDistance);
+
+    // 둘 다 차단되면 이 연결은 포기
+    return bHorizontalFirstBlocked && bVerticalFirstBlocked;
+}
+
+// 2. L자 경로별 평행 체크
+bool ABSPMapGenerator02::CheckLShapePathForParallel(const FIntVector& Start, const FIntVector& End, bool bHorizontalFirst, float MinDistance)
+{
+    if (bHorizontalFirst)
+    {
+        // 수평 구간: Start.X → End.X (Y = Start.Y)
+        if (HasParallelInRange(Start.X, End.X, Start.Y, true, MinDistance))
+            return true;
+
+        // 수직 구간: Start.Y → End.Y (X = End.X)  
+        if (HasParallelInRange(Start.Y, End.Y, End.X, false, MinDistance))
+            return true;
+    }
+    else
+    {
+        // 수직 구간: Start.Y → End.Y (X = Start.X)
+        if (HasParallelInRange(Start.Y, End.Y, Start.X, false, MinDistance))
+            return true;
+
+        // 수평 구간: Start.X → End.X (Y = End.Y)
+        if (HasParallelInRange(Start.X, End.X, End.Y, true, MinDistance))
+            return true;
+    }
+
+    return false;
+}
+
+// 3. 특정 구간에서 평행 복도 존재 여부 체크
+bool ABSPMapGenerator02::HasParallelInRange(int32 start, int32 end, int32 fixed, bool bHorizontal, float MinDistance)
+{
+    if (start == end) return false;
+
+    int32 minVal = FMath::Min(start, end);
+    int32 maxVal = FMath::Max(start, end);
+
+    // 구간의 80% 이상에서 평행 복도가 감지되면 차단
+    int32 totalChecks = maxVal - minVal + 1;
+    int32 parallelCount = 0;
+    int32 threshold = FMath::CeilToInt(totalChecks * 0.2f); // 20%만 넘어도 차단 (엄격)
+
+    for (int32 i = minVal; i <= maxVal; ++i)
+    {
+        int32 checkX = bHorizontal ? i : fixed;
+        int32 checkY = bHorizontal ? fixed : i;
+
+        if (!IsValidPosition(checkX, checkY)) continue;
+
+        // 현재 위치가 이미 복도면 평행 가능성 높음
+        if (IsCorridorTile(checkX, checkY))
+        {
+            parallelCount++;
+            continue;
+        }
+
+        // MinDistance 범위 내에 평행 복도가 있는지 체크
+        bool hasNearbyParallel = false;
+
+        for (int32 dist = 1; dist <= (int32)MinDistance; ++dist)
+        {
+            if (bHorizontal)
             {
-                // 현재 타일: 좌우만 연결, 위아래는 연결 안됨
-                bool currentHorizontalOnly =
-                    IsCorridorTile(x - 1, y) && IsCorridorTile(x + 1, y) &&  // 좌우 연결
-                    !IsCorridorTile(x, y - 1) && !IsCorridorTile(x, y + 2);  // 위아래 끊김
-
-                // 위쪽 타일: 좌우만 연결, 위아래는 연결 안됨 (현재 제외)
-                bool upHorizontalOnly =
-                    IsCorridorTile(x - 1, y + 1) && IsCorridorTile(x + 1, y + 1) &&  // 좌우 연결
-                    !IsCorridorTile(x, y + 2);  // 위쪽 끊김 (아래는 현재라 체크 안함)
-
-                if (currentHorizontalOnly && upHorizontalOnly)
+                // 수평 진행 시 위아래 체크
+                if ((checkY + dist < MapSize.Y && IsCorridorTile(checkX, checkY + dist)) ||
+                    (checkY - dist >= 0 && IsCorridorTile(checkX, checkY - dist)))
                 {
-                    // 둘 중 하나 제거 (위쪽 제거)
-                    TileMap[x][y + 1] = ETileType02::Empty;
-                    RemovedCount++;
-
-                    UE_LOG(LogTemp, Verbose, TEXT("Removed horizontal parallel corridor at (%d, %d)"), x, y + 1);
+                    hasNearbyParallel = true;
+                    break;
                 }
+            }
+            else
+            {
+                // 수직 진행 시 좌우 체크  
+                if ((checkX + dist < MapSize.X && IsCorridorTile(checkX + dist, checkY)) ||
+                    (checkX - dist >= 0 && IsCorridorTile(checkX - dist, checkY)))
+                {
+                    hasNearbyParallel = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasNearbyParallel)
+            parallelCount++;
+    }
+
+    return parallelCount > threshold;
+}
+
+bool ABSPMapGenerator02::IsValidPosition(int32 x, int32 y) const
+{
+    return x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y;
+}
+
+void ABSPMapGenerator02::CreateLShapedCorridorSafe(const FIntVector& Start, const FIntVector& End)
+{
+    // --- local helpers ------------------------------------------------------
+    auto Carve = [&](int32 x, int32 y)
+        {
+            if (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y)
+            {
+                if (TileMap[x][y] == ETileType02::Empty)
+                {
+                    TileMap[x][y] = ETileType02::Corridor;
+                }
+            }
+        };
+
+    auto CarveHorizontal = [&](int32 y, int32 x0, int32 x1)
+        {
+            int32 step = (x0 <= x1) ? 1 : -1;
+            for (int32 x = x0; x != x1 + step; x += step) Carve(x, y);
+        };
+
+    auto CarveVertical = [&](int32 x, int32 y0, int32 y1)
+        {
+            int32 step = (y0 <= y1) ? 1 : -1;
+            for (int32 y = y0; y != y1 + step; y += step) Carve(x, y);
+        };
+
+    auto IsHorizontalSegmentSafe = [&](int32 y, int32 x0, int32 x1, int32 maxConsecutive)->bool
+        {
+            int32 step = (x0 <= x1) ? 1 : -1;
+            int32 consecutive = 0;
+            for (int32 x = x0; x != x1 + step; x += step)
+            {
+                const bool up = (y < MapSize.Y - 1) && IsCorridorTile(x, y + 1);
+                const bool down = (y > 0) && IsCorridorTile(x, y - 1);
+                if (up || down)
+                {
+                    if (++consecutive > maxConsecutive) return false; // abort BEFORE carving
+                }
+                else
+                {
+                    consecutive = 0;
+                }
+            }
+            return true;
+        };
+
+    auto IsVerticalSegmentSafe = [&](int32 x, int32 y0, int32 y1, int32 maxConsecutive)->bool
+        {
+            int32 step = (y0 <= y1) ? 1 : -1;
+            int32 consecutive = 0;
+            for (int32 y = y0; y != y1 + step; y += step)
+            {
+                const bool left = (x > 0) && IsCorridorTile(x - 1, y);
+                const bool right = (x < MapSize.X - 1) && IsCorridorTile(x + 1, y);
+                if (left || right)
+                {
+                    if (++consecutive > maxConsecutive) return false; // abort BEFORE carving
+                }
+                else
+                {
+                    consecutive = 0;
+                }
+            }
+            return true;
+        };
+    // ------------------------------------------------------------------------
+
+    const int32 MaxConsecutive = 2;
+
+    auto AttemptHorizontalFirst = [&]() -> bool
+        {
+            // 1) 먼저 전체 경로 안전성 검사
+            if (!IsHorizontalSegmentSafe(Start.Y, Start.X, End.X, MaxConsecutive))
+                return false;
+
+            // 2) 통과 시에만 일괄 Carve (스텁 방지)
+            CarveHorizontal(Start.Y, Start.X, End.X);
+            CarveVertical(End.X, Start.Y, End.Y);
+            return true;
+        };
+
+    auto AttemptVerticalFirst = [&]() -> bool
+        {
+            if (!IsVerticalSegmentSafe(Start.X, Start.Y, End.Y, MaxConsecutive))
+                return false;
+
+            CarveVertical(Start.X, Start.Y, End.Y);
+            CarveHorizontal(End.Y, Start.X, End.X);
+            return true;
+        };
+
+    // 기존 로직 유지: 랜덤으로 우선순위 선택, 실패 시 반대 순서 시도
+    if (RandomStream.FRand() > 0.5f)
+    {
+        if (!AttemptHorizontalFirst()) AttemptVerticalFirst();
+    }
+    else
+    {
+        if (!AttemptVerticalFirst()) AttemptHorizontalFirst();
+    }
+}
+
+// 추가 복도 전용: 진행 중 기존 복도/문/브리지를 만나면 그 직전까지 파고 종료
+void ABSPMapGenerator02::CreateCorridorStopAtContact(TSharedPtr<FBSPNode02> NodeA, TSharedPtr<FBSPNode02> NodeB)
+{
+    if (!NodeA.IsValid() || !NodeB.IsValid()) return;
+    if (!NodeA->bHasRoom || !NodeB->bHasRoom) return;
+
+    auto InBounds = [&](int32 x, int32 y)
+        {
+            return x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y;
+        };
+    auto IsCorridorLike = [&](int32 x, int32 y)
+        {
+            if (!InBounds(x, y)) return false;
+            const ETileType02 t = TileMap[x][y];
+            // “연결”로 인정할 것들
+            return (t == ETileType02::Corridor || t == ETileType02::BridgeCorridor || t == ETileType02::Door);
+        };
+    auto CarveIfEmpty = [&](int32 x, int32 y)
+        {
+            if (InBounds(x, y) && TileMap[x][y] == ETileType02::Empty)
+                TileMap[x][y] = ETileType02::Corridor;
+        };
+    auto ConnectedToOthers = [&](int32 x, int32 y, int32 px, int32 py)->bool
+        {
+            // 방금 깐 타일 (x,y)이 “이전칸(px,py)”을 제외한 주위 4방 중
+            // 하나라도 기존 복도 계열이면 '연결 성립'
+            const int dx[4] = { 0, 0, 1,-1 };
+            const int dy[4] = { 1,-1, 0, 0 };
+            for (int k = 0; k < 4; ++k)
+            {
+                const int nx = x + dx[k], ny = y + dy[k];
+                if (nx == px && ny == py) continue; // 자기 직전칸(우리가 깐 경로)은 제외
+                if (IsCorridorLike(nx, ny)) return true;
+            }
+            return false;
+        };
+
+    // 한 구간을 깔되, “연결”이 성립하는 즉시 true 반환(나머지 구간 스킵 신호)
+    auto CarveHorizontalUntilJoin = [&](int32 y, int32 x0, int32 x1)->bool
+        {
+            int32 step = (x0 <= x1) ? 1 : -1;
+            int32 px = x0 - step, py = y; // 이전칸(초기엔 진행 반대쪽)
+            for (int32 x = x0; x != x1 + step; x += step)
+            {
+                CarveIfEmpty(x, y);
+                if (ConnectedToOthers(x, y, px, py)) return true; // 연결 성립 → 즉시 종료
+                px = x; py = y;
+            }
+            return false; // 끝까지 갔지만 중간 연결은 없었음
+        };
+    auto CarveVerticalUntilJoin = [&](int32 x, int32 y0, int32 y1)->bool
+        {
+            int32 step = (y0 <= y1) ? 1 : -1;
+            int32 px = x, py = y0 - step;
+            for (int32 y = y0; y != y1 + step; y += step)
+            {
+                CarveIfEmpty(x, y);
+                if (ConnectedToOthers(x, y, px, py)) return true;
+                px = x; py = y;
+            }
+            return false;
+        };
+
+    const FBSPNode02& A = *NodeA.Get();
+    const FBSPNode02& B = *NodeB.Get();
+
+    // ── 1) 좌우 이웃 + Y구간 겹치면 수평 직선 우선(기존 CreateCorridor 로직과 동일) ──
+    bool bLeftRight = (A.RoomMax.X <= B.RoomMin.X) || (B.RoomMax.X <= A.RoomMin.X);
+    if (bLeftRight)
+    {
+        const FBSPNode02* Left = (A.RoomMax.X <= B.RoomMin.X) ? &A : &B;
+        const FBSPNode02* Right = (Left == &A) ? &B : &A;
+
+        int32 Y0 = FMath::Max(Left->RoomMin.Y, Right->RoomMin.Y);
+        int32 Y1 = FMath::Min(Left->RoomMax.Y - 1, Right->RoomMax.Y - 1);
+        if (Y0 <= Y1)
+        {
+            int32 Y = RandomStream.RandRange(Y0, Y1);
+            CarveHorizontalUntilJoin(Y, Left->RoomMax.X, Right->RoomMin.X);
+            return; // 수평 구간에서 이미 연결되면 더 이상 진행하지 않음
+        }
+    }
+
+    // ── 2) 상하 이웃 + X구간 겹치면 수직 직선 ──
+    bool bTopBottom = (A.RoomMax.Y <= B.RoomMin.Y) || (B.RoomMax.Y <= A.RoomMin.Y);
+    if (bTopBottom)
+    {
+        const FBSPNode02* Bottom = (A.RoomMax.Y <= B.RoomMin.Y) ? &A : &B;
+        const FBSPNode02* Top = (Bottom == &A) ? &B : &A;
+
+        int32 X0 = FMath::Max(Bottom->RoomMin.X, Top->RoomMin.X);
+        int32 X1 = FMath::Min(Bottom->RoomMax.X - 1, Top->RoomMax.X - 1);
+        if (X0 <= X1)
+        {
+            int32 X = RandomStream.RandRange(X0, X1);
+            CarveVerticalUntilJoin(X, Bottom->RoomMax.Y, Top->RoomMin.Y);
+            return;
+        }
+    }
+
+    // ── 3) 그 외엔 L자. 1구간에서 연결되면 2구간은 스킵 ──
+    FIntVector S = GetRoomCenter(NodeA);
+    FIntVector E = GetRoomCenter(NodeB);
+
+    if (RandomStream.FRand() < 0.5f)
+    {
+        // H → V
+        if (!CarveHorizontalUntilJoin(S.Y, S.X, E.X))
+            CarveVerticalUntilJoin(E.X, S.Y, E.Y);
+    }
+    else
+    {
+        // V → H
+        if (!CarveVerticalUntilJoin(S.X, S.Y, E.Y))
+            CarveHorizontalUntilJoin(E.Y, S.X, E.X);
+    }
+}
+
+void ABSPMapGenerator02::CollapseThickCorridorBlobsFavorDoor()
+{
+    auto In = [&](int32 x, int32 y) { return x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y; };
+
+    // Corridor 계열(문 앞 한칸 포함)
+    auto IsCorr = [&](int32 x, int32 y)->bool
+        {
+            if (!In(x, y)) return false;
+            const ETileType02 t = TileMap[x][y];
+            return (t == ETileType02::Corridor || t == ETileType02::BridgeCorridor);
+        };
+    // 문/브리지(보호 우선순위)
+    auto IsDoorLike = [&](int32 x, int32 y)->bool
+        {
+            if (!In(x, y)) return false;
+            const ETileType02 t = TileMap[x][y];
+            return (t == ETileType02::Door || t == ETileType02::BridgeCorridor);
+        };
+    // 외부 열린면 판정(연결로 문도 포함)
+    auto IsCorridorLikeOutside = [&](int32 x, int32 y)->bool
+        {
+            if (!In(x, y)) return false;
+            const ETileType02 t = TileMap[x][y];
+            return (t == ETileType02::Corridor || t == ETileType02::BridgeCorridor || t == ETileType02::Door);
+        };
+
+    struct Sides { bool L = false, R = false, T = false, B = false; };
+    auto SideOpens = [&](int32 x0, int32 y0, int32 w, int32 h)->Sides
+        {
+            Sides s;
+            for (int32 yy = y0; yy < y0 + h; ++yy) { s.L |= IsCorridorLikeOutside(x0 - 1, yy); s.R |= IsCorridorLikeOutside(x0 + w, yy); }
+            for (int32 xx = x0; xx < x0 + w; ++xx) { s.B |= IsCorridorLikeOutside(xx, y0 - 1);   s.T |= IsCorridorLikeOutside(xx, y0 + h); }
+            return s;
+        };
+
+    // ----- 2x2: 한 칸 제거해도 외부 열린면 연결이 유지되는지 로컬 검증 -----
+    auto RemovalKeepsConnectivity_2x2 = [&](int32 x0, int32 y0, int32 remIdx)->bool
+        {
+            const FIntVector cell[4] = {
+                FIntVector(x0,   y0,   0),
+                FIntVector(x0 + 1, y0,   0),
+                FIntVector(x0,   y0 + 1, 0),
+                FIntVector(x0 + 1, y0 + 1, 0)
+            };
+
+            const Sides s = SideOpens(x0, y0, 2, 2);
+
+            // 남는 3칸 수집
+            TArray<FIntVector> remain; remain.Reserve(3);
+            for (int32 i = 0; i < 4; ++i)
+            {
+                if (i == remIdx) continue;
+                if (IsCorr(cell[i].X, cell[i].Y)) remain.Add(cell[i]);
+            }
+            if (remain.Num() == 0) return false;
+
+            // 내부 BFS
+            TSet<FIntVector> vis; TArray<FIntVector> q; q.Add(remain[0]); vis.Add(remain[0]);
+            auto Push = [&](int32 ax, int32 ay) {
+                if (!In(ax, ay) || !IsCorr(ax, ay))return;
+                FIntVector v(ax, ay, 0); if (!vis.Contains(v)) { vis.Add(v); q.Add(v); }
+                };
+            for (int32 qi = 0; qi < q.Num(); ++qi) {
+                const int32 x = q[qi].X, y = q[qi].Y;
+                if (x - 1 >= x0 && IsCorr(x - 1, y)) Push(x - 1, y);
+                if (x + 1 <= x0 + 1 && IsCorr(x + 1, y)) Push(x + 1, y);
+                if (y - 1 >= y0 && IsCorr(x, y - 1)) Push(x, y - 1);
+                if (y + 1 <= y0 + 1 && IsCorr(x, y + 1)) Push(x, y + 1);
+            }
+
+            auto touchesL = [&]() { return s.L && ((vis.Contains(FIntVector(x0, y0, 0)) && IsCorridorLikeOutside(x0 - 1, y0)) ||
+                (vis.Contains(FIntVector(x0, y0 + 1, 0)) && IsCorridorLikeOutside(x0 - 1, y0 + 1))); };
+            auto touchesR = [&]() { return s.R && ((vis.Contains(FIntVector(x0 + 1, y0, 0)) && IsCorridorLikeOutside(x0 + 2, y0)) ||
+                (vis.Contains(FIntVector(x0 + 1, y0 + 1, 0)) && IsCorridorLikeOutside(x0 + 2, y0 + 1))); };
+            auto touchesB = [&]() { return s.B && ((vis.Contains(FIntVector(x0, y0, 0)) && IsCorridorLikeOutside(x0, y0 - 1)) ||
+                (vis.Contains(FIntVector(x0 + 1, y0, 0)) && IsCorridorLikeOutside(x0 + 1, y0 - 1))); };
+            auto touchesT = [&]() { return s.T && ((vis.Contains(FIntVector(x0, y0 + 1, 0)) && IsCorridorLikeOutside(x0, y0 + 2)) ||
+                (vis.Contains(FIntVector(x0 + 1, y0 + 1, 0)) && IsCorridorLikeOutside(x0 + 1, y0 + 2))); };
+
+            if (s.L && !touchesL()) return false;
+            if (s.R && !touchesR()) return false;
+            if (s.B && !touchesB()) return false;
+            if (s.T && !touchesT()) return false;
+            return true;
+        };
+
+    // ----- w×h 박스: (줄/열 전체 제거) 연결성 검증 -----
+    auto RemovalKeepsConnectivity_Box = [&](int32 x0, int32 y0, int32 w, int32 h, bool removeIsCol, int32 rmIdx)->bool
+        {
+            const Sides s0 = SideOpens(x0, y0, w, h);
+            auto InBox = [&](int32 ax, int32 ay) {return (ax >= x0 && ax < x0 + w && ay >= y0 && ay < y0 + h); };
+            auto Removed = [&](int32 ax, int32 ay) { return removeIsCol ? (ax == x0 + rmIdx) : (ay == y0 + rmIdx); };
+
+            // 시작점
+            FIntVector st(-999, -999, 0);
+            for (int32 yy = y0; yy < y0 + h && st.X == -999; ++yy)
+                for (int32 xx = x0; xx < x0 + w && st.X == -999; ++xx)
+                    if (!Removed(xx, yy) && IsCorr(xx, yy)) st = FIntVector(xx, yy, 0);
+            if (st.X == -999) return false;
+
+            // BFS
+            TSet<FIntVector> vis; TArray<FIntVector> q; q.Add(st); vis.Add(st);
+            auto Push = [&](int32 ax, int32 ay) {
+                if (!In(ax, ay) || !InBox(ax, ay) || Removed(ax, ay) || !IsCorr(ax, ay))return;
+                FIntVector v(ax, ay, 0); if (!vis.Contains(v)) { vis.Add(v); q.Add(v); }
+                };
+            for (int32 qi = 0; qi < q.Num(); ++qi) {
+                const int32 x = q[qi].X, y = q[qi].Y;
+                if (x - 1 >= x0)     Push(x - 1, y);
+                if (x + 1 < x0 + w)    Push(x + 1, y);
+                if (y - 1 >= y0)     Push(x, y - 1);
+                if (y + 1 < y0 + h)    Push(x, y + 1);
+            }
+
+            auto touchL = [&]() { if (!s0.L) return true; for (int32 yy = y0; yy < y0 + h; ++yy) if (vis.Contains(FIntVector(x0, yy, 0)) && IsCorridorLikeOutside(x0 - 1, yy)) return true; return false; };
+            auto touchR = [&]() { if (!s0.R) return true; const int32 xr = x0 + w - 1; for (int32 yy = y0; yy < y0 + h; ++yy) if (vis.Contains(FIntVector(xr, yy, 0)) && IsCorridorLikeOutside(xr + 1, yy)) return true; return false; };
+            auto touchB = [&]() { if (!s0.B) return true; for (int32 xx = x0; xx < x0 + w; ++xx) if (vis.Contains(FIntVector(xx, y0, 0)) && IsCorridorLikeOutside(xx, y0 - 1)) return true; return false; };
+            auto touchT = [&]() { if (!s0.T) return true; const int32 yt = y0 + h - 1; for (int32 xx = x0; xx < x0 + w; ++xx) if (vis.Contains(FIntVector(xx, yt, 0)) && IsCorridorLikeOutside(xx, yt + 1)) return true; return false; };
+
+            return touchL() && touchR() && touchB() && touchT();
+        };
+
+    // ----- keep-one(줄/열에서 하나 남기기) 연결성 검증 -----
+    auto RemovalKeepsConnectivity_KeepOne = [&](int32 x0, int32 y0, int32 w, int32 h, bool removeIsCol, int32 rmIdx, int32 keepOffset)->bool
+        {
+            const Sides s0 = SideOpens(x0, y0, w, h);
+            auto InBox = [&](int32 ax, int32 ay) {return (ax >= x0 && ax < x0 + w && ay >= y0 && ay < y0 + h); };
+            auto Removed = [&](int32 ax, int32 ay) {
+                if (removeIsCol) {
+                    int32 col = ax - (x0);
+                    int32 row = ay - (y0);
+                    return (col == rmIdx) && (row != keepOffset);
+                }
+                else {
+                    int32 row = ay - (y0);
+                    int32 col = ax - (x0);
+                    return (row == rmIdx) && (col != keepOffset);
+                }
+                };
+
+            // 시작점
+            FIntVector st(-999, -999, 0);
+            for (int32 yy = y0; yy < y0 + h && st.X == -999; ++yy)
+                for (int32 xx = x0; xx < x0 + w && st.X == -999; ++xx)
+                    if (!Removed(xx, yy) && IsCorr(xx, yy)) st = FIntVector(xx, yy, 0);
+            if (st.X == -999) return false;
+
+            // BFS
+            TSet<FIntVector> vis; TArray<FIntVector> q; q.Add(st); vis.Add(st);
+            auto Push = [&](int32 ax, int32 ay) {
+                if (!In(ax, ay) || !InBox(ax, ay) || Removed(ax, ay) || !IsCorr(ax, ay))return;
+                FIntVector v(ax, ay, 0); if (!vis.Contains(v)) { vis.Add(v); q.Add(v); }
+                };
+            for (int32 qi = 0; qi < q.Num(); ++qi) {
+                const int32 x = q[qi].X, y = q[qi].Y;
+                if (x - 1 >= x0)     Push(x - 1, y);
+                if (x + 1 < x0 + w)    Push(x + 1, y);
+                if (y - 1 >= y0)     Push(x, y - 1);
+                if (y + 1 < y0 + h)    Push(x, y + 1);
+            }
+
+            auto touchL = [&]() { if (!s0.L) return true; for (int32 yy = y0; yy < y0 + h; ++yy) if (vis.Contains(FIntVector(x0, yy, 0)) && IsCorridorLikeOutside(x0 - 1, yy)) return true; return false; };
+            auto touchR = [&]() { if (!s0.R) return true; const int32 xr = x0 + w - 1; for (int32 yy = y0; yy < y0 + h; ++yy) if (vis.Contains(FIntVector(xr, yy, 0)) && IsCorridorLikeOutside(xr + 1, yy)) return true; return false; };
+            auto touchB = [&]() { if (!s0.B) return true; for (int32 xx = x0; xx < x0 + w; ++xx) if (vis.Contains(FIntVector(xx, y0, 0)) && IsCorridorLikeOutside(xx, y0 - 1)) return true; return false; };
+            auto touchT = [&]() { if (!s0.T) return true; const int32 yt = y0 + h - 1; for (int32 xx = x0; xx < x0 + w; ++xx) if (vis.Contains(FIntVector(xx, yt, 0)) && IsCorridorLikeOutside(xx, yt + 1)) return true; return false; };
+
+            return touchL() && touchR() && touchB() && touchT();
+        };
+
+    auto ScoreRemoval_2x2 = [&](int32 x0, int32 y0, int32 remIdx)->int32
+        {
+            const FIntVector cell[4] = {
+                FIntVector(x0,   y0,   0),
+                FIntVector(x0 + 1, y0,   0),
+                FIntVector(x0,   y0 + 1, 0),
+                FIntVector(x0 + 1, y0 + 1, 0)
+            };
+            const int32 rx = cell[remIdx].X, ry = cell[remIdx].Y;
+
+            int32 doorDist = 0;
+            doorDist += IsDoorLike(rx - 1, ry) ? 0 : 1;
+            doorDist += IsDoorLike(rx + 1, ry) ? 0 : 1;
+            doorDist += IsDoorLike(rx, ry - 1) ? 0 : 1;
+            doorDist += IsDoorLike(rx, ry + 1) ? 0 : 1;
+
+            int32 openings = 0;
+            openings += IsCorridorLikeOutside(rx - 1, ry) ? 1 : 0;
+            openings += IsCorridorLikeOutside(rx + 1, ry) ? 1 : 0;
+            openings += IsCorridorLikeOutside(rx, ry - 1) ? 1 : 0;
+            openings += IsCorridorLikeOutside(rx, ry + 1) ? 1 : 0;
+
+            return openings * 4 + doorDist; // 낮을수록 제거 선호
+        };
+
+    auto SideSum = [&](int32 x0, int32 y0, int32 w, int32 h, bool horizontal)->int32
+        {
+            int32 s = 0;
+            if (horizontal) for (int32 xx = x0; xx < x0 + w; ++xx) s += IsCorridorLikeOutside(xx, y0) ? 1 : 0;
+            else           for (int32 yy = y0; yy < y0 + h; ++yy) s += IsCorridorLikeOutside(x0, yy) ? 1 : 0;
+            return s;
+        };
+
+    // 제거 예약 집합
+    TSet<FIntVector> toRemove;
+    auto IsMarked = [&](int32 ax, int32 ay)->bool { return toRemove.Contains(FIntVector(ax, ay, 0)); };
+
+    // ===== 2×2 처리 =====
+    for (int32 x = 0; x < MapSize.X - 1; ++x)
+        for (int32 y = 0; y < MapSize.Y - 1; ++y)
+        {
+            if (!(IsCorr(x, y) && IsCorr(x + 1, y) && IsCorr(x, y + 1) && IsCorr(x + 1, y + 1))) continue;
+
+            const ETileType02 t00 = TileMap[x][y], t10 = TileMap[x + 1][y], t01 = TileMap[x][y + 1], t11 = TileMap[x + 1][y + 1];
+
+            int32 bestIdx = -1, bestScore = INT32_MAX;
+            for (int32 idx = 0; idx < 4; ++idx)
+            {
+                const ETileType02 tt = (idx == 0 ? t00 : idx == 1 ? t10 : idx == 2 ? t01 : t11);
+                if (tt == ETileType02::BridgeCorridor) continue;        // 보호
+                if (!RemovalKeepsConnectivity_2x2(x, y, idx)) continue; // 연결 보존
+
+                const int32 sc = ScoreRemoval_2x2(x, y, idx);
+                if (sc < bestScore) { bestScore = sc; bestIdx = idx; }
+            }
+            if (bestIdx != -1)
+            {
+                static const FIntVector mapIdx[4] = { FIntVector(0,0,0),FIntVector(1,0,0),FIntVector(0,1,0),FIntVector(1,1,0) };
+                toRemove.Add(FIntVector(x + mapIdx[bestIdx].X, y + mapIdx[bestIdx].Y, 0));
+            }
+        }
+
+    // ===== 2×3(세로) : 열 하나 얇게 (한 칸은 남김) =====
+    for (int32 x = 0; x < MapSize.X - 1; ++x)
+        for (int32 y = 0; y < MapSize.Y - 2; ++y)
+        {
+            if (!(IsCorr(x, y) && IsCorr(x + 1, y) && IsCorr(x, y + 1) && IsCorr(x + 1, y + 1) && IsCorr(x, y + 2) && IsCorr(x + 1, y + 2))) continue;
+
+            const bool doorL = IsDoorLike(x - 1, y) || IsDoorLike(x - 1, y + 1) || IsDoorLike(x - 1, y + 2);
+            const bool doorR = IsDoorLike(x + 2, y) || IsDoorLike(x + 2, y + 1) || IsDoorLike(x + 2, y + 2);
+            const int32 keepCol = (doorL && !doorR) ? 0 : ((!doorL && doorR) ? 1 : (SideSum(x - 1, y, 1, 3, false) > SideSum(x + 2, y, 1, 3, false) ? 0 : 1));
+            const int32 rmCol = 1 - keepCol;
+            const int32 rx = x + rmCol;
+
+            // BridgeCorridor 보호
+            bool can = true;
+            for (int32 yy = y; yy <= y + 2; ++yy) if (TileMap[rx][yy] == ETileType02::BridgeCorridor) { can = false; break; }
+            if (!can) continue;
+
+            // 충돌 방지: 보존 열에 이미 제거 예약이 있으면 스킵
+            bool conflict = false;
+            for (int32 yy = y; yy <= y + 2; ++yy) if (IsMarked(x + keepCol, yy)) { conflict = true; break; }
+            if (conflict) continue;
+
+            // (선택) 줄 전체 제거 연결성 체크 -> 실패해도 keep-one으로 시도
+            bool ok_full = RemovalKeepsConnectivity_Box(x, y, 2, 3, true/*col*/, rmCol);
+
+            // 남길 한 칸 선택: 문 우선 -> 외부열림 합 -> 중앙
+            auto ScoreKeepCol = [&](int32 yy)->int32
+                {
+                    int32 s = 0;
+                    // 문/브리지에 붙으면 가점(낮은 점수)
+                    bool nearDoor = IsDoorLike(rx - 1, yy) || IsDoorLike(rx + 1, yy);
+                    s += nearDoor ? 0 : 4;
+                    // 외부열림(좌/우) 많이 맞닿을수록 가점
+                    int32 open = (IsCorridorLikeOutside(rx - 1, yy) ? 1 : 0) + (IsCorridorLikeOutside(rx + 1, yy) ? 1 : 0);
+                    s += (2 - open) * 2;
+                    // 중앙 선호
+                    s += FMath::Abs((y + 1) - yy);
+                    return s;
+                };
+            int32 keepYY = y; int32 bestS = INT32_MAX;
+            for (int32 yy = y; yy <= y + 2; ++yy) { int32 sc = ScoreKeepCol(yy); if (sc < bestS) { bestS = sc; keepYY = yy; } }
+
+            // keep-one 연결성 체크
+            if (!RemovalKeepsConnectivity_KeepOne(x, y, 2, 3, true/*col*/, rmCol, keepYY - y))
+            {
+                // keep-one도 연결성 깨면 전체 스킵
+                continue;
+            }
+
+            // 적용: rmCol 열에서 keepYY만 남기고 나머지 2칸 제거
+            for (int32 yy = y; yy <= y + 2; ++yy)
+                if (yy != keepYY) toRemove.Add(FIntVector(rx, yy, 0));
+        }
+
+    // ===== 3×2(가로) : 행 하나 얇게 (한 칸은 남김) =====
+    for (int32 x = 0; x < MapSize.X - 2; ++x)
+        for (int32 y = 0; y < MapSize.Y - 1; ++y)
+        {
+            if (!(IsCorr(x, y) && IsCorr(x + 1, y) && IsCorr(x + 2, y) && IsCorr(x, y + 1) && IsCorr(x + 1, y + 1) && IsCorr(x + 2, y + 1))) continue;
+
+            const bool doorB = IsDoorLike(x, y - 1) || IsDoorLike(x + 1, y - 1) || IsDoorLike(x + 2, y - 1);
+            const bool doorT = IsDoorLike(x, y + 2) || IsDoorLike(x + 1, y + 2) || IsDoorLike(x + 2, y + 2);
+            const int32 keepRow = (doorB && !doorT) ? 0 : ((!doorB && doorT) ? 1 : (SideSum(x, y - 1, 3, 1, true) > SideSum(x, y + 2, 3, 1, true) ? 0 : 1));
+            const int32 rmRow = 1 - keepRow;
+            const int32 ry = y + rmRow;
+
+            // BridgeCorridor 보호
+            bool can = true;
+            for (int32 xx = x; xx <= x + 2; ++xx) if (TileMap[xx][ry] == ETileType02::BridgeCorridor) { can = false; break; }
+            if (!can) continue;
+
+            // 충돌 방지: 보존 행에 이미 제거 예약 있으면 스킵
+            bool conflict = false;
+            for (int32 xx = x; xx <= x + 2; ++xx) if (IsMarked(xx, y + keepRow)) { conflict = true; break; }
+            if (conflict) continue;
+
+            //// (선택) 줄 전체 제거 연결성 체크 -> 실패해도 keep-one으로 시도
+            //bool ok_full = RemovalKeepsConnectivity_Box(x, y, 3, 2, false/*row*/, rmRow);
+
+            // 남길 한 칸 선택: 문 우선 -> 외부열림 합 -> 중앙
+            auto ScoreKeepRow = [&](int32 xx)->int32
+                {
+                    int32 s = 0;
+                    bool nearDoor = IsDoorLike(xx, ry - 1) || IsDoorLike(xx, ry + 1);
+                    s += nearDoor ? 0 : 4;
+                    int32 open = (IsCorridorLikeOutside(xx, ry - 1) ? 1 : 0) + (IsCorridorLikeOutside(xx, ry + 1) ? 1 : 0);
+                    s += (2 - open) * 2;
+                    s += FMath::Abs((x + 1) - xx);
+                    return s;
+                };
+            int32 keepXX = x; int32 bestS = INT32_MAX;
+            for (int32 xx = x; xx <= x + 2; ++xx) { int32 sc = ScoreKeepRow(xx); if (sc < bestS) { bestS = sc; keepXX = xx; } }
+
+            // keep-one 연결성 체크
+            if (!RemovalKeepsConnectivity_KeepOne(x, y, 3, 2, false/*row*/, rmRow, keepXX - x))
+            {
+                // keep-one도 연결성 깨면 전체 스킵
+                continue;
+            }
+
+            // 적용: rmRow 행에서 keepXX만 남기고 나머지 2칸 제거
+            for (int32 xx = x; xx <= x + 2; ++xx)
+                if (xx != keepXX) toRemove.Add(FIntVector(xx, ry, 0));
+        }
+
+    auto WouldBreakLocalBridge = [&](int32 cx, int32 cy)->bool
+        {
+            auto Pass = [&](int32 ax, int32 ay)->bool
+                {
+                    if (!In(ax, ay)) return false;
+                    if (ax == cx && ay == cy) return false; // 중심(지울 칸)은 제외
+                    // 이미 다른 후보가 제거 예정이면 통과 불가로 취급
+                    if (toRemove.Contains(FIntVector(ax, ay, 0))) return false;
+
+                    ETileType02 t = TileMap[ax][ay];
+                    // 문/브릿지도 통행 가능으로 봄
+                    return (t == ETileType02::Corridor || t == ETileType02::Door || t == ETileType02::BridgeCorridor);
+                };
+
+            // 3x3(센터 제외) 안에서 통행 가능한 씨드 수집
+            TArray<FIntVector> seeds;
+            for (int32 y = cy - 1; y <= cy + 1; ++y)
+                for (int32 x = cx - 1; x <= cx + 1; ++x)
+                    if (!(x == cx && y == cy) && Pass(x, y))
+                        seeds.Add(FIntVector(x, y, 0));
+
+            if (seeds.Num() <= 1) return false; // 연결할 대상이 0/1개면 단절 문제 없음
+
+            // 로컬 BFS로 연결성 확인(센터 없이 서로 도달 가능한지)
+            TSet<FIntVector> vis; TArray<FIntVector> q;
+            auto Push = [&](int32 ax, int32 ay)
+                {
+                    if (!Pass(ax, ay)) return;
+                    FIntVector v(ax, ay, 0);
+                    if (!vis.Contains(v)) { vis.Add(v); q.Add(v); }
+                };
+            Push(seeds[0].X, seeds[0].Y);
+            for (int32 i = 0; i < q.Num(); ++i)
+            {
+                int32 x = q[i].X, y = q[i].Y;
+                Push(x - 1, y); Push(x + 1, y); Push(x, y - 1); Push(x, y + 1);
+            }
+
+            // 씨드 중 일부라도 서로 닿지 못한다면, 이 칸은 '브리지' 역할 → 제거 금지
+            return vis.Num() < seeds.Num();
+        };
+
+
+    // ===== 적용 =====
+    for (const FIntVector& p : toRemove)
+    {
+        if (!In(p.X, p.Y)) continue;
+        if (TileMap[p.X][p.Y] == ETileType02::BridgeCorridor) continue; // 보호
+        if (WouldBreakLocalBridge(p.X, p.Y)) continue;
+        if (TileMap[p.X][p.Y] == ETileType02::Corridor) TileMap[p.X][p.Y] = ETileType02::Empty;
+    }
+
+#if !UE_BUILD_SHIPPING
+    if (toRemove.Num() > 0)
+        UE_LOG(LogTemp, Warning, TEXT("CollapseThickCorridorBlobsFavorDoor v2.4: removed %d tiles (keep-one bridge)"), toRemove.Num());
+#endif
+}
+
+void ABSPMapGenerator02::PatchCorridorSingleTileGaps()
+{
+    auto InBounds = [&](int32 x, int32 y)
+        {
+            return (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y);
+        };
+
+    auto IsCorr = [&](int32 x, int32 y)
+        {
+            return InBounds(x, y) && IsCorridorTile(x, y);
+        };
+
+    auto IsEmpty = [&](int32 x, int32 y)
+        {
+            return InBounds(x, y) && TileMap[x][y] == ETileType02::Empty;
+        };
+
+    TArray<FIntVector> ToFill;
+
+    // ── Pass A: 좌우/상하로 '정확히 1칸 갭' 메우기 ──
+    for (int32 y = 1; y < MapSize.Y - 1; ++y)
+    {
+        for (int32 x = 1; x < MapSize.X - 1; ++x)
+        {
+            if (!IsEmpty(x, y)) continue;
+
+            const bool L = IsCorr(x - 1, y);
+            const bool R = IsCorr(x + 1, y);
+            const bool U = IsCorr(x, y + 1);
+            const bool D = IsCorr(x, y - 1);
+
+            // 수평 1칸 갭
+            if (L && R && !U && !D)
+            {
+                ToFill.Add(FIntVector(x, y, 0));
+                continue;
+            }
+            // 수직 1칸 갭
+            if (U && D && !L && !R)
+            {
+                ToFill.Add(FIntVector(x, y, 0));
+                continue;
             }
         }
     }
 
-    UE_LOG(LogTemp, Warning, TEXT("Removed %d parallel corridor tiles"), RemovedCount);
+    // ── Pass B: 데드엔드가 '앞으로 한 칸'만 더 가면 자연스레 이어지는 경우 ──
+    for (int32 y = 0; y < MapSize.Y; ++y)
+    {
+        for (int32 x = 0; x < MapSize.X; ++x)
+        {
+            if (!IsCorr(x, y)) continue;
+
+            // 기존 유틸: 연결 개수 1개면 데드엔드
+            if (CountConnections(x, y) != 1) continue;
+
+            // 이웃 복도(유일한 연결) 찾아서 그 반대 방향으로 1칸 연장
+            FIntVector Dir(0, 0, 0);
+            if (IsCorr(x + 1, y)) Dir = FIntVector(-1, 0, 0);
+            else if (IsCorr(x - 1, y)) Dir = FIntVector(1, 0, 0);
+            else if (IsCorr(x, y + 1)) Dir = FIntVector(0, -1, 0);
+            else if (IsCorr(x, y - 1)) Dir = FIntVector(0, 1, 0);
+
+            if (Dir == FIntVector::ZeroValue) continue;
+
+            const int32 tx = x + Dir.X;
+            const int32 ty = y + Dir.Y;
+            if (!InBounds(tx, ty) || !IsEmpty(tx, ty)) continue;
+
+            // 2x2 두꺼운 블록 방지: 연장 방향의 측면에 기존 복도가 붙어 있으면 스킵
+            const bool IsHorizontal = (Dir.X != 0);
+            if (IsHorizontal)
+            {
+                if (IsCorr(tx, ty + 1) || IsCorr(tx, ty - 1)) continue;
+            }
+            else // Vertical
+            {
+                if (IsCorr(tx + 1, ty) || IsCorr(tx - 1, ty)) continue;
+            }
+
+            ToFill.AddUnique(FIntVector(tx, ty, 0));
+        }
+    }
+
+    // ── 적용: 맵만 갱신 (스폰은 기존 SpawnTiles 단계에서 일괄 처리) ──
+    for (const FIntVector& P : ToFill)
+    {
+        TileMap[P.X][P.Y] = ETileType02::Corridor; // 또는 BridgeCorridor로 표기하고 싶으면 변경
+    }
+
+#if !UE_BUILD_SHIPPING
+    if (ToFill.Num() > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("PatchCorridorSingleTileGaps: filled %d single-tile gaps"), ToFill.Num());
+    }
+#endif
 }

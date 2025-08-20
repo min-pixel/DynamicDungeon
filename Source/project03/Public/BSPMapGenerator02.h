@@ -239,6 +239,17 @@ private:
 
     bool WouldCreateLongParallel(const FIntVector& Start, const FIntVector& End, float Tolerance);
 
+    bool WouldCreateParallelCorridor(const FIntVector& Start, const FIntVector& End, float MinDistance);
+    bool CheckLShapePathForParallel(const FIntVector& Start, const FIntVector& End, bool bHorizontalFirst, float MinDistance);
+    bool HasParallelInRange(int32 start, int32 end, int32 fixed, bool bHorizontal, float MinDistance);
+    bool IsValidPosition(int32 x, int32 y) const;
+    void CreateLShapedCorridorSafe(const FIntVector& Start, const FIntVector& End);
+    void CreateCorridorStopAtContact(TSharedPtr<FBSPNode02> NodeA, TSharedPtr<FBSPNode02> NodeB);
+    void CollapseThickCorridorBlobsFavorDoor();
+    void PatchCorridorSingleTileGaps();
+
+
+
     // 그래프 데이터
     TArray<GraphNode> GraphNodes;
     TArray<GraphEdge> GraphEdges;
