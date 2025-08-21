@@ -245,4 +245,16 @@ private:
     // 그래프 연결성 체크
     void DFSComponent(int32 NodeIndex, TArray<bool>& Visited);
     int32 CountConnectedComponents();
+
+    // 새로 추가된 헬퍼 함수들
+    int32 TraceCorridorPathInDirection(
+        const FIntVector& StartPos,
+        const FIntVector& FirstStep,
+        int32 StartNodeId,
+        TArray<FIntVector>& OutPath);
+
+    bool IsPositionAtNode(const FIntVector& Pos, int32 NodeId) const;
+    bool IsValidCorridorStep(const FIntVector& Pos, int32 AvoidNodeId) const;
+    bool ArePathsSimilar(const TArray<FIntVector>& Path1,
+        const TArray<FIntVector>& Path2) const;
 };

@@ -43,145 +43,237 @@ void ABSPMapGenerator02::BeginPlay()
     
 }
 
+//void ABSPMapGenerator02::GenerateBSPMap()
+//{
+//    // 기존 맵 정리
+//    ClearMap();
+//
+//    // 랜덤 시드 설정
+//    if (RandomSeed == 0)
+//    {
+//        RandomSeed = FMath::RandRange(1, INT32_MAX);
+//    }
+//    RandomStream.Initialize(RandomSeed);
+//
+//    UE_LOG(LogTemp, Warning, TEXT("BSP Map Generation Started with Seed: %d"), RandomSeed);
+//
+//    // 타일 맵 초기화
+//    InitializeTileMap();
+//
+//    // BSP 트리 생성
+//    RootNode = CreateBSPTree(FIntVector(0, 0, 0), MapSize, 0);
+//
+//    // 리프 노드 수집
+//    LeafNodes.Empty();
+//    CollectLeafNodes(RootNode);
+//
+//    // 방 생성
+//    CreateRooms();
+//
+//    // 방 연결
+//    ConnectRooms();
+//
+//    CleanupParallelCorridors();
+//
+//    // 추가 연결 생성 (미로 복잡도 증가)
+//    if (bCreateLoops)
+//    {
+//        CreateExtraConnections();
+//    }
+//
+//    CleanupParallelCorridors();
+//
+//    CollapseThickCorridorBlobsFavorDoor();
+//    PatchCorridorSingleTileGaps();
+//    // 타일 스폰
+//    SpawnTiles();
+//
+//    UE_LOG(LogTemp, Warning, TEXT("BSP Map Generation Completed. Created %d rooms"), LeafNodes.Num());
+//
+//    // ===== 그래프 분석 시작 =====
+//    if (GraphAnalyzer)
+//    {
+//        // TileMap을 EDungeonTileType으로 변환
+//        TArray<TArray<EDungeonTileType>> ConvertedTileMap;
+//        ConvertedTileMap.SetNum(MapSize.X);
+//
+//        for (int32 x = 0; x < MapSize.X; ++x)
+//        {
+//            ConvertedTileMap[x].SetNum(MapSize.Y);
+//            for (int32 y = 0; y < MapSize.Y; ++y)
+//            {
+//                // ETileType02를 EDungeonTileType으로 변환
+//                switch (TileMap[x][y])
+//                {
+//                case ETileType02::Empty:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::Empty;
+//                    break;
+//                case ETileType02::Room:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::Room;
+//                    break;
+//                case ETileType02::Corridor:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::Corridor;
+//                    break;
+//                case ETileType02::BridgeCorridor:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::BridgeCorridor;
+//                    break;
+//                case ETileType02::Door:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::Door;
+//                    break;
+//                case ETileType02::DeadEnd:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::DeadEnd;
+//                    break;
+//                case ETileType02::Junction:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::Junction;
+//                    break;
+//                case ETileType02::CrossRoad:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::CrossRoad;
+//                    break;
+//                default:
+//                    ConvertedTileMap[x][y] = EDungeonTileType::Empty;
+//                    break;
+//                }
+//            }
+//        }
+//
+//        // 방 정보 준비
+//        TArray<FRoomInfo> RoomInfos;
+//        for (int32 i = 0; i < LeafNodes.Num(); ++i)
+//        {
+//            if (LeafNodes[i]->bHasRoom)
+//            {
+//                FRoomInfo Info;
+//                Info.RoomId = i;
+//                Info.Center = GetRoomCenter(LeafNodes[i]);
+//                Info.Min = LeafNodes[i]->RoomMin;
+//                Info.Max = LeafNodes[i]->RoomMax;
+//                RoomInfos.Add(Info);
+//            }
+//        }
+//
+//        // 그래프 분석 실행 (C++ 함수 직접 호출)
+//        GraphAnalyzer->AnalyzeDungeon(ConvertedTileMap, RoomInfos, TileSize);
+//
+//        // 통계 출력
+//        if (bShowStatistics)
+//        {
+//            GraphAnalyzer->PrintStatistics();
+//
+//            // 디버그 시각화
+//            GraphAnalyzer->DrawDebugVisualization(GetWorld(), -1.0f);
+//        }
+//
+//        // 분석 결과를 MapStats에 반영 (선택사항)
+//        FDungeonGraphAnalysis GraphAnalysis = GraphAnalyzer->GetAnalysis();
+//        MapStats.RoomCount = GraphAnalysis.RoomCount;
+//        MapStats.DeadEndCount = GraphAnalysis.DeadEndCount;
+//        MapStats.JunctionCount = GraphAnalysis.JunctionCount;
+//        MapStats.CrossRoadCount = GraphAnalysis.CrossRoadCount;
+//
+//        // 간선 수 로그
+//        UE_LOG(LogTemp, Warning, TEXT("Graph Analysis: Found %d nodes and %d edges"),
+//            GraphAnalysis.NodeCount, GraphAnalysis.EdgeCount);
+//    }
+//
+//    //// 맵 통계 분석 및 출력
+//    //if (bShowStatistics)
+//    //{
+//    //    PrintMapStatistics();
+//    //}
+//
+//}
+
 void ABSPMapGenerator02::GenerateBSPMap()
 {
-    // 기존 맵 정리
-    ClearMap();
+    // 기존 맵(액터) 정리: 한 번만
+    
 
-    // 랜덤 시드 설정
+    // 시드 초기화(첫 시도용)
     if (RandomSeed == 0)
-    {
         RandomSeed = FMath::RandRange(1, INT32_MAX);
-    }
-    RandomStream.Initialize(RandomSeed);
 
-    UE_LOG(LogTemp, Warning, TEXT("BSP Map Generation Started with Seed: %d"), RandomSeed);
+    const int32 BaseSeed = RandomSeed;
 
-    // 타일 맵 초기화
-    InitializeTileMap();
+    bool bOk = false;
+    FIntVector BadTL(-1, -1, 0);
 
-    // BSP 트리 생성
-    RootNode = CreateBSPTree(FIntVector(0, 0, 0), MapSize, 0);
-
-    // 리프 노드 수집
-    LeafNodes.Empty();
-    CollectLeafNodes(RootNode);
-
-    // 방 생성
-    CreateRooms();
-
-    // 방 연결
-    ConnectRooms();
-
-    CleanupParallelCorridors();
-
-    // 추가 연결 생성 (미로 복잡도 증가)
-    if (bCreateLoops)
+    for (int32 Attempt = 1; Attempt <= FMath::Max(1, MaxGenerateAttempts); ++Attempt)
     {
-        CreateExtraConnections();
+        // ── 시드 결정 ──
+        if (Attempt == 1)
+            RandomStream.Initialize(BaseSeed);
+        else
+        {
+            if (bReseedOnRetry)
+                RandomSeed = FMath::RandRange(1, INT32_MAX);
+            else
+                ++RandomSeed; // 같은 값 반복 방지
+            RandomStream.Initialize(RandomSeed);
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("[BSP] Attempt %d/%d (Seed=%d)"),
+            Attempt, MaxGenerateAttempts, RandomSeed);
+
+        ClearMap();
+
+        // ── 타일맵 생성 파이프라인 (스폰/그래프분석 제외) ──
+        InitializeTileMap();
+
+        RootNode = CreateBSPTree(FIntVector(0, 0, 0), MapSize, 0);
+
+        LeafNodes.Empty();
+        CollectLeafNodes(RootNode);
+
+        CreateRooms();
+        ConnectRooms();
+
+        CleanupParallelCorridors();
+
+        if (bCreateLoops)
+            CreateExtraConnections();
+
+        CleanupParallelCorridors();
+
+        // 두꺼운 복도 덩어리/1칸 갭 정리
+        CollapseThickCorridorBlobsFavorDoor();
+        PatchCorridorSingleTileGaps();
+
+        SpawnTiles();
+
+        // ── 검증: 2x2 복도 덩어리 존재? ──
+        if (!Has2x2CorridorBlob(BadTL))
+        {
+            bOk = true;
+            break; // 성공 → 루프 탈출
+        }
+
+        // 실패 로그 & 디버그 표시
+#if WITH_EDITOR
+        if (bMarkRejected2x2 && GetWorld())
+        {
+            const FVector Center = FVector((BadTL.X + 1.f) * TileSize, (BadTL.Y + 1.f) * TileSize, 0.f);
+            DrawDebugBox(GetWorld(), Center, FVector(TileSize, TileSize, 20.f),
+                FColor::Red, false, 2.0f, 0, 5.0f);
+        }
+#endif
+        UE_LOG(LogTemp, Warning, TEXT("[BSP] Rejected: 2x2 corridor blob at (%d,%d)"),
+            BadTL.X, BadTL.Y);
     }
 
-    CleanupParallelCorridors();
-
-    CollapseThickCorridorBlobsFavorDoor();
-    PatchCorridorSingleTileGaps();
-    // 타일 스폰
-    SpawnTiles();
-
-    UE_LOG(LogTemp, Warning, TEXT("BSP Map Generation Completed. Created %d rooms"), LeafNodes.Num());
-
-    // ===== 그래프 분석 시작 =====
-    if (GraphAnalyzer)
+    if (!bOk)
     {
-        // TileMap을 EDungeonTileType으로 변환
-        TArray<TArray<EDungeonTileType>> ConvertedTileMap;
-        ConvertedTileMap.SetNum(MapSize.X);
-
-        for (int32 x = 0; x < MapSize.X; ++x)
-        {
-            ConvertedTileMap[x].SetNum(MapSize.Y);
-            for (int32 y = 0; y < MapSize.Y; ++y)
-            {
-                // ETileType02를 EDungeonTileType으로 변환
-                switch (TileMap[x][y])
-                {
-                case ETileType02::Empty:
-                    ConvertedTileMap[x][y] = EDungeonTileType::Empty;
-                    break;
-                case ETileType02::Room:
-                    ConvertedTileMap[x][y] = EDungeonTileType::Room;
-                    break;
-                case ETileType02::Corridor:
-                    ConvertedTileMap[x][y] = EDungeonTileType::Corridor;
-                    break;
-                case ETileType02::BridgeCorridor:
-                    ConvertedTileMap[x][y] = EDungeonTileType::BridgeCorridor;
-                    break;
-                case ETileType02::Door:
-                    ConvertedTileMap[x][y] = EDungeonTileType::Door;
-                    break;
-                case ETileType02::DeadEnd:
-                    ConvertedTileMap[x][y] = EDungeonTileType::DeadEnd;
-                    break;
-                case ETileType02::Junction:
-                    ConvertedTileMap[x][y] = EDungeonTileType::Junction;
-                    break;
-                case ETileType02::CrossRoad:
-                    ConvertedTileMap[x][y] = EDungeonTileType::CrossRoad;
-                    break;
-                default:
-                    ConvertedTileMap[x][y] = EDungeonTileType::Empty;
-                    break;
-                }
-            }
-        }
-
-        // 방 정보 준비
-        TArray<FRoomInfo> RoomInfos;
-        for (int32 i = 0; i < LeafNodes.Num(); ++i)
-        {
-            if (LeafNodes[i]->bHasRoom)
-            {
-                FRoomInfo Info;
-                Info.RoomId = i;
-                Info.Center = GetRoomCenter(LeafNodes[i]);
-                Info.Min = LeafNodes[i]->RoomMin;
-                Info.Max = LeafNodes[i]->RoomMax;
-                RoomInfos.Add(Info);
-            }
-        }
-
-        // 그래프 분석 실행 (C++ 함수 직접 호출)
-        GraphAnalyzer->AnalyzeDungeon(ConvertedTileMap, RoomInfos, TileSize);
-
-        // 통계 출력
-        if (bShowStatistics)
-        {
-            GraphAnalyzer->PrintStatistics();
-
-            // 디버그 시각화
-            GraphAnalyzer->DrawDebugVisualization(GetWorld(), -1.0f);
-        }
-
-        // 분석 결과를 MapStats에 반영 (선택사항)
-        FDungeonGraphAnalysis GraphAnalysis = GraphAnalyzer->GetAnalysis();
-        MapStats.RoomCount = GraphAnalysis.RoomCount;
-        MapStats.DeadEndCount = GraphAnalysis.DeadEndCount;
-        MapStats.JunctionCount = GraphAnalysis.JunctionCount;
-        MapStats.CrossRoadCount = GraphAnalysis.CrossRoadCount;
-
-        // 간선 수 로그
-        UE_LOG(LogTemp, Warning, TEXT("Graph Analysis: Found %d nodes and %d edges"),
-            GraphAnalysis.NodeCount, GraphAnalysis.EdgeCount);
+        UE_LOG(LogTemp, Warning, TEXT("[BSP] Max attempts reached. Using last result."));
     }
 
-    //// 맵 통계 분석 및 출력
-    //if (bShowStatistics)
-    //{
-    //    PrintMapStatistics();
-    //}
+    // ── 최종 1회만 스폰 ──
+    
 
+    // ── 그리고 마지막에 그래프 분석 ──
+    RunGraphAnalysis();
+
+    UE_LOG(LogTemp, Warning, TEXT("BSP Map Generation Completed (Seed=%d)."), RandomSeed);
 }
+
 
 void ABSPMapGenerator02::ClearMap()
 {
@@ -3347,4 +3439,106 @@ void ABSPMapGenerator02::PatchCorridorSingleTileGaps()
         UE_LOG(LogTemp, Warning, TEXT("PatchCorridorSingleTileGaps: filled %d single-tile gaps"), ToFill.Num());
     }
 #endif
+}
+
+bool ABSPMapGenerator02::Has2x2CorridorBlob(FIntVector& OutTopLeft)
+{
+    auto InBounds = [&](int32 x, int32 y) {
+        return (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y);
+        };
+
+    // 2x2 블록 검사용 전용 판정자: Door도 '통로'로 간주
+    auto IsPassableForBlob = [&](int32 x, int32 y)->bool {
+        if (!InBounds(x, y)) return false;
+        const ETileType02 t = TileMap[x][y];
+        return  t == ETileType02::Corridor
+            || t == ETileType02::BridgeCorridor
+            || t == ETileType02::DeadEnd
+            || t == ETileType02::Junction
+            || t == ETileType02::CrossRoad
+            || t == ETileType02::Door;          // ← 추가 포인트
+        };
+
+    for (int32 x = 0; x <= MapSize.X - 2; ++x)
+    {
+        for (int32 y = 0; y <= MapSize.Y - 2; ++y)
+        {
+            const bool c00 = IsPassableForBlob(x, y);
+            const bool c10 = IsPassableForBlob(x + 1, y);
+            const bool c01 = IsPassableForBlob(x, y + 1);
+            const bool c11 = IsPassableForBlob(x + 1, y + 1);
+
+            if (c00 && c10 && c01 && c11)
+            {
+                OutTopLeft = FIntVector(x, y, 0);
+                return true;
+            }
+        }
+    }
+    OutTopLeft = FIntVector(-1, -1, 0);
+    return false;
+}
+
+// 기존 GenerateBSPMap 안에 있던 "ConvertedTileMap 만들고 AnalyzeDungeon" 블록을 그대로 옮김
+void ABSPMapGenerator02::RunGraphAnalysis()
+{
+    if (!GraphAnalyzer) return;
+
+    // 1) TileMap -> EDungeonTileType 변환
+    TArray<TArray<EDungeonTileType>> ConvertedTileMap;
+    ConvertedTileMap.SetNum(MapSize.X);
+    for (int32 x = 0; x < MapSize.X; ++x)
+    {
+        ConvertedTileMap[x].SetNum(MapSize.Y);
+        for (int32 y = 0; y < MapSize.Y; ++y)
+        {
+            switch (TileMap[x][y])
+            {
+            case ETileType02::Empty:          ConvertedTileMap[x][y] = EDungeonTileType::Empty; break;
+            case ETileType02::Room:           ConvertedTileMap[x][y] = EDungeonTileType::Room; break;
+            case ETileType02::Corridor:       ConvertedTileMap[x][y] = EDungeonTileType::Corridor; break;
+            case ETileType02::BridgeCorridor: ConvertedTileMap[x][y] = EDungeonTileType::BridgeCorridor; break;
+            case ETileType02::Door:           ConvertedTileMap[x][y] = EDungeonTileType::Door; break;
+            case ETileType02::DeadEnd:        ConvertedTileMap[x][y] = EDungeonTileType::DeadEnd; break;
+            case ETileType02::Junction:       ConvertedTileMap[x][y] = EDungeonTileType::Junction; break;
+            case ETileType02::CrossRoad:      ConvertedTileMap[x][y] = EDungeonTileType::CrossRoad; break;
+            default:                          ConvertedTileMap[x][y] = EDungeonTileType::Empty; break;
+            }
+        }
+    }
+
+    // 2) 방 정보 수집
+    TArray<FRoomInfo> RoomInfos;
+    RoomInfos.Reserve(LeafNodes.Num());
+    for (int32 i = 0; i < LeafNodes.Num(); ++i)
+    {
+        if (LeafNodes[i]->bHasRoom)
+        {
+            FRoomInfo Info;
+            Info.RoomId = i;
+            Info.Center = GetRoomCenter(LeafNodes[i]);
+            Info.Min = LeafNodes[i]->RoomMin;
+            Info.Max = LeafNodes[i]->RoomMax;
+            RoomInfos.Add(Info);
+        }
+    }
+
+    // 3) 분석 실행 & 출력
+    GraphAnalyzer->AnalyzeDungeon(ConvertedTileMap, RoomInfos, TileSize);
+
+    if (bShowStatistics)
+    {
+        GraphAnalyzer->PrintStatistics();
+        GraphAnalyzer->DrawDebugVisualization(GetWorld(), -1.0f);
+    }
+
+    // 4) 결과 일부를 MapStats에 반영 (선택)
+    const FDungeonGraphAnalysis GA = GraphAnalyzer->GetAnalysis();
+    MapStats.RoomCount = GA.RoomCount;
+    MapStats.DeadEndCount = GA.DeadEndCount;
+    MapStats.JunctionCount = GA.JunctionCount;
+    MapStats.CrossRoadCount = GA.CrossRoadCount;
+
+    UE_LOG(LogTemp, Warning, TEXT("Graph Analysis: Found %d nodes and %d edges"),
+        GA.NodeCount, GA.EdgeCount);
 }

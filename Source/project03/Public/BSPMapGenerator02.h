@@ -331,4 +331,22 @@ private:
     ETileType02 DetermineCorridorType(int32 x, int32 y);
     bool IsCorridorTile(int32 x, int32 y);
     void DrawDebugVisualization();
+
+    // ===== Retry settings =====
+    UPROPERTY(EditAnywhere, Category = "BSP Settings")
+    int32 MaxGenerateAttempts = 8;      // 실패 시 최대 재시도 횟수
+
+    UPROPERTY(EditAnywhere, Category = "BSP Settings")
+    bool bReseedOnRetry = true;         // 재시도마다 시드 변경할지
+
+    UPROPERTY(EditAnywhere, Category = "Debug")
+    bool bMarkRejected2x2 = true;       // 실패 지점 디버그 박스 표시
+
+    // 2x2 복도 블록 존재 여부 검사 (있으면 OutTopLeft에 좌상단 좌표 반환)
+    UFUNCTION(BlueprintCallable, Category = "BSP|Validation")
+    bool Has2x2CorridorBlob(FIntVector& OutTopLeft);
+
+    // 타일맵 확정 후, 그래프 분석만 따로 수행
+    void RunGraphAnalysis();
+
 };
