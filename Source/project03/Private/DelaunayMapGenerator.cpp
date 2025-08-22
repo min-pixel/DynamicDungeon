@@ -1,6 +1,7 @@
 #include "DelaunayMapGenerator.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
+
 #include "DrawDebugHelpers.h"
 
 ADelaunayMapGenerator::ADelaunayMapGenerator()
@@ -36,48 +37,115 @@ void ADelaunayMapGenerator::BeginPlay()
     GenerateDelaunayMap();
 }
 
+//void ADelaunayMapGenerator::GenerateDelaunayMap()
+//{
+//    // 기존 맵 정리
+//    ClearMap();
+//
+//    // 랜덤 시드 설정
+//    if (RandomSeed == 0)
+//    {
+//        RandomSeed = FMath::RandRange(1, INT32_MAX);
+//    }
+//    RandomStream.Initialize(RandomSeed);
+//
+//    UE_LOG(LogTemp, Warning, TEXT("=== Delaunay Map Generation Started (Seed: %d) ==="), RandomSeed);
+//
+//    // 1단계: 방 위치 생성
+//    GenerateRoomPositions();
+//
+//    // 2단계: 드로네 삼각분할
+//    PerformDelaunayTriangulation();
+//
+//    // 3단계: MST 추출
+//    ExtractMinimumSpanningTree();
+//
+//    // 4단계: 추가 연결 생성
+//    AddExtraConnections();
+//
+//    // 4.5단계: 디버그 선 출력
+//    DebugDrawTriangulation();
+//    //DebugDrawMST();
+//
+//    // 5단계: 타일맵에 방 배치
+//    PlaceRoomsOnTileMap();
+//
+//    // 6단계: 복도 생성
+//    CreateAllCorridors();
+//
+//
+//
+//    // 7단계: 타일 스폰
+//    SpawnTiles();
+//
+//    RunGraphAnalysis();
+//
+//    UE_LOG(LogTemp, Warning, TEXT("=== Map Generation Complete ==="));
+//}
+
 void ADelaunayMapGenerator::GenerateDelaunayMap()
 {
-    // 기존 맵 정리
-    ClearMap();
+    // 베이스 시드 확보 (에디터에서 0이면 임의 시드)
+    const int32 BaseSeed = (RandomSeed == 0) ? FMath::RandRange(1, INT32_MAX) : RandomSeed;
 
-    // 랜덤 시드 설정
-    if (RandomSeed == 0)
+    bool bOk = false;
+    FIntVector BadTL(0, 0, 0);
+
+    for (int32 Attempt = 1; Attempt <= FMath::Max(1, MaxGenerateAttempts); ++Attempt)
     {
-        RandomSeed = FMath::RandRange(1, INT32_MAX);
+        // 시드 선택
+        if (Attempt == 1)
+            RandomSeed = BaseSeed;
+        else
+            RandomSeed = bReseedOnRetry ? FMath::RandRange(1, INT32_MAX) : (RandomSeed + 1);
+
+        RandomStream.Initialize(RandomSeed);
+        UE_LOG(LogTemp, Warning, TEXT("[Delaunay] Attempt %d/%d (Seed=%d)"),
+            Attempt, MaxGenerateAttempts, RandomSeed);
+
+        // 이전 결과 정리(액터 파괴 + 내부 버퍼 리셋)
+        ClearMap();                                 // 액터 태그 기반 제거 :contentReference[oaicite:3]{index=3}
+        Rooms.Empty(); RoomPoints.Empty();
+        Triangles.Empty(); MST.Empty(); AllConnections.Empty();
+
+        // ===== 파이프라인 (스폰 제외) =====
+        GenerateRoomPositions();                    // 방 좌표 생성
+        PerformDelaunayTriangulation();             // 드로네 삼각분할
+        ExtractMinimumSpanningTree();               // MST 추출
+        AddExtraConnections();                      // 추가 연결 생성
+                        
+        PlaceRoomsOnTileMap();                      // 타일맵 초기화 포함 :contentReference[oaicite:4]{index=4}
+        CreateAllCorridors();                       // 연결대로 복도 생성 :contentReference[oaicite:5]{index=5}
+
+        // ===== 검증: 2x2 복도 블럭? =====
+        if (!Has2x2CorridorBlob(BadTL))
+        {
+            bOk = true;
+            break;
+        }
+
+#if WITH_EDITOR
+        if (bMarkRejected2x2 && GetWorld())
+        {
+            const FVector C((BadTL.X + 1.f) * TileSize, (BadTL.Y + 1.f) * TileSize, 0.f);
+            DrawDebugBox(GetWorld(), C, FVector(TileSize, TileSize, 20.f),
+                FColor::Red, false, 2.0f, 0, 5.0f);
+        }
+#endif
+        UE_LOG(LogTemp, Warning, TEXT("[Delaunay] Rejected: 2x2 corridor blob at (%d,%d)"),
+            BadTL.X, BadTL.Y);
     }
-    RandomStream.Initialize(RandomSeed);
 
-    UE_LOG(LogTemp, Warning, TEXT("=== Delaunay Map Generation Started (Seed: %d) ==="), RandomSeed);
+    if (!bOk)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Delaunay] Max attempts reached. Using last result."));
+    }
 
-    // 1단계: 방 위치 생성
-    GenerateRoomPositions();
-
-    // 2단계: 드로네 삼각분할
-    PerformDelaunayTriangulation();
-
-    // 3단계: MST 추출
-    ExtractMinimumSpanningTree();
-
-    // 4단계: 추가 연결 생성
-    AddExtraConnections();
-
-    // 4.5단계: 디버그 선 출력
+    // ===== 최종 1회만 스폰 =====
+    SpawnTiles();                                   // 방/복도 액터 생성 :contentReference[oaicite:6]{index=6}
     DebugDrawTriangulation();
-    //DebugDrawMST();
-
-    // 5단계: 타일맵에 방 배치
-    PlaceRoomsOnTileMap();
-
-    // 6단계: 복도 생성
-    CreateAllCorridors();
-
-
-
-    // 7단계: 타일 스폰
-    SpawnTiles();
-
-    UE_LOG(LogTemp, Warning, TEXT("=== Map Generation Complete ==="));
+    RunGraphAnalysis();
+    UE_LOG(LogTemp, Warning, TEXT("=== Map Generation Complete (Seed: %d) ==="), RandomSeed);
 }
 
 void ADelaunayMapGenerator::ClearMap()
@@ -1220,3 +1288,99 @@ void ADelaunayMapGenerator::SpawnWallsForRoom(const FRoomData& Room, AActor* Roo
     }
 }
 
+namespace
+{
+    // 드로네 → 던전그래프 타일 타입 매핑
+    static EDungeonTileType ToDungeonTile(EDelaunayTileType T)
+    {
+        switch (T)
+        {
+        case EDelaunayTileType::Room:            return EDungeonTileType::Room;
+        case EDelaunayTileType::Corridor:        return EDungeonTileType::Corridor;
+        case EDelaunayTileType::Door:            return EDungeonTileType::Door;
+        case EDelaunayTileType::BridgeCorridor:  return EDungeonTileType::BridgeCorridor;
+        default:                                 return EDungeonTileType::Empty;
+        }
+    }
+}
+
+
+void ADelaunayMapGenerator::RunGraphAnalysis()
+{
+    if (!GraphAnalyzer)
+    {
+        GraphAnalyzer = NewObject<UDungeonGraphAnalyzer>(this);
+    }
+
+    // 1) 타일맵 변환
+    TArray<TArray<EDungeonTileType>> DungeonTiles;
+    DungeonTiles.SetNum(MapSize.X);
+    for (int32 x = 0; x < MapSize.X; ++x)
+    {
+        DungeonTiles[x].SetNum(MapSize.Y);
+        for (int32 y = 0; y < MapSize.Y; ++y)
+        {
+            DungeonTiles[x][y] = ToDungeonTile(TileMap[x][y]);
+        }
+    }
+
+    // 2) 방 정보 변환 (Max는 배타 상한)
+    TArray<FRoomInfo> RoomInfos;
+    RoomInfos.Reserve(Rooms.Num());
+    for (int32 i = 0; i < Rooms.Num(); ++i)
+    {
+        const FRoomData& R = Rooms[i];
+
+        const int32 HalfX = R.Size.X / 2;
+        const int32 HalfY = R.Size.Y / 2;
+
+        FRoomInfo Info;
+        Info.RoomId = i;
+        Info.Center = R.Center;
+        Info.Min = FIntVector(R.Center.X - HalfX, R.Center.Y - HalfY, 0);
+        // Max는 exclusive: Min + Size
+        Info.Max = FIntVector(Info.Min.X + R.Size.X, Info.Min.Y + R.Size.Y, 0);
+
+        RoomInfos.Add(Info);
+    }
+
+    // 3) 분석 실행 (TileSize는 이미 DelaunayMapGenerator에 프로퍼티로 존재) 
+    GraphAnalyzer->AnalyzeDungeon(DungeonTiles, RoomInfos, TileSize); // :contentReference[oaicite:4]{index=4} :contentReference[oaicite:5]{index=5}
+
+    // 4) 로그/디버그 시각화
+    GraphAnalyzer->PrintStatistics();                   // 요약치 로그 출력 :contentReference[oaicite:6]{index=6}
+    GraphAnalyzer->DrawDebugVisualization(GetWorld(), -1.0f); // 월드에 노드/간선 그려줌 :contentReference[oaicite:7]{index=7}
+}
+
+bool ADelaunayMapGenerator::Has2x2CorridorBlob(FIntVector& OutTopLeft) const
+{
+    auto InBounds = [&](int32 x, int32 y)
+        {
+            return x >= 0 && x + 1 < MapSize.X && y >= 0 && y + 1 < MapSize.Y;
+        };
+
+    auto IsPassableForBlob = [&](int32 x, int32 y)
+        {
+            const EDelaunayTileType T = GetTile(x, y);
+            // 복도 계열 + 문을 '통로'로 간주해 블럭 감지 (BSP 쪽 판단과 동일한 철학)
+            return (T == EDelaunayTileType::Corridor
+                || T == EDelaunayTileType::BridgeCorridor
+                || T == EDelaunayTileType::Door);
+        };
+
+    for (int32 y = 0; y < MapSize.Y - 1; ++y)
+        for (int32 x = 0; x < MapSize.X - 1; ++x)
+        {
+            if (!InBounds(x, y)) continue;
+
+            if (IsPassableForBlob(x, y)
+                && IsPassableForBlob(x + 1, y)
+                && IsPassableForBlob(x, y + 1)
+                && IsPassableForBlob(x + 1, y + 1))
+            {
+                OutTopLeft = FIntVector(x, y, 0);
+                return true;
+            }
+        }
+    return false;
+}

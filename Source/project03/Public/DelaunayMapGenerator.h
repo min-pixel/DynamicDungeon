@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "DungeonGraphAnalyzer.h"
 #include "DelaunayMapGenerator.generated.h"
 
 UENUM(BlueprintType)
@@ -238,4 +239,23 @@ private:
 
     // ========== 유틸리티 ==========
     float GetDistance2D(const FVector2D& A, const FVector2D& B) const;
+
+    UPROPERTY()
+    UDungeonGraphAnalyzer* GraphAnalyzer = nullptr;
+
+    UFUNCTION(BlueprintCallable, Category = "Delaunay|Graph")
+    void RunGraphAnalysis();
+
+    // 재시도 옵션
+    UPROPERTY(EditAnywhere, Category = "Delaunay|Retry")
+    int32 MaxGenerateAttempts = 90;
+
+    UPROPERTY(EditAnywhere, Category = "Delaunay|Retry")
+    bool bReseedOnRetry = true;
+
+    UPROPERTY(EditAnywhere, Category = "Debug")
+    bool bMarkRejected2x2 = true;
+
+    // 2x2 복도 블럭 검출
+    bool Has2x2CorridorBlob(FIntVector& OutTopLeft) const;
 };
