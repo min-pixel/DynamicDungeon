@@ -6,6 +6,7 @@
 //#endif
 #include "WaveFunctionCollapseModel02.h"
 #include "Components/ActorComponent.h"
+#include "DungeonGraphAnalyzer.h"
 #include "WaveFunctionCollapseSubsystem02.generated.h"
 
 PROJECT03_API DECLARE_LOG_CATEGORY_EXTERN(LogWFC, Log, All);
@@ -23,6 +24,30 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFCSettings")
 	TObjectPtr<UWaveFunctionCollapseModel02> WFCModel;
+
+	//20250822
+	void RunGraphAnalysisWFC(const TArray<FWaveFunctionCollapseTileCustom>& InTiles);
+
+	UDungeonGraphAnalyzer* GraphAnalyzer = nullptr;
+
+	//20250825
+	// WFC 실행 시 그래프 분석용 경계 스캔 깊이 토글
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFC|GraphAnalysis")
+	bool bDeepRoomBoundaryProbeForWFC = false; // 기본 OFF (기존과 동일)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WFC|GraphAnalysis", meta = (ClampMin = "1", ClampMax = "4", EditCondition = "bDeepRoomBoundaryProbeForWFC"))
+	int32 RoomBoundaryProbeDepthForWFC = 2;    // ON일 때 사용할 깊이(예: 2)
+
+	UFUNCTION(BlueprintCallable, Category = "WFC|PostProcess")
+	void ReplaceAllRoomTilesWithBlueprint002(const FString& RoomBlueprintPath = TEXT("/Game/BP/BSP/romm.romm"));
+
+	UPROPERTY(EditAnywhere, Category = "WFC|PostProcess")
+	TSubclassOf<AActor> DoorClass;
+
+	UPROPERTY(EditAnywhere, Category = "WFC|PostProcess")
+	TSubclassOf<AActor> WallClass;
+
+	bool HasCorridorBeyondEmptyRing(const FIntVector& RoomCoord, const FIntVector& Dir, int32 MaxSteps) const;
 
 	// Tile 종류 → 원본 액터 20250531
 	UPROPERTY(Transient)

@@ -112,7 +112,10 @@ void Awfcex::BeginPlay()
         SpawnEscapeObjectsOnRoom();
         SpawnTreasureChestsOnTiles();
 
-        
+        if (UWaveFunctionCollapseSubsystem02* Subsys = GetWFCSubsystem())
+        {
+            Subsys->ReplaceAllRoomTilesWithBlueprint002(TEXT("/Game/BP/BSP/romm.romm"));
+        }
 
         // WFC 완료 플래그 설정
         //if (UWaveFunctionCollapseSubsystem02* WFCSubsystem = GetWFCSubsystem())

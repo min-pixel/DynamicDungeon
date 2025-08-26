@@ -58,7 +58,7 @@ struct PROJECT03_API FWaveFunctionCollapseOptionCustom
 	
 
 
-	bool bIsCorridorTile = true; // 복도 타일 여부 추가
+	bool bIsCorridorTile = false; // 복도 타일 여부 추가
 
 	FWaveFunctionCollapseOptionCustom() = default;
 

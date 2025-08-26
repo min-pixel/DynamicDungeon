@@ -202,6 +202,18 @@ public:
         int32 StartNodeId,
         TArray<FIntVector>& OutPath);
 
+    UFUNCTION(BlueprintCallable, Category = "DungeonGraph|Debug")
+    void SetDebugLabelVisibility(bool bInDrawNodeLabels, bool bInDrawEdgeLabels, bool bInDrawStatsText = true);
+
+    bool bDrawNodeLabels = true;
+    bool bDrawEdgeLabels = true;
+    bool bDrawStatsText = true;
+
+    UFUNCTION(BlueprintCallable, Category = "DungeonGraph|Probe")
+    void SetRoomBoundaryProbeDepth(int32 Depth);
+
+    int32 RoomBoundaryProbeDepth = 1; // 기본: 1칸 
+
 private:
     // 내부 데이터
     TArray<FDungeonGraphNode> Nodes;

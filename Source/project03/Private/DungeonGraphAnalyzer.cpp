@@ -38,6 +38,11 @@ void UDungeonGraphAnalyzer::AnalyzeDungeon(
 
     UE_LOG(LogTemp, Warning, TEXT("=== Graph Analysis Complete ==="));
     UE_LOG(LogTemp, Warning, TEXT("Nodes: %d, Edges: %d"), Nodes.Num(), Edges.Num());
+    UE_LOG(LogTemp, Warning, TEXT("Nodes: %d, Edges(total): %d, Edges(unique): %d"),
+        Nodes.Num(),
+        Edges.Num(),            // 평행 경로 포함 전체
+        Analysis.EdgeCount      // 유니크 간선 수
+    );
 }
 
 void UDungeonGraphAnalyzer::AnalyzeDungeonBP(
@@ -446,6 +451,115 @@ void UDungeonGraphAnalyzer::ExtractEdges()
                             }
                         }
                     }
+
+                    //auto TryPushStart = [&](int32 bx, int32 by, int32 ox, int32 oy)
+                    //    {
+                    //        const int32 MaxDepth = FMath::Max(RoomBoundaryProbeDepth, 1); // 1 이상
+                    //        for (int dist = 0; dist < MaxDepth; ++dist)
+                    //        {
+                    //            const int32 cx = bx + ox * dist;
+                    //            const int32 cy = by + oy * dist;
+                    //            if (cx < 0 || cx >= MapSize.X || cy < 0 || cy >= MapSize.Y) break;
+
+                    //            if (IsCorridorTile(cx, cy))
+                    //            {
+                    //                FIntVector StartPos(cx, cy, 0);
+                    //                if (!ProcessedStartPositions.Contains(StartPos))
+                    //                {
+                    //                    StartPositions.Add(StartPos);
+                    //                    ProcessedStartPositions.Add(StartPos);
+                    //                }
+                    //                break; // 이 방향은 더 보지 않음
+                    //            }
+                    //        }
+                    //    };
+
+                    //20250825
+                    //auto TryPushStart = [&](int32 bx, int32 by, int32 ox, int32 oy)
+                    //    {
+                    //        const int32 MaxDepth = FMath::Max(RoomBoundaryProbeDepth, 1); // [1..4] 등
+                    //        auto InBounds = [&](int32 x, int32 y)->bool
+                    //            {
+                    //                return (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y);
+                    //            };
+                    //        auto InFront = [&](int32 x, int32 y)->bool
+                    //            {
+                    //                // 바깥 ‘반공간’만 허용 (경계선 포함)
+                    //                if (ox != 0) return (x - bx) * ox >= 0;
+                    //                if (oy != 0) return (y - by) * oy >= 0;
+                    //                return true;
+                    //            };
+                    //        auto Manh = [&](int32 x, int32 y)->int32
+                    //            {
+                    //                return FMath::Abs(x - bx) + FMath::Abs(y - by);
+                    //            };
+                    //        auto IsPassableForProbe = [&](int32 x, int32 y)->bool
+                    //            {
+                    //                if (!InBounds(x, y)) return false;
+                    //                EDungeonTileType T = WorkingTileMap[x][y];
+                    //                // 방 내부는 통과 금지. 나머지(Empty, Wall 등)는 탐색 통과 허용.
+                    //                return (T != EDungeonTileType::Room);
+                    //            };
+
+                    //        TQueue<FIntVector> Q;
+                    //        TSet<FIntVector> Vis;
+
+                    //        auto TryEnqueue = [&](int32 x, int32 y)
+                    //            {
+                    //                if (!InBounds(x, y)) return;
+                    //                if (!InFront(x, y)) return;
+                    //                if (Manh(x, y) > MaxDepth) return;
+                    //                FIntVector P(x, y, 0);
+                    //                if (Vis.Contains(P)) return;
+                    //                if (!IsPassableForProbe(x, y)) return;
+                    //                Vis.Add(P);
+                    //                Q.Enqueue(P);
+                    //            };
+
+                    //        // 경계 한 점에서 ‘바깥 쪽’ 첫 칸부터 시작
+                    //        TryEnqueue(bx + ox, by + oy);
+
+                    //        while (!Q.IsEmpty())
+                    //        {
+                    //            FIntVector Cur; Q.Dequeue(Cur);
+
+                    //            // 목표: 복도 타일을 찾으면 시작점으로 등록
+                    //            if (IsCorridorTile(Cur))
+                    //            {
+                    //                if (!ProcessedStartPositions.Contains(Cur))
+                    //                {
+                    //                    StartPositions.Add(Cur);
+                    //                    ProcessedStartPositions.Add(Cur);
+                    //                }
+                    //                continue; // 이 방향으로 더 확장할 필요 없음
+                    //            }
+
+                    //            // 4방향 확장 (반공간 + 반경 제한 유지)
+                    //            TryEnqueue(Cur.X + 1, Cur.Y);
+                    //            TryEnqueue(Cur.X - 1, Cur.Y);
+                    //            TryEnqueue(Cur.X, Cur.Y + 1);
+                    //            TryEnqueue(Cur.X, Cur.Y - 1);
+                    //        }
+                    //    };
+
+                    //for (int32 x = Room.Min.X - 1; x <= Room.Max.X; ++x)
+                    //{
+                    //    for (int32 y = Room.Min.Y - 1; y <= Room.Max.Y; ++y)
+                    //    {
+                    //        const bool bOnBorder =
+                    //            (x == Room.Min.X - 1 || x == Room.Max.X ||
+                    //                y == Room.Min.Y - 1 || y == Room.Max.Y);
+                    //        if (!bOnBorder) continue;
+
+                    //        // 경계 위치에서 바깥 방향으로 전진
+                    //        if (x == Room.Min.X - 1) TryPushStart(x, y, -1, 0); // 서쪽 바깥
+                    //        if (x == Room.Max.X)     TryPushStart(x, y, 1, 0); // 동쪽 바깥
+                    //        if (y == Room.Min.Y - 1) TryPushStart(x, y, 0, -1); // 남쪽 바깥
+                    //        if (y == Room.Max.Y)     TryPushStart(x, y, 0, 1); // 북쪽 바깥
+                    //    }
+                    //}
+
+
                     break;
                 }
             }
@@ -690,6 +804,7 @@ bool UDungeonGraphAnalyzer::FindCorridorPath(
 
     // 시작점 찾기 (방의 경우 가장자리에서 시작)
     TArray<FIntVector> StartPoints;
+    TSet<FIntVector> ProcessedStartPositions;
     if (FindRoomNodeContaining(Start) >= 0)
     {
         // 방에서 시작하는 경우, 방 가장자리의 복도 타일 찾기
@@ -712,6 +827,47 @@ bool UDungeonGraphAnalyzer::FindCorridorPath(
                         }
                     }
                 }
+
+                //20250825
+                //auto TryPushStart = [&](int32 bx, int32 by, int32 ox, int32 oy)
+                //    {
+                //        const int32 MaxDepth = FMath::Max(RoomBoundaryProbeDepth, 1); // 1 이상
+                //        for (int dist = 0; dist < MaxDepth; ++dist)
+                //        {
+                //            const int32 cx = bx + ox * dist;
+                //            const int32 cy = by + oy * dist;
+                //            if (cx < 0 || cx >= MapSize.X || cy < 0 || cy >= MapSize.Y) break;
+
+                //            if (IsCorridorTile(cx, cy))
+                //            {
+                //                FIntVector StartPos(cx, cy, 0);
+                //                if (!ProcessedStartPositions.Contains(StartPos))
+                //                {
+                //                    StartPoints.Add(StartPos);
+                //                    ProcessedStartPositions.Add(StartPos);
+                //                }
+                //                break; // 이 방향은 더 보지 않음
+                //            }
+                //        }
+                //    };
+
+                //for (int32 x = Room.Min.X - 1; x <= Room.Max.X; ++x)
+                //{
+                //    for (int32 y = Room.Min.Y - 1; y <= Room.Max.Y; ++y)
+                //    {
+                //        const bool bOnBorder =
+                //            (x == Room.Min.X - 1 || x == Room.Max.X ||
+                //                y == Room.Min.Y - 1 || y == Room.Max.Y);
+                //        if (!bOnBorder) continue;
+
+                //        // 경계 위치에서 바깥 방향으로 전진
+                //        if (x == Room.Min.X - 1) TryPushStart(x, y, -1, 0); // 서쪽 바깥
+                //        if (x == Room.Max.X)     TryPushStart(x, y, 1, 0); // 동쪽 바깥
+                //        if (y == Room.Min.Y - 1) TryPushStart(x, y, 0, -1); // 남쪽 바깥
+                //        if (y == Room.Max.Y)     TryPushStart(x, y, 0, 1); // 북쪽 바깥
+                //    }
+                //}
+
                 break;
             }
         }
@@ -839,7 +995,19 @@ void UDungeonGraphAnalyzer::AnalyzeGraph()
 
     // 노드 수 카운트
     Analysis.NodeCount = Nodes.Num();
-    Analysis.EdgeCount = Edges.Num();
+    //Analysis.EdgeCount = Edges.Num();
+
+    {
+    TSet<TPair<int32,int32>> UniquePairs;
+    for (const FDungeonGraphEdge& E : Edges)
+    {
+        UniquePairs.Add(TPair<int32,int32>(
+            FMath::Min(E.StartNodeId, E.EndNodeId),
+            FMath::Max(E.StartNodeId, E.EndNodeId)
+        ));
+    }
+    Analysis.EdgeCount = UniquePairs.Num();
+}
 
     // 노드 타입별 카운트
     for (const FDungeonGraphNode& Node : Nodes)
@@ -1051,9 +1219,13 @@ void UDungeonGraphAnalyzer::DrawDebugVisualization(UWorld* World, float Duration
         DrawDebugSphere(World, Location, Radius, 12, Color, true, Duration, 0, 5.0f);
 
         // 노드 ID 표시
-        DrawDebugString(World, Location + FVector(0, 0, Radius + 20),
-            FString::Printf(TEXT("N%d"), Node.NodeId),
-            nullptr, Color, Duration, true, 1.5f);
+
+        if (bDrawNodeLabels)
+        {
+            DrawDebugString(World, Location + FVector(0, 0, Radius + 20),
+                FString::Printf(TEXT("N%d"), Node.NodeId),
+                nullptr, Color, Duration, true, 1.5f);
+        }
     }
 
     // 간선 그리기
@@ -1082,15 +1254,21 @@ void UDungeonGraphAnalyzer::DrawDebugVisualization(UWorld* World, float Duration
                     Edge.Path[MidIndex].Y * WorkingTileSize,
                     200.0f);
 
-                DrawDebugString(World, MidPoint,
-                    FString::Printf(TEXT("L:%d"), (int32)Edge.Length),
-                    nullptr, FColor::Orange, Duration, true, 1.0f);
+                if (bDrawEdgeLabels)
+                {
+                    DrawDebugString(World, MidPoint,
+                        FString::Printf(TEXT("L:%d"), (int32)Edge.Length),
+                        nullptr, FColor::Orange, Duration, true, 1.0f);
+                }
             }
         }
     }
 
     // 통계 정보 표시 (화면 좌상단)
     FVector ScreenLocation(100, 100, 500);
+
+
+
     DrawDebugString(World, ScreenLocation,
         FString::Printf(TEXT("Graph Stats:\nNodes: %d\nEdges: %d\nCyclomatic: %d\nComponents: %d"),
             Analysis.NodeCount, Analysis.EdgeCount,
@@ -1364,5 +1542,17 @@ bool UDungeonGraphAnalyzer::ArePathsSimilar(
     float OverlapRatio = (float)Intersection.Num() /
         (float)FMath::Min(Set1.Num(), Set2.Num());
 
-    return OverlapRatio > 0.7f;
+    return OverlapRatio >= 0.6f;
+}
+
+void UDungeonGraphAnalyzer::SetDebugLabelVisibility(bool bInDrawNodeLabels, bool bInDrawEdgeLabels, bool bInDrawStatsText)
+{
+    bDrawNodeLabels = bInDrawNodeLabels;
+    bDrawEdgeLabels = bInDrawEdgeLabels;
+    bDrawStatsText = bInDrawStatsText;
+}
+
+void UDungeonGraphAnalyzer::SetRoomBoundaryProbeDepth(int32 Depth)
+{
+    RoomBoundaryProbeDepth = FMath::Clamp(Depth, 1, 4);
 }

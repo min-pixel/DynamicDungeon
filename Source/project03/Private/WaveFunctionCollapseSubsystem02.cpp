@@ -10,6 +10,7 @@
 #include "Engine/StreamableManager.h"
 #include "Engine/AssetManager.h"
 #include "WaveFunctionCollapseModel02.h"
+#include "Kismet/GameplayStatics.h"
 #include <queue>
 
 
@@ -411,6 +412,9 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 		// 성공한 타일 데이터를 저장
 		LastCollapsedTiles = Tiles;
+
+		//그래프 생성기 호출
+		RunGraphAnalysisWFC(Tiles);
 
 		for (const auto& Elem : UserFixedOptions)
 		{
@@ -3351,6 +3355,8 @@ void UWaveFunctionCollapseSubsystem02::ReplaceGoalTileWithCustomTile(
 	FString GoalTilePath = TEXT("/Game/BP/goalt01.goalt01"); // t01과 동일한 경로
 	Tiles[GoalTileIndex].RemainingOptions.Empty();
 	FWaveFunctionCollapseOptionCustom GoalTileOption(GoalTilePath);
+	GoalTileOption.bIsCorridorTile = true;   
+	GoalTileOption.bIsRoomTile = false;  
 	Tiles[GoalTileIndex].RemainingOptions.Add(GoalTileOption);
 	Tiles[GoalTileIndex].ShannonEntropy = UWaveFunctionCollapseBPLibrary02::CalculateShannonEntropy(
 		Tiles[GoalTileIndex].RemainingOptions, WFCModel);
@@ -3398,6 +3404,8 @@ void UWaveFunctionCollapseSubsystem02::PlaceGoalTileInFrontOfRoom(
 			// 기존 옵션 제거 후 goalt01 배치
 			Tiles[GoalTileIndex].RemainingOptions.Empty();
 			FWaveFunctionCollapseOptionCustom GoalTileOption(TEXT("/Game/BP/goalt01.goalt01"));
+			GoalTileOption.bIsCorridorTile = true;  
+			GoalTileOption.bIsRoomTile = false;  
 			Tiles[GoalTileIndex].RemainingOptions.Add(GoalTileOption);
 
 			// ShannonEntropy 업데이트
@@ -5262,3 +5270,368 @@ void UWaveFunctionCollapseSubsystem02::ReplaceRoomWithGoaltTiles(int32 RoomIndex
 
 	UE_LOG(LogWFC, Log, TEXT("Replaced room at index %d with 3x3 goalt01 tiles"), RoomIndex);
 }
+
+void UWaveFunctionCollapseSubsystem02::RunGraphAnalysisWFC(const TArray<FWaveFunctionCollapseTileCustom>& InTiles)
+{
+	if (!WFCModel) { UE_LOG(LogWFC, Error, TEXT("RunGraphAnalysisWFC: WFCModel is null")); return; }
+	if (!GraphAnalyzer) { GraphAnalyzer = NewObject<UDungeonGraphAnalyzer>(this); }
+
+	const FIntVector Size = Resolution;
+	// 1) 타일맵을 EDungeonTileType로 변환 (2D 배열 [X][Y])
+	TArray<TArray<EDungeonTileType>> DungeonTiles;
+	DungeonTiles.SetNum(Size.X);
+	for (int32 x = 0; x < Size.X; ++x)
+	{
+		DungeonTiles[x].SetNum(Size.Y);
+		for (int32 y = 0; y < Size.Y; ++y)
+		{
+			DungeonTiles[x][y] = EDungeonTileType::Empty; // 기본
+		}
+	}
+
+	auto ToDungeonType = [](const FWaveFunctionCollapseTileCustom& T)->EDungeonTileType
+		{
+			if (T.RemainingOptions.Num() == 0) return EDungeonTileType::Empty;
+			const FWaveFunctionCollapseOptionCustom& Opt = T.RemainingOptions[0];
+
+			{
+				const FString PathStr = Opt.BaseObject.ToString();
+				if (PathStr.Contains(TEXT("goalt01"))) {
+					return EDungeonTileType::Corridor;
+				}
+			}
+
+			if (Opt.bIsRoomTile)      return EDungeonTileType::Room;
+			if (Opt.bIsCorridorTile)  return EDungeonTileType::Corridor;
+			return EDungeonTileType::Empty;
+		};
+
+	for (int32 idx = 0; idx < InTiles.Num(); ++idx)
+	{
+		const FIntVector P = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(idx, Size);
+		if (P.X >= 0 && P.X < Size.X && P.Y >= 0 && P.Y < Size.Y)
+		{
+			DungeonTiles[P.X][P.Y] = ToDungeonType(InTiles[idx]);
+		}
+	}
+
+	// 2) 방 정보 추출: 연결된 Room 타일을 컴포넌트로 묶어 AABB 생성 (Min 포함, Max 배타)
+	TArray<FRoomInfo> RoomInfos;
+	TSet<int32> Visited;
+	for (int32 idx = 0; idx < InTiles.Num(); ++idx)
+	{
+		if (Visited.Contains(idx)) continue;
+		if (InTiles[idx].RemainingOptions.Num() == 0 ||
+			!InTiles[idx].RemainingOptions[0].bIsRoomTile) continue;
+
+		// BFS로 연결 방 묶기 (4방향)
+		TArray<int32> Queue{ idx };
+		Visited.Add(idx);
+
+		int32 minX = INT_MAX, minY = INT_MAX, maxX = INT_MIN, maxY = INT_MIN;
+		TArray<FIntVector> Cells;
+
+		while (Queue.Num() > 0)
+		{
+			const int32 cur = Queue.Pop(/*bAllowShrinking*/false);
+			const FIntVector P = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(cur, Size);
+			Cells.Add(P);
+			minX = FMath::Min(minX, P.X); minY = FMath::Min(minY, P.Y);
+			maxX = FMath::Max(maxX, P.X); maxY = FMath::Max(maxY, P.Y);
+
+			// 카드널 이웃만
+			for (int32 n : GetCardinalAdjacentIndices(cur, Size))
+			{
+				if (!Visited.Contains(n) &&
+					InTiles[n].RemainingOptions.Num() > 0 &&
+					InTiles[n].RemainingOptions[0].bIsRoomTile)
+				{
+					Visited.Add(n);
+					Queue.Add(n);
+				}
+			}
+		}
+
+		// 방 하나 완성 → FRoomInfo 기록
+		FRoomInfo Info;
+		Info.RoomId = RoomInfos.Num();
+		// Center: 셀 평균(격자 좌표)
+		FVector Accum(0, 0, 0);
+		for (const FIntVector& C : Cells) Accum += FVector(C);
+		const FVector CenterGrid = Accum / float(Cells.Num());
+
+		Info.Center = FIntVector(FMath::RoundToInt(CenterGrid.X),
+			FMath::RoundToInt(CenterGrid.Y), 0);
+		// Min 포함, Max 배타(드로네와 동일한 방식 권장)
+		Info.Min = FIntVector(minX, minY, 0);
+		Info.Max = FIntVector(maxX + 1, maxY + 1, 1);
+
+		RoomInfos.Add(Info);
+	}
+
+
+
+	
+	auto InBounds = [&](int32 x, int32 y) {
+		return x >= 0 && x < Size.X && y >= 0 && y < Size.Y;
+		};
+	auto IsCorr = [&](int32 x, int32 y) {
+		const EDungeonTileType t = DungeonTiles[x][y];
+		return t == EDungeonTileType::Corridor
+			|| t == EDungeonTileType::Door
+			|| t == EDungeonTileType::BridgeCorridor
+			|| t == EDungeonTileType::DeadEnd
+			|| t == EDungeonTileType::Junction
+			|| t == EDungeonTileType::CrossRoad;
+		};
+	auto MarkBridge = [&](int32 x, int32 y) {
+		if (InBounds(x, y) && DungeonTiles[x][y] == EDungeonTileType::Empty)
+			DungeonTiles[x][y] = EDungeonTileType::BridgeCorridor; // “분석용” 다리
+		};
+
+	// 방마다, 4변의 바깥쪽으로 RoomBoundaryProbeDepthForWFC 만큼 직선 탐색.
+	// 복도가 보이면 방과 맞닿는 첫 칸을 BridgeCorridor로 표시.
+	const int32 Probe = FMath::Max(RoomBoundaryProbeDepthForWFC, 2);
+
+	for (const FRoomInfo& R : RoomInfos)
+	{
+		// West
+		for (int y = R.Min.Y; y < R.Max.Y; ++y)
+			for (int d = 0; d < Probe; ++d) {
+				const int x = (R.Min.X - 1) - d;
+				if (!InBounds(x, y)) break;
+				if (IsCorr(x, y)) { MarkBridge(R.Min.X - 1, y); break; }
+			}
+		// East
+		for (int y = R.Min.Y; y < R.Max.Y; ++y)
+			for (int d = 0; d < Probe; ++d) {
+				const int x = R.Max.X + d;
+				if (!InBounds(x, y)) break;
+				if (IsCorr(x, y)) { MarkBridge(R.Max.X, y); break; }
+			}
+		// South
+		for (int x = R.Min.X; x < R.Max.X; ++x)
+			for (int d = 0; d < Probe; ++d) {
+				const int y = (R.Min.Y - 1) - d;
+				if (!InBounds(x, y)) break;
+				if (IsCorr(x, y)) { MarkBridge(x, R.Min.Y - 1); break; }
+			}
+		// North
+		for (int x = R.Min.X; x < R.Max.X; ++x)
+			for (int d = 0; d < Probe; ++d) {
+				const int y = R.Max.Y + d;
+				if (!InBounds(x, y)) break;
+				if (IsCorr(x, y)) { MarkBridge(x, R.Max.Y); break; }
+			}
+	}
+
+
+
+	// 3) 분석 실행(+옵션: 통계/디버그)
+	GraphAnalyzer->AnalyzeDungeon(DungeonTiles, RoomInfos, WFCModel->TileSize);
+	GraphAnalyzer->PrintStatistics();
+	GraphAnalyzer->SetDebugLabelVisibility(/*N*/false, /*L*/false, /*Stats*/true);
+	GraphAnalyzer->DrawDebugVisualization(GetWorld(), -1.0f);
+
+	
+}
+
+
+static const FName TagWFCGenerated(TEXT("WFCGenerated"));
+static const FName TagWFCRoomReplacement(TEXT("WFCRoomReplacement"));
+
+
+void UWaveFunctionCollapseSubsystem02::ReplaceAllRoomTilesWithBlueprint002(const FString& RoomBlueprintPath)
+{
+	UWorld* World = GetWorld();
+	if (!World || !WFCModel) { UE_LOG(LogWFC, Error, TEXT("ReplaceRooms: World/WFCModel null")); return; }
+
+	// 0) 교체 대상 방 타일 수집 (좌표/센터/회전/스케일)
+	struct FRoomRec { FIntVector Coord; FVector Center; FRotator Rot; FVector Scale; };
+	TArray<FRoomRec> Rooms; Rooms.Reserve(LastCollapsedTiles.Num());
+
+	for (int32 i = 0; i < LastCollapsedTiles.Num(); ++i)
+	{
+		const auto& T = LastCollapsedTiles[i];
+		if (T.RemainingOptions.Num() == 0) continue;
+
+		const auto& Opt = T.RemainingOptions[0];
+		if (!Opt.bIsRoomTile) continue; // 방만 교체
+
+		const FIntVector Coord = UWaveFunctionCollapseBPLibrary02::IndexAsPosition(i, Resolution);
+		const FVector Center = FVector(Coord) * WFCModel->TileSize;
+
+		Rooms.Add({ Coord, Center, Opt.BaseRotator, Opt.BaseScale3D });
+	}
+	if (Rooms.Num() == 0) { UE_LOG(LogWFC, Warning, TEXT("ReplaceRooms: no room tiles")); return; }
+
+	// 1) 이전 교체분 제거 + 원래 방 비주얼/ISM 제거 (해당 위치 근처만)
+	{
+		// 1-1) 지난 번 교체분(TagWFCRoomReplacement) 전부 삭제
+		TArray<AActor*> Prev;
+		UGameplayStatics::GetAllActorsWithTag(World, TagWFCRoomReplacement, Prev);
+		for (AActor* A : Prev) { if (IsValid(A)) A->Destroy(); }
+
+		// 1-2) 원래 스폰본 중(WFCGenerated) 방 위치 근처의 자식 액터/ISM 인스턴스만 제거
+		TArray<AActor*> Tagged;
+		UGameplayStatics::GetAllActorsWithTag(World, TagWFCGenerated, Tagged); // 루트/타일/문/벽/ISM 소유자 등
+		const float Tolerance = WFCModel->TileSize * 0.6f;
+		const float Tol2 = Tolerance * Tolerance;
+
+		// a) 개별 액터 제거 (루트 컨테이너 추정은 자식 유무로 스킵)
+		for (AActor* A : Tagged)
+		{
+			if (!IsValid(A)) continue;
+			TArray<AActor*> Kids; A->GetAttachedActors(Kids, true);
+			if (Kids.Num() > 0) continue; // 루트 컨테이너일 가능성 높음 → 스킵
+
+			const FVector L = A->GetActorLocation();
+			bool bHit = false;
+			for (const FRoomRec& R : Rooms) { if (FVector::DistSquared(L, R.Center) <= Tol2) { bHit = true; break; } }
+			if (bHit) { A->Destroy(); }
+		}
+
+		// b) 루트 컨테이너가 가진 ISM 인스턴스 중 방 위치 근처 것만 제거
+		for (AActor* Root : Tagged)
+		{
+			if (!IsValid(Root)) continue;
+			TArray<UInstancedStaticMeshComponent*> ISMs;
+			Root->GetComponents<UInstancedStaticMeshComponent>(ISMs);
+			for (UInstancedStaticMeshComponent* ISM : ISMs)
+			{
+				if (!ISM) continue;
+				for (int32 idx = ISM->GetInstanceCount() - 1; idx >= 0; --idx)
+				{
+					FTransform T; ISM->GetInstanceTransform(idx, T, /*bWorldSpace=*/true);
+					const FVector L = T.GetLocation();
+					bool bHit = false;
+					for (const FRoomRec& R : Rooms) { if (FVector::DistSquared(L, R.Center) <= Tol2) { bHit = true; break; } }
+					if (bHit) { ISM->RemoveInstance(idx); }
+				}
+			}
+		}
+	}
+
+	// 2) 방 BP 클래스 로드 (경로에 _C 자동 보정)
+	FString ClassPath = RoomBlueprintPath;
+	if (!ClassPath.EndsWith(TEXT("_C"))) ClassPath += TEXT("_C");
+	UClass* RoomClass = LoadObject<UClass>(nullptr, *ClassPath);
+	if (!RoomClass) { UE_LOG(LogWFC, Error, TEXT("ReplaceRooms: LoadObject failed '%s'"), *ClassPath); return; }
+
+	// 3) 4방향 이웃 복도 판정 람다 (LastCollapsedTiles 사용)
+	auto IsCorridorAt = [&](const FIntVector& P)->bool
+		{
+			if (P.X < 0 || P.Y < 0 || P.Z < 0 || P.X >= Resolution.X || P.Y >= Resolution.Y || P.Z >= Resolution.Z) return false;
+			const int32 Idx = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(P, Resolution);
+			if (!LastCollapsedTiles.IsValidIndex(Idx)) return false;
+			const auto& T = LastCollapsedTiles[Idx];
+			return (T.RemainingOptions.Num() > 0 && T.RemainingOptions[0].bIsCorridorTile);
+		};
+
+	// 4) 문/벽 클래스 자동 로드(비어있을 때만)
+	if (!DoorClass) { if (UClass* C = LoadObject<UClass>(nullptr, TEXT("/Game/BP/BSP/Door.Door_C"))) DoorClass = C; }
+	if (!WallClass) { if (UClass* C = LoadObject<UClass>(nullptr, TEXT("/Game/BP/BSP/Wall.Wall_C"))) WallClass = C; }
+
+	// 5) 방 스폰 + 문/벽 부착
+	FActorSpawnParameters P; P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	int32 Spawned = 0;
+	for (const FRoomRec& R : Rooms)
+	{
+		AActor* Room = World->SpawnActor<AActor>(RoomClass, R.Center, R.Rot, P);
+		if (!Room) continue;
+
+		Room->SetActorScale3D(R.Scale);
+		Room->Tags.Add(TagWFCGenerated);
+		Room->Tags.Add(TagWFCRoomReplacement);
+		Room->SetReplicates(true);
+		Room->bAlwaysRelevant = true;
+
+		// 4방향 문/벽
+		const float Half = (WFCModel->TileSize * R.Scale.X) * 0.5f;
+		struct D { FIntVector Off; FVector Ofs; FRotator Rot; };
+		const D Dirs[4] = {
+			{ { 0,  1, 0 }, { 0,  Half, 0 }, FRotator(0,   0, 0) },
+			{ { 0, -1, 0 }, { 0, -Half, 0 }, FRotator(0, 180, 0) },
+			{ { 1,  0, 0 }, {  Half, 0, 0 }, FRotator(0,  90, 0) },
+			{ {-1,  0, 0 }, { -Half, 0, 0 }, FRotator(0, -90, 0) },
+		};
+
+		for (const D& d : Dirs)
+		{
+			
+			const int32 EmptyRingDepth =
+				FMath::Max(1, FMath::CeilToInt((R.Scale.X - 1.f) * 0.5f)) + 1;
+
+			
+			const bool bHasCorr = HasCorridorBeyondEmptyRing(R.Coord, d.Off, EmptyRingDepth);
+			const FVector Pos = R.Center + d.Ofs;
+
+			if (bHasCorr && DoorClass)
+			{
+				if (AActor* Door = World->SpawnActor<AActor>(DoorClass, Pos, d.Rot, P))
+				{
+					Door->AttachToActor(Room, FAttachmentTransformRules::KeepWorldTransform);
+					Door->SetActorScale3D(R.Scale);
+					Door->Tags.Add(TagWFCGenerated);
+					Door->Tags.Add(TagWFCRoomReplacement);
+					Door->Tags.Add(FName(TEXT("Door")));
+				}
+			}
+			else if (!bHasCorr && WallClass)
+			{
+				if (AActor* Wall = World->SpawnActor<AActor>(WallClass, Pos, d.Rot, P))
+				{
+					Wall->AttachToActor(Room, FAttachmentTransformRules::KeepWorldTransform);
+					Wall->SetActorScale3D(R.Scale);
+					Wall->Tags.Add(TagWFCGenerated);
+					Wall->Tags.Add(TagWFCRoomReplacement);
+					Wall->Tags.Add(FName(TEXT("Wall")));
+				}
+			}
+		}
+
+		++Spawned;
+	}
+
+	UE_LOG(LogWFC, Warning, TEXT("[WFC] ReplaceRooms: spawned %d, bp=%s"), Spawned, *RoomBlueprintPath);
+}
+
+static bool IsEmptyOptionPath(const FString& Path)
+{
+	return Path.Contains(TEXT("Option_Empty")) || Path.Contains(TEXT("Option_Void"));
+}
+
+bool UWaveFunctionCollapseSubsystem02::HasCorridorBeyondEmptyRing(const FIntVector& RoomCoord, const FIntVector& Dir, int32 MaxSteps) const
+{
+	if (LastCollapsedTiles.Num() == 0) return false;
+
+	for (int32 step = 1; step <= MaxSteps; ++step)
+	{
+		const FIntVector P = RoomCoord + Dir * step;
+		if (P.X < 0 || P.Y < 0 || P.Z < 0 || P.X >= Resolution.X || P.Y >= Resolution.Y || P.Z >= Resolution.Z)
+			return false;
+
+		const int32 Idx = UWaveFunctionCollapseBPLibrary02::PositionAsIndex(P, Resolution);
+		if (!LastCollapsedTiles.IsValidIndex(Idx)) return false;
+
+		const auto& Tile = LastCollapsedTiles[Idx];
+		if (Tile.RemainingOptions.Num() == 0) continue; // 옵션이 아예 없으면 "빈" 것으로 간주하고 계속 전진
+
+		const auto& Opt = Tile.RemainingOptions[0];
+		const FString Path = Opt.BaseObject.ToString();
+
+		if (IsEmptyOptionPath(Path))
+		{
+			// 빈 링이면 건너뛰고 더 바깥을 계속 조사
+			continue;
+		}
+
+		// 빈이 아닌 걸 만났다 → 복도/방/기타로 판정
+		if (Opt.bIsCorridorTile) return true;   // 복도 발견 → 문
+		if (Opt.bIsRoomTile)      return false; // 다른 방이 바로 붙은 경우 → 벽
+		return false;                           // 기타(경계 등) → 벽
+	}
+	return false;
+}
+
