@@ -425,6 +425,8 @@ void UDungeonGraphAnalyzer::ExtractEdges()
         TArray<FIntVector> StartPositions;
         TSet<FIntVector> ProcessedStartPositions; // 이미 처리한 시작점 추적
 
+        TSet<FIntVector> UsedFirstKeys;
+
         if (Nodes[i].NodeType == EGraphNodeType::Room)
         {
             // 방의 경우 가장자리 복도 타일 찾기
@@ -585,6 +587,10 @@ void UDungeonGraphAnalyzer::ExtractEdges()
                 if (!IsValidCorridorStep(FirstStep, i))
                     continue;
 
+                FIntVector FirstKey(FirstStep.X, FirstStep.Y, dir);
+                if (UsedFirstKeys.Contains(FirstKey)) continue;
+                UsedFirstKeys.Add(FirstKey);
+
                 // 이 방향으로 경로 추적
                 TArray<FIntVector> Path;
                 int32 ConnectedNodeId = TraceCorridorPathInDirection(
@@ -620,16 +626,19 @@ void UDungeonGraphAnalyzer::ExtractEdges()
 
                     if (bIsUniquePath)
                     {
-                        // 새로운 독립적인 경로 추가
-                        if (!NodePairEdges.Contains(NodePair))
+                        if (bIsUniquePath && Edge.Path.Num() > 1)   // <= 길이 1 이하면 추가 안 함
                         {
-                            NodePairEdges.Add(NodePair, TArray<FDungeonGraphEdge>());
-                        }
-                        NodePairEdges[NodePair].Add(Edge);
+                            // 새로운 독립적인 경로 추가
+                            if (!NodePairEdges.Contains(NodePair))
+                            {
+                                NodePairEdges.Add(NodePair, TArray<FDungeonGraphEdge>());
+                            }
+                            NodePairEdges[NodePair].Add(Edge);
 
-                        UE_LOG(LogTemp, Warning,
-                            TEXT("Found path from Node %d to Node %d (Length: %d)"),
-                            i, ConnectedNodeId, Path.Num());
+                            UE_LOG(LogTemp, Warning,
+                                TEXT("Found path from Node %d to Node %d (Length: %d)"),
+                                i, ConnectedNodeId, Path.Num());
+                        }
                     }
                 }
             }
@@ -999,15 +1008,28 @@ void UDungeonGraphAnalyzer::AnalyzeGraph()
 
     {
     TSet<TPair<int32,int32>> UniquePairs;
+
+    float TotalLen = 0.f;
+    int32 CountEdgesUsedForAvg = 0;
+
     for (const FDungeonGraphEdge& E : Edges)
     {
+
+        if (E.Path.Num() <= 1) continue;
+
         UniquePairs.Add(TPair<int32,int32>(
             FMath::Min(E.StartNodeId, E.EndNodeId),
             FMath::Max(E.StartNodeId, E.EndNodeId)
         ));
+
+        TotalLen += E.Length;
+        ++CountEdgesUsedForAvg;
+
     }
     Analysis.EdgeCount = UniquePairs.Num();
-}
+    Analysis.AveragePathLength = (CountEdgesUsedForAvg > 0)
+        ? TotalLen / (float)CountEdgesUsedForAvg : 0.f;
+    }   
 
     // 노드 타입별 카운트
     for (const FDungeonGraphNode& Node : Nodes)
@@ -1403,14 +1425,48 @@ int32 UDungeonGraphAnalyzer::TraceCorridorPathInDirection(
     for (int32 Step = 0; Step < MaxSteps; ++Step)
     {
         // 현재 위치가 다른 노드인지 확인
-        for (int32 j = 0; j < Nodes.Num(); ++j)
-        {
-            if (j == StartNodeId) continue;
+        //for (int32 j = 0; j < Nodes.Num(); ++j)
+        //{
+        //    if (j == StartNodeId) continue;
 
-            if (IsPositionAtNode(Current, j))
+        //    if (IsPositionAtNode(Current, j))
+        //    {
+        //        return j; // 연결된 노드 ID 반환
+        //    }
+        //}
+
+        auto HitAdjacentCorridorNode = [&](const FIntVector& P, int32& OutNodeId)->bool
             {
-                return j; // 연결된 노드 ID 반환
-            }
+                for (int32 j = 0; j < Nodes.Num(); ++j)
+                {
+                    if (j == StartNodeId) continue;
+                    const auto& Nj = Nodes[j];
+
+                    // 방 노드는 기존 규칙(경계 포함)으로만 체크
+                    if (Nj.NodeType == EGraphNodeType::Room)
+                    {
+                        if (IsPositionAtNode(P, j)) { OutNodeId = j; return true; }
+                        continue;
+                    }
+
+                    // 복도 노드: 정확히 그 타일이거나, 4-이웃인 경우도 '도달'로 간주
+                    const FIntVector NP = Nj.Position;
+                    const int md = FMath::Abs(NP.X - P.X) + FMath::Abs(NP.Y - P.Y);
+
+                    if (md == 0) { OutNodeId = j; return true; }
+                    if (md == 1 && IsCorridorTile(NP) && IsCorridorTile(P))
+                    {
+                        OutNodeId = j;
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+        int32 AdjId = -1;
+        if (HitAdjacentCorridorNode(Current, AdjId))
+        {
+            return AdjId; // 교차/갈림길 노드에 붙은 것으로 간주하고 종료
         }
 
         // 다음 스텝 찾기
@@ -1523,26 +1579,55 @@ bool UDungeonGraphAnalyzer::IsValidCorridorStep(const FIntVector& Pos, int32 Avo
 }
 
 // 두 경로가 유사한지 확인 (대부분 겹치는 경로인지)
+//bool UDungeonGraphAnalyzer::ArePathsSimilar(
+//    const TArray<FIntVector>& Path1,
+//    const TArray<FIntVector>& Path2) const
+//{
+//    // 경로 길이가 너무 다르면 다른 경로
+//    /*if (FMath::Abs(Path1.Num() - Path2.Num()) > 5)
+//        return false;*/
+//
+//    if (Path1.Num() == 0 || Path2.Num() == 0)
+//        return false;
+//
+//    // 두 경로의 타일 집합 생성
+//    TSet<FIntVector> Set1(Path1);
+//    TSet<FIntVector> Set2(Path2);
+//
+//    // 교집합 크기 계산
+//    TSet<FIntVector> Intersection = Set1.Intersect(Set2);
+//
+//    // 70% 이상 겹치면 유사한 경로로 간주
+//    /*float OverlapRatio = (float)Intersection.Num() /
+//        (float)FMath::Min(Set1.Num(), Set2.Num());*/
+//
+//    const int32 MinSize = FMath::Min(Set1.Num(), Set2.Num());
+//    const float OverlapRatio = (MinSize == 0) ? 0.f
+//        : float(Intersection.Num()) / float(MinSize);
+//
+//    return OverlapRatio >= 0.6f;
+//}
+
 bool UDungeonGraphAnalyzer::ArePathsSimilar(
-    const TArray<FIntVector>& Path1,
-    const TArray<FIntVector>& Path2) const
+    const TArray<FIntVector>& P1,
+    const TArray<FIntVector>& P2) const
 {
-    // 경로 길이가 너무 다르면 다른 경로
-    if (FMath::Abs(Path1.Num() - Path2.Num()) > 5)
-        return false;
+    if (P1.Num() == 0 || P2.Num() == 0) return false;
 
-    // 두 경로의 타일 집합 생성
-    TSet<FIntVector> Set1(Path1);
-    TSet<FIntVector> Set2(Path2);
+    TSet<FIntVector> S1(P1), S2(P2);
+    TSet<FIntVector> I = S1.Intersect(S2);
 
-    // 교집합 크기 계산
-    TSet<FIntVector> Intersection = Set1.Intersect(Set2);
+    const int32 minLen = FMath::Min(S1.Num(), S2.Num());
 
-    // 70% 이상 겹치면 유사한 경로로 간주
-    float OverlapRatio = (float)Intersection.Num() /
-        (float)FMath::Min(Set1.Num(), Set2.Num());
+    
+    if (minLen <= 3 && I.Num() >= FMath::Max(1, minLen - 1))
+        return true;
 
-    return OverlapRatio >= 0.6f;
+    // 일반 케이스: 겹침 비율
+    const float overlap = (minLen > 0) ? float(I.Num()) / float(minLen) : 0.f;
+
+    
+    return overlap >= 0.75f;
 }
 
 void UDungeonGraphAnalyzer::SetDebugLabelVisibility(bool bInDrawNodeLabels, bool bInDrawEdgeLabels, bool bInDrawStatsText)
