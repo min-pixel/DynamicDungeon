@@ -87,6 +87,9 @@ struct FDungeonGraphAnalysis
     UPROPERTY(BlueprintReadOnly)
     int32 EdgeCount = 0;
 
+    UPROPERTY(BlueprintReadOnly) 
+    int32 EdgeCountTotal = 0;
+
     UPROPERTY(BlueprintReadOnly)
     int32 RoomCount = 0;
 

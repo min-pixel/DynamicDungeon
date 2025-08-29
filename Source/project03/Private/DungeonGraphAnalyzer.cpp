@@ -1011,6 +1011,7 @@ void UDungeonGraphAnalyzer::AnalyzeGraph()
 
     float TotalLen = 0.f;
     int32 CountEdgesUsedForAvg = 0;
+    int32 TotalEdges = 0;
 
     for (const FDungeonGraphEdge& E : Edges)
     {
@@ -1024,9 +1025,10 @@ void UDungeonGraphAnalyzer::AnalyzeGraph()
 
         TotalLen += E.Length;
         ++CountEdgesUsedForAvg;
-
+        ++TotalEdges;
     }
     Analysis.EdgeCount = UniquePairs.Num();
+    Analysis.EdgeCountTotal = TotalEdges;
     Analysis.AveragePathLength = (CountEdgesUsedForAvg > 0)
         ? TotalLen / (float)CountEdgesUsedForAvg : 0.f;
     }   
@@ -1056,7 +1058,7 @@ void UDungeonGraphAnalyzer::AnalyzeGraph()
 
     // 순환 복잡도 (Cyclomatic Complexity)
     // V(G) = E - N + P (간선수 - 노드수 + 연결성분수)
-    Analysis.CyclomaticComplexity = Analysis.EdgeCount - Analysis.NodeCount + Analysis.ConnectedComponents;
+    Analysis.CyclomaticComplexity = Analysis.EdgeCountTotal - Analysis.NodeCount + Analysis.ConnectedComponents;
 
     // 평균 노드 차수
     if (Analysis.NodeCount > 0)
@@ -1293,7 +1295,7 @@ void UDungeonGraphAnalyzer::DrawDebugVisualization(UWorld* World, float Duration
 
     DrawDebugString(World, ScreenLocation,
         FString::Printf(TEXT("Graph Stats:\nNodes: %d\nEdges: %d\nCyclomatic: %d\nComponents: %d"),
-            Analysis.NodeCount, Analysis.EdgeCount,
+            Analysis.NodeCount, Analysis.EdgeCountTotal,
             Analysis.CyclomaticComplexity, Analysis.ConnectedComponents),
         nullptr, FColor::White, Duration, true, 2.0f);
 }
@@ -1456,6 +1458,7 @@ int32 UDungeonGraphAnalyzer::TraceCorridorPathInDirection(
                     if (md == 0) { OutNodeId = j; return true; }
                     if (md == 1 && IsCorridorTile(NP) && IsCorridorTile(P))
                     {
+                        OutPath.Add(NP);
                         OutNodeId = j;
                         return true;
                     }
