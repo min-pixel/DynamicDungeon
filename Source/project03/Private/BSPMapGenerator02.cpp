@@ -1689,7 +1689,8 @@ bool ABSPMapGenerator02::IsCorridorTile(int32 x, int32 y)
         Type == ETileType02::BridgeCorridor ||
         Type == ETileType02::DeadEnd ||
         Type == ETileType02::Junction ||
-        Type == ETileType02::CrossRoad;
+        Type == ETileType02::CrossRoad ||
+        Type == ETileType02::Door;
 }
 
 // 통계 출력 함수
@@ -3389,6 +3390,42 @@ void ABSPMapGenerator02::PatchCorridorSingleTileGaps()
         }
     }
 
+    auto WouldCreate2x2At = [&](int32 fx, int32 fy)->bool
+        {
+            auto Passable = [&](int32 x, int32 y)->bool
+                {
+                    if (x == fx && y == fy) return true; // 지금 막 메운다고 가정
+                    if (x < 0 || x >= MapSize.X || y < 0 || y >= MapSize.Y) return false;
+                    const ETileType02 t = TileMap[x][y];
+                    // 통로 취급 타일 (Door 포함)
+                    return t == ETileType02::Corridor
+                        || t == ETileType02::BridgeCorridor
+                        || t == ETileType02::DeadEnd
+                        || t == ETileType02::Junction
+                        || t == ETileType02::CrossRoad
+                        || t == ETileType02::Door;
+                };
+
+            // (fx,fy)를 포함하는 2x2 네 블록을 모두 검사
+            // 좌상단이 (fx-1,fy-1)~(fx,fy)인 2x2, 총 4가지 원근
+            for (int ox = -1; ox <= 0; ++ox)
+            {
+                for (int oy = -1; oy <= 0; ++oy)
+                {
+                    const int x0 = fx + ox, y0 = fy + oy;
+                    if (x0 < 0 || y0 < 0 || x0 + 1 >= MapSize.X || y0 + 1 >= MapSize.Y) continue;
+
+                    const bool a = Passable(x0, y0);
+                    const bool b = Passable(x0 + 1, y0);
+                    const bool c = Passable(x0, y0 + 1);
+                    const bool d = Passable(x0 + 1, y0 + 1);
+
+                    if (a && b && c && d) return true; // 진짜 2x2 형성
+                }
+            }
+            return false;
+        };
+
     // ── Pass B: 데드엔드가 '앞으로 한 칸'만 더 가면 자연스레 이어지는 경우 ──
     for (int32 y = 0; y < MapSize.Y; ++y)
     {
@@ -3414,14 +3451,16 @@ void ABSPMapGenerator02::PatchCorridorSingleTileGaps()
 
             // 2x2 두꺼운 블록 방지: 연장 방향의 측면에 기존 복도가 붙어 있으면 스킵
             const bool IsHorizontal = (Dir.X != 0);
-            if (IsHorizontal)
-            {
-                if (IsCorr(tx, ty + 1) || IsCorr(tx, ty - 1)) continue;
-            }
-            else // Vertical
-            {
-                if (IsCorr(tx + 1, ty) || IsCorr(tx - 1, ty)) continue;
-            }
+            //if (IsHorizontal)
+            //{
+            //    if (IsCorr(tx, ty + 1) || IsCorr(tx, ty - 1)) continue;
+            //}
+            //else // Vertical
+            //{
+            //    if (IsCorr(tx + 1, ty) || IsCorr(tx - 1, ty)) continue;
+            //}
+
+            if (WouldCreate2x2At(tx, ty)) continue;
 
             ToFill.AddUnique(FIntVector(tx, ty, 0));
         }
