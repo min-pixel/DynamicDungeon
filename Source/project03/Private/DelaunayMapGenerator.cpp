@@ -4,6 +4,9 @@
 
 #include "DrawDebugHelpers.h"
 
+#include "CoreMinimal.h"
+DEFINE_LOG_CATEGORY_STATIC(LogDel, Log, All);
+
 ADelaunayMapGenerator::ADelaunayMapGenerator()
 {
     PrimaryActorTick.bCanEverTick = false;
@@ -34,7 +37,14 @@ ADelaunayMapGenerator::ADelaunayMapGenerator()
 void ADelaunayMapGenerator::BeginPlay()
 {
     Super::BeginPlay();
+
+    
     GenerateDelaunayMap();
+
+    
+
+    
+
 }
 
 //void ADelaunayMapGenerator::GenerateDelaunayMap()
@@ -85,6 +95,10 @@ void ADelaunayMapGenerator::BeginPlay()
 
 void ADelaunayMapGenerator::GenerateDelaunayMap()
 {
+
+    // 실행 시간 측정 시작
+    double Start = FPlatformTime::Seconds();
+
     // 베이스 시드 확보 (에디터에서 0이면 임의 시드)
     const int32 BaseSeed = (RandomSeed == 0) ? FMath::RandRange(1, INT32_MAX) : RandomSeed;
 
@@ -143,8 +157,20 @@ void ADelaunayMapGenerator::GenerateDelaunayMap()
 
     // ===== 최종 1회만 스폰 =====
     SpawnTiles();                                   // 방/복도 액터 생성 :contentReference[oaicite:6]{index=6}
+
+    //실행 시간 측정 끝
+    double End = FPlatformTime::Seconds();
+    UE_LOG(LogDel, Warning, TEXT("Del took: %.3f seconds"), End - Start);
+
     DebugDrawTriangulation();
     RunGraphAnalysis();
+
+    if (GraphAnalyzer)
+    {
+        const FDungeonGraphAnalysis GA = GraphAnalyzer->GetAnalysis();
+        UE_LOG(LogDel, Warning, TEXT("Del Cyclo %d"), GA.CyclomaticComplexity);
+    }
+
     UE_LOG(LogTemp, Warning, TEXT("=== Map Generation Complete (Seed: %d) ==="), RandomSeed);
 }
 

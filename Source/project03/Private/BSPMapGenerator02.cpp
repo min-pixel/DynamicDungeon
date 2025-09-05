@@ -2,6 +2,9 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h" 
 
+#include "CoreMinimal.h"
+DEFINE_LOG_CATEGORY_STATIC(LogBSP, Log, All);
+
 ABSPMapGenerator02::ABSPMapGenerator02()
 {
     PrimaryActorTick.bCanEverTick = false;
@@ -38,9 +41,13 @@ void ABSPMapGenerator02::BeginPlay()
 
     GraphAnalyzer = NewObject<UDungeonGraphAnalyzer>(this);
 
+    
     GenerateBSPMap();
 
+   
     
+    
+
 }
 
 //void ABSPMapGenerator02::GenerateBSPMap()
@@ -187,6 +194,9 @@ void ABSPMapGenerator02::GenerateBSPMap()
 {
     // 기존 맵(액터) 정리: 한 번만
     
+    //실행 시간 측정 시작
+    double Start = FPlatformTime::Seconds();
+   
 
     // 시드 초기화(첫 시도용)
     if (RandomSeed == 0)
@@ -265,13 +275,22 @@ void ABSPMapGenerator02::GenerateBSPMap()
         UE_LOG(LogTemp, Warning, TEXT("[BSP] Max attempts reached. Using last result."));
     }
 
+    //실행 시간 측정 끝
+    double End = FPlatformTime::Seconds();
+    UE_LOG(LogBSP, Warning, TEXT("BSP took: %.3f seconds"), End - Start);
+
     // ── 최종 1회만 스폰 ──
     
-
     // ── 그리고 마지막에 그래프 분석 ──
     RunGraphAnalysis();
+    if (GraphAnalyzer)
+    {
+        const FDungeonGraphAnalysis GA = GraphAnalyzer->GetAnalysis();
+        UE_LOG(LogBSP, Warning, TEXT("BSP Cyclo %d"), GA.CyclomaticComplexity);
+    }
 
     UE_LOG(LogTemp, Warning, TEXT("BSP Map Generation Completed (Seed=%d)."), RandomSeed);
+   
 }
 
 
@@ -2376,7 +2395,7 @@ void ABSPMapGenerator02::CalculateCyclomaticComplexity()
     UE_LOG(LogTemp, Warning, TEXT(""));
     UE_LOG(LogTemp, Warning, TEXT("=== Cyclomatic Complexity ==="));
     UE_LOG(LogTemp, Warning, TEXT("V(G) = E - N + P = %d - %d + %d = %d"), E, N, P, CyclomaticComplexity);
-
+    
     // 복잡도 해석
     if (CyclomaticComplexity <= 0)
     {
