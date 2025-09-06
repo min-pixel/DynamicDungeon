@@ -6,7 +6,7 @@ SetWorkingDir %A_ScriptDir%
 ExperimentCount := 50
 WaitTime := 25000
 CleanupTime := 3000
-ScreenshotDelay := 5000
+ScreenshotDelay := 25000
 UnrealWindowTitle := "project03 - 언리얼 에디터"
 
 MsgBox, 4,  자동화 시작, %ExperimentCount%번의  실험을 자동으로 실행합니다.`n`n계속하시겠습니까?

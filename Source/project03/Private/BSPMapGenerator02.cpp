@@ -402,17 +402,76 @@ bool ABSPMapGenerator02::SplitNode(TSharedPtr<FBSPNode02> Node, int32 Depth)
     return true;
 }
 
+//void ABSPMapGenerator02::CreateRooms()
+//{
+//    for (auto& LeafNode : LeafNodes)
+//    {
+//        FIntVector NodeSize = LeafNode->Max - LeafNode->Min;
+//
+//        // 방 크기 계산
+//        int32 RoomWidth = RandomStream.RandRange(MinRoomSize, FMath::Min(NodeSize.X - 2, MaxRoomSize));
+//        int32 RoomHeight = RandomStream.RandRange(MinRoomSize, FMath::Min(NodeSize.Y - 2, MaxRoomSize));
+//
+//        // 방 위치 계산 (노드 내에서 랜덤 위치)
+//        int32 RoomX = LeafNode->Min.X + RandomStream.RandRange(1, NodeSize.X - RoomWidth - 1);
+//        int32 RoomY = LeafNode->Min.Y + RandomStream.RandRange(1, NodeSize.Y - RoomHeight - 1);
+//
+//        LeafNode->RoomMin = FIntVector(RoomX, RoomY, 0);
+//        LeafNode->RoomMax = FIntVector(RoomX + RoomWidth, RoomY + RoomHeight, 1);
+//        LeafNode->bHasRoom = true;
+//
+//        // 타일 맵에 방 표시
+//        for (int32 x = LeafNode->RoomMin.X; x < LeafNode->RoomMax.X; ++x)
+//        {
+//            for (int32 y = LeafNode->RoomMin.Y; y < LeafNode->RoomMax.Y; ++y)
+//            {
+//                if (x >= 0 && x < MapSize.X && y >= 0 && y < MapSize.Y)
+//                {
+//                    TileMap[x][y] = ETileType02::Room;
+//                }
+//            }
+//        }
+//    }
+//}
+
 void ABSPMapGenerator02::CreateRooms()
 {
-    for (auto& LeafNode : LeafNodes)
+    // 1) 유지할 리프 인덱스 K개 선택
+    TArray<int32> indices;
+    indices.Reserve(LeafNodes.Num());
+    for (int32 i = 0; i < LeafNodes.Num(); ++i) indices.Add(i);
+
+    if (bUseFixedRoomCount&& FixedRoomCount < indices.Num())
     {
+        // Fisher?Yates 셔플 (RandomStream 사용)
+        for (int32 i = indices.Num() - 1; i > 0; --i)
+        {
+            const int32 j = RandomStream.RandRange(0, i);
+            indices.Swap(i, j);
+        }
+    }
+    const int32 K = bUseFixedRoomCount ? FMath::Clamp(FixedRoomCount, 0, indices.Num()) : indices.Num();
+
+    TSet<int32> Keep;
+    for (int32 t = 0; t < K; ++t) Keep.Add(indices[t]);
+
+    // 2) 선택된 리프에만 방 생성 (나머지는 bHasRoom=false 유지)
+    int32 Created = 0;
+    for (int32 idx = 0; idx < LeafNodes.Num(); ++idx)
+    {
+        auto& LeafNode = LeafNodes[idx];
+        LeafNode->bHasRoom = false;  // 초기화
+
+        if (bUseFixedRoomCount && !Keep.Contains(idx))
+            continue; // 이 리프는 방을 만들지 않음
+
         FIntVector NodeSize = LeafNode->Max - LeafNode->Min;
 
         // 방 크기 계산
         int32 RoomWidth = RandomStream.RandRange(MinRoomSize, FMath::Min(NodeSize.X - 2, MaxRoomSize));
         int32 RoomHeight = RandomStream.RandRange(MinRoomSize, FMath::Min(NodeSize.Y - 2, MaxRoomSize));
 
-        // 방 위치 계산 (노드 내에서 랜덤 위치)
+        // 방 위치 계산 (노드 내부 랜덤)
         int32 RoomX = LeafNode->Min.X + RandomStream.RandRange(1, NodeSize.X - RoomWidth - 1);
         int32 RoomY = LeafNode->Min.Y + RandomStream.RandRange(1, NodeSize.Y - RoomHeight - 1);
 
@@ -420,7 +479,7 @@ void ABSPMapGenerator02::CreateRooms()
         LeafNode->RoomMax = FIntVector(RoomX + RoomWidth, RoomY + RoomHeight, 1);
         LeafNode->bHasRoom = true;
 
-        // 타일 맵에 방 표시
+        // 타일 맵에 방 타일 표시
         for (int32 x = LeafNode->RoomMin.X; x < LeafNode->RoomMax.X; ++x)
         {
             for (int32 y = LeafNode->RoomMin.Y; y < LeafNode->RoomMax.Y; ++y)
@@ -431,7 +490,14 @@ void ABSPMapGenerator02::CreateRooms()
                 }
             }
         }
+
+        ++Created;
     }
+
+    UE_LOG(LogBSP, Warning, TEXT("[BSP] Rooms created: %d / %d leaves (Fixed=%s, Target=%d)"),
+        Created, LeafNodes.Num(),
+        bUseFixedRoomCount ? TEXT("ON") : TEXT("OFF"),
+        FixedRoomCount);
 }
 
 
@@ -1317,16 +1383,86 @@ bool ABSPMapGenerator02::WouldCreateLongParallel(const FIntVector& Start, const 
     return AdjacentCount > (int32)(Tolerance * (float)CheckPoints);
 }
 
+//void ABSPMapGenerator02::CreateExtraConnections()
+//{
+//    if (!bCreateLoops) return;
+//
+//    int32 TargetConnections = RandomStream.RandRange(MinExtraConnections, MaxExtraConnections);
+//    int32 ConnectionsAdded = 0;
+//    int32 RejectedCount = 0; // 거부된 연결 수 카운트
+//
+//    UE_LOG(LogTemp, Warning, TEXT("Creating extra connections. Target: %d"), TargetConnections);
+//
+//    TArray<TPair<int32, int32>> PotentialConnections;
+//    for (int32 i = 0; i < LeafNodes.Num(); ++i)
+//    {
+//        for (int32 j = i + 1; j < LeafNodes.Num(); ++j)
+//        {
+//            if (IsValidConnectionDistance(i, j))
+//            {
+//                PotentialConnections.Add(TPair<int32, int32>(i, j));
+//            }
+//        }
+//    }
+//
+//    // 셔플
+//    for (int32 i = PotentialConnections.Num() - 1; i > 0; --i)
+//    {
+//        int32 j = RandomStream.RandRange(0, i);
+//        PotentialConnections.Swap(i, j);
+//    }
+//
+//    TArray<TPair<int32, int32>> ExtraEdges;
+//
+//    for (const auto& Conn : PotentialConnections)
+//    {
+//        if (ConnectionsAdded >= TargetConnections) break;
+//
+//        if (RandomStream.FRand() >= ExtraConnectionChance) continue;
+//
+//        TSharedPtr<FBSPNode02> NodeA = LeafNodes[Conn.Key];
+//        TSharedPtr<FBSPNode02> NodeB = LeafNodes[Conn.Value];
+//
+//        FIntVector CenterA = GetRoomCenter(NodeA);
+//        FIntVector CenterB = GetRoomCenter(NodeB);
+//
+//        // 1) 기존 중복 체크
+//        if (CorridorExists(CenterA, CenterB))
+//        {
+//            RejectedCount++;
+//            continue;
+//        }
+//
+//        // 2) 개선된 평행 복도 체크 - 더 엄격하게
+//        if (WouldCreateParallelCorridor(CenterA, CenterB, 2.0f)) // 2칸 이내 평행 금지
+//        {
+//            RejectedCount++;
+//            UE_LOG(LogTemp, Verbose, TEXT("Rejected connection between room %d and %d due to parallel corridor risk"),
+//                Conn.Key, Conn.Value);
+//            continue;
+//        }
+//
+//        // 3) 통과하면 복도 생성
+//        CreateCorridor(NodeA, NodeB);
+//        //CreateCorridorStopAtContact(NodeA, NodeB);
+//        ExtraEdges.Add(TPair<int32, int32>(Conn.Key, Conn.Value));
+//        ++ConnectionsAdded;
+//
+//        UE_LOG(LogTemp, Verbose, TEXT("Added extra connection %d between room %d and %d"),
+//            ConnectionsAdded, Conn.Key, Conn.Value);
+//    }
+//
+//    ExtraConnectionPairs = ExtraEdges;
+//
+//    UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections, rejected %d due to parallel risk"),
+//        ConnectionsAdded, RejectedCount);
+//}
+
 void ABSPMapGenerator02::CreateExtraConnections()
 {
     if (!bCreateLoops) return;
 
-    int32 TargetConnections = RandomStream.RandRange(MinExtraConnections, MaxExtraConnections);
-    int32 ConnectionsAdded = 0;
-    int32 RejectedCount = 0; // 거부된 연결 수 카운트
-
-    UE_LOG(LogTemp, Warning, TEXT("Creating extra connections. Target: %d"), TargetConnections);
-
+    // 1) 거리 조건을 통과한 방 쌍으로 후보 생성
     TArray<TPair<int32, int32>> PotentialConnections;
     for (int32 i = 0; i < LeafNodes.Num(); ++i)
     {
@@ -1339,59 +1475,72 @@ void ABSPMapGenerator02::CreateExtraConnections()
         }
     }
 
-    // 셔플
+    // 2) 셔플(무작위 순서)
     for (int32 i = PotentialConnections.Num() - 1; i > 0; --i)
     {
-        int32 j = RandomStream.RandRange(0, i);
+        const int32 j = RandomStream.RandRange(0, i);
         PotentialConnections.Swap(i, j);
     }
 
+    // 3) "비율" 기반 목표 개수 산정
+    int32 TargetConnections = FMath::Clamp(
+        FMath::RoundToInt(PotentialConnections.Num() * ExtraConnectionRatio_BSP),
+        0,
+        PotentialConnections.Num()
+    );
+
+    int32 ConnectionsAdded = 0;
+    int32 RejectedCount = 0;
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BSP] Extra connections: candidates=%d, ratio=%.3f -> target=%d, chance=%.2f"),
+        PotentialConnections.Num(), ExtraConnectionRatio_BSP, TargetConnections, ExtraConnectionChance);
+
     TArray<TPair<int32, int32>> ExtraEdges;
 
+    // 4) 후보를 순회하며 추가 연결 시도
     for (const auto& Conn : PotentialConnections)
     {
-        if (ConnectionsAdded >= TargetConnections) break;
+        if (ConnectionsAdded >= TargetConnections)
+            break;
 
-        if (RandomStream.FRand() >= ExtraConnectionChance) continue;
+        // 확률 필터
+        if (RandomStream.FRand() >= ExtraConnectionChance)
+            continue;
 
         TSharedPtr<FBSPNode02> NodeA = LeafNodes[Conn.Key];
         TSharedPtr<FBSPNode02> NodeB = LeafNodes[Conn.Value];
 
-        FIntVector CenterA = GetRoomCenter(NodeA);
-        FIntVector CenterB = GetRoomCenter(NodeB);
+        const FIntVector CenterA = GetRoomCenter(NodeA);
+        const FIntVector CenterB = GetRoomCenter(NodeB);
 
-        // 1) 기존 중복 체크
+        // 이미 동일/유사 연결이 있으면 스킵
         if (CorridorExists(CenterA, CenterB))
         {
-            RejectedCount++;
+            ++RejectedCount;
             continue;
         }
 
-        // 2) 개선된 평행 복도 체크 - 더 엄격하게
-        if (WouldCreateParallelCorridor(CenterA, CenterB, 2.0f)) // 2칸 이내 평행 금지
+        // 평행 복도(2칸 이내) 방지 ? 품질 유지 목적(드루네와 정책 동일화가 필요하면 완화/비활성 선택)
+        if (WouldCreateParallelCorridor(CenterA, CenterB, 2.0f))
         {
-            RejectedCount++;
-            UE_LOG(LogTemp, Verbose, TEXT("Rejected connection between room %d and %d due to parallel corridor risk"),
-                Conn.Key, Conn.Value);
+            ++RejectedCount;
             continue;
         }
 
-        // 3) 통과하면 복도 생성
+        // 통과 → 복도 생성
         CreateCorridor(NodeA, NodeB);
-        //CreateCorridorStopAtContact(NodeA, NodeB);
-        ExtraEdges.Add(TPair<int32, int32>(Conn.Key, Conn.Value));
+        ExtraEdges.Add(Conn);
         ++ConnectionsAdded;
-
-        UE_LOG(LogTemp, Verbose, TEXT("Added extra connection %d between room %d and %d"),
-            ConnectionsAdded, Conn.Key, Conn.Value);
     }
 
+    // 기록(분석/디버그용)
     ExtraConnectionPairs = ExtraEdges;
 
-    UE_LOG(LogTemp, Warning, TEXT("Created %d extra connections, rejected %d due to parallel risk"),
-        ConnectionsAdded, RejectedCount);
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BSP] Extra connections added: %d / %d (rejected=%d)"),
+        ConnectionsAdded, TargetConnections, RejectedCount);
 }
-
 
 
 // 두 방 사이의 거리가 적절한지 확인

@@ -25,7 +25,7 @@ DEFINE_LOG_CATEGORY(LogWFC);
 AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 */, int32 RandomSeed /* = 0 */, UWorld* World)
 {
 
-	
+	double PostProcessStart = FPlatformTime::Seconds();
 
 	//Resolution 값 설정
 	Resolution.X = 60;
@@ -117,7 +117,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 	//PrepareTilePrefabPool(World);
 	//실행 시간 측정 시작1
-	double PropagationStart = FPlatformTime::Seconds();
+	//double PropagationStart = FPlatformTime::Seconds();
 
 	if (TryCount > 1)
 	{
@@ -153,16 +153,16 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 	  
 	//실행 시간 측정 끝1
-	double PropagationEnd = FPlatformTime::Seconds();
-	UE_LOG(LogWFC, Warning, TEXT("WFC ObservationPropagation took: %.3f seconds"), PropagationEnd - PropagationStart);
+	/*double PropagationEnd = FPlatformTime::Seconds();
+	UE_LOG(LogWFC, Warning, TEXT("WFC ObservationPropagation took: %.3f seconds"), PropagationEnd - PropagationStart);*/
 
 	// if Successful, Spawn Actor
 	if (bSuccessfulSolve)
 	{
-		// ====== 시간 측정 1.5 시작 ======
-		double TileLoopStart = FPlatformTime::Seconds();
-		//실행 시간 측정 시작2
-		double PostProcessStart = FPlatformTime::Seconds();
+		//// ====== 시간 측정 1.5 시작 ======
+		//double TileLoopStart = FPlatformTime::Seconds();
+		////실행 시간 측정 시작2
+		//double PostProcessStart = FPlatformTime::Seconds();
 
 
 		RemoveIsolatedCorridorTiles(Tiles);
@@ -185,7 +185,7 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					// 방 타일 인덱스 저장
 					RoomTileIndices.Add(TileIndex);
 
-					double RoomPostStart = FPlatformTime::Seconds();
+					//double RoomPostStart = FPlatformTime::Seconds();
 
 					float TileSize = WFCModel->TileSize * 3.0f; // 방 타일 크기
 					FVector RoomTilePosition = FVector(UWaveFunctionCollapseBPLibrary02::IndexAsPosition(TileIndex, Resolution)) * WFCModel->TileSize;
@@ -349,8 +349,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 					}
 				
 					
-					double RoomPostEnd = FPlatformTime::Seconds();
-					UE_LOG(LogTemp, Warning, TEXT("[WFC] Room tile end pospos: %.3f초"), RoomPostEnd - RoomPostStart);
+					/*double RoomPostEnd = FPlatformTime::Seconds();
+					UE_LOG(LogTemp, Warning, TEXT("[WFC] Room tile end pospos: %.3f초"), RoomPostEnd - RoomPostStart);*/
 			
 					
 					
@@ -378,8 +378,8 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 			}
 
 			// ====== 시간 측정 1.5 끝 ======
-			double TileLoopEnd = FPlatformTime::Seconds();
-			UE_LOG(LogTemp, Warning, TEXT("[WFC] Room Tile timer end (1.5): %.3f SESESE"), TileLoopEnd - TileLoopStart);
+			/*double TileLoopEnd = FPlatformTime::Seconds();
+			UE_LOG(LogTemp, Warning, TEXT("[WFC] Room Tile timer end (1.5): %.3f SESESE"), TileLoopEnd - TileLoopStart);*/
 
 		}
 
@@ -387,34 +387,33 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 		SimpleRoomCountControl(Tiles);
 
 		// ========== ConnectIsolatedRooms ==========   병목의 주 원인, 해결책: ...
-		double ConnectStart = FPlatformTime::Seconds();
+		//double ConnectStart = FPlatformTime::Seconds();
 		//ConnectIsolatedRooms(Tiles);
 
 		ConnectIsolatedRoomsDijkstra(Tiles);
-		double ConnectEnd = FPlatformTime::Seconds();
-		UE_LOG(LogTemp, Warning, TEXT("[WFC] ConnectIsolatedRoomsDij time: %.6f sec"), ConnectEnd - ConnectStart);
+		/*double ConnectEnd = FPlatformTime::Seconds();
+		UE_LOG(LogTemp, Warning, TEXT("[WFC] ConnectIsolatedRoomsDij time: %.6f sec"), ConnectEnd - ConnectStart);*/
 
 		for (int32 RoomTileIndex : RoomTileIndices)
 		{
 
 			// ========== AdjustRoomTileBasedOnCorridors #2 ==========
-			double AdjustStart2 = FPlatformTime::Seconds();
+			//double AdjustStart2 = FPlatformTime::Seconds();
 			AdjustRoomTileBasedOnCorridors(RoomTileIndex, Tiles);
-			double AdjustEnd2 = FPlatformTime::Seconds();
+			//double AdjustEnd2 = FPlatformTime::Seconds();
 			//UE_LOG(LogTemp, Warning, TEXT("[WFC] AdjustRoomTileBasedOnCorridors (2) time: %.6f sec"), AdjustEnd2 - AdjustStart2);
 
 			// ========== PlaceGoalTileInFrontOfRoom ==========
-			double PlaceGoalStart = FPlatformTime::Seconds();
+			//double PlaceGoalStart = FPlatformTime::Seconds();
 			PlaceGoalTileInFrontOfRoom(RoomTileIndex, Tiles);
-			double PlaceGoalEnd = FPlatformTime::Seconds();
+			//double PlaceGoalEnd = FPlatformTime::Seconds();
 			//UE_LOG(LogTemp, Warning, TEXT("[WFC] PlaceGoalTileInFrontOfRoom time: %.6f sec"), PlaceGoalEnd - PlaceGoalStart);
 		}
 
 		// 성공한 타일 데이터를 저장
 		LastCollapsedTiles = Tiles;
 
-		//그래프 생성기 호출
-		RunGraphAnalysisWFC(Tiles);
+		
 
 		for (const auto& Elem : UserFixedOptions)
 		{
@@ -450,9 +449,20 @@ AActor* UWaveFunctionCollapseSubsystem02::CollapseCustom(int32 TryCount /* = 1 *
 
 		//실행 시간 측정 끝2
 		double PostProcessEnd = FPlatformTime::Seconds();
-		UE_LOG(LogTemp, Warning, TEXT("Post-processing + Spawning took: %.3f seconds"), PostProcessEnd - PostProcessStart);
+		UE_LOG(LogTemp, Warning, TEXT("WFC took: %.3f seconds"), PostProcessEnd - PostProcessStart);
 
-		
+
+
+
+		//그래프 생성기 호출
+		RunGraphAnalysisWFC(Tiles);
+
+		if (GraphAnalyzer)
+		{
+			const FDungeonGraphAnalysis GA = GraphAnalyzer->GetAnalysis();
+			UE_LOG(LogWFC, Warning, TEXT("WFC Cyclo %d"), GA.CyclomaticComplexity);
+		}
+
 		//PrepareTilePrefabPool(World);
 
 		return SpawnedActor;
@@ -5276,6 +5286,7 @@ void UWaveFunctionCollapseSubsystem02::RunGraphAnalysisWFC(const TArray<FWaveFun
 	if (!WFCModel) { UE_LOG(LogWFC, Error, TEXT("RunGraphAnalysisWFC: WFCModel is null")); return; }
 	if (!GraphAnalyzer) { GraphAnalyzer = NewObject<UDungeonGraphAnalyzer>(this); }
 
+
 	const FIntVector Size = Resolution;
 	// 1) 타일맵을 EDungeonTileType로 변환 (2D 배열 [X][Y])
 	TArray<TArray<EDungeonTileType>> DungeonTiles;
@@ -5391,41 +5402,45 @@ void UWaveFunctionCollapseSubsystem02::RunGraphAnalysisWFC(const TArray<FWaveFun
 
 	// 방마다, 4변의 바깥쪽으로 RoomBoundaryProbeDepthForWFC 만큼 직선 탐색.
 	// 복도가 보이면 방과 맞닿는 첫 칸을 BridgeCorridor로 표시.
-	const int32 Probe = FMath::Max(RoomBoundaryProbeDepthForWFC, 2);
 
-	for (const FRoomInfo& R : RoomInfos)
+	if (bDeepRoomBoundaryProbeForWFC)
 	{
-		// West
-		for (int y = R.Min.Y; y < R.Max.Y; ++y)
-			for (int d = 0; d < Probe; ++d) {
-				const int x = (R.Min.X - 1) - d;
-				if (!InBounds(x, y)) break;
-				if (IsCorr(x, y)) { MarkBridge(R.Min.X - 1, y); break; }
-			}
-		// East
-		for (int y = R.Min.Y; y < R.Max.Y; ++y)
-			for (int d = 0; d < Probe; ++d) {
-				const int x = R.Max.X + d;
-				if (!InBounds(x, y)) break;
-				if (IsCorr(x, y)) { MarkBridge(R.Max.X, y); break; }
-			}
-		// South
-		for (int x = R.Min.X; x < R.Max.X; ++x)
-			for (int d = 0; d < Probe; ++d) {
-				const int y = (R.Min.Y - 1) - d;
-				if (!InBounds(x, y)) break;
-				if (IsCorr(x, y)) { MarkBridge(x, R.Min.Y - 1); break; }
-			}
-		// North
-		for (int x = R.Min.X; x < R.Max.X; ++x)
-			for (int d = 0; d < Probe; ++d) {
-				const int y = R.Max.Y + d;
-				if (!InBounds(x, y)) break;
-				if (IsCorr(x, y)) { MarkBridge(x, R.Max.Y); break; }
-			}
+
+		const int32 Probe = FMath::Max(RoomBoundaryProbeDepthForWFC, 2);
+
+		for (const FRoomInfo& R : RoomInfos)
+		{
+			// West
+			for (int y = R.Min.Y; y < R.Max.Y; ++y)
+				for (int d = 0; d < Probe; ++d) {
+					const int x = (R.Min.X - 1) - d;
+					if (!InBounds(x, y)) break;
+					if (IsCorr(x, y)) { MarkBridge(R.Min.X - 1, y); break; }
+				}
+			// East
+			for (int y = R.Min.Y; y < R.Max.Y; ++y)
+				for (int d = 0; d < Probe; ++d) {
+					const int x = R.Max.X + d;
+					if (!InBounds(x, y)) break;
+					if (IsCorr(x, y)) { MarkBridge(R.Max.X, y); break; }
+				}
+			// South
+			for (int x = R.Min.X; x < R.Max.X; ++x)
+				for (int d = 0; d < Probe; ++d) {
+					const int y = (R.Min.Y - 1) - d;
+					if (!InBounds(x, y)) break;
+					if (IsCorr(x, y)) { MarkBridge(x, R.Min.Y - 1); break; }
+				}
+			// North
+			for (int x = R.Min.X; x < R.Max.X; ++x)
+				for (int d = 0; d < Probe; ++d) {
+					const int y = R.Max.Y + d;
+					if (!InBounds(x, y)) break;
+					if (IsCorr(x, y)) { MarkBridge(x, R.Max.Y); break; }
+				}
+		}
+
 	}
-
-
 
 	// 3) 분석 실행(+옵션: 통계/디버그)
 	GraphAnalyzer->AnalyzeDungeon(DungeonTiles, RoomInfos, WFCModel->TileSize);

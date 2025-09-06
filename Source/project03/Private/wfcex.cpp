@@ -84,8 +84,8 @@ void Awfcex::BeginPlay()
         const double ElapsedTime = EndTime - StartTime;
        
         // === 한 줄 로그 출력 ===
-        /*UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec, [EXPERIMENT]: %d,%d"),
-            ElapsedTime, CurrentExperimentIndex + 1, EXPERIMENT_SEED);*/
+        UE_LOG(LogTemp, Warning, TEXT("[WFC] maptime: %.3f sec"),
+            ElapsedTime);
 
         //// === 다음 실험을 위해 인덱스 증가 ===
         //if (bAutoIncrement) {
@@ -105,12 +105,12 @@ void Awfcex::BeginPlay()
 
 
         
-        SpawnEnemiesOnCorridor(20);
+        /*SpawnEnemiesOnCorridor(20);
 
         SpawnWFCRegeneratorOnRoom();
 
         SpawnEscapeObjectsOnRoom();
-        SpawnTreasureChestsOnTiles();
+        SpawnTreasureChestsOnTiles();*/
 
         if (UWaveFunctionCollapseSubsystem02* Subsys = GetWFCSubsystem())
         {

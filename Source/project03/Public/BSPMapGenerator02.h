@@ -163,6 +163,16 @@ public:
     UPROPERTY(EditAnywhere, Category = "Maze Settings")
     float MaxConnectionDistance = 20.0f;  // 추가 연결 최대 거리 (타일 단위)
 
+    // 드루네의 ExtraConnectionRatio와 같은 의미: 0.0~1.0 비율로 "후보(PotentialConnections)" 중 몇 %를 추가할지
+    UPROPERTY(EditAnywhere, Category = "Maze Settings", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float ExtraConnectionRatio_BSP = 1.0f; // 1.0이면 후보 전부를 목표로 함
+
+    UPROPERTY(EditAnywhere, Category = "BSP Settings")
+    bool bUseFixedRoomCount = true;
+
+    UPROPERTY(EditAnywhere, Category = "BSP Settings", meta = (ClampMin = "1"))
+    int32 FixedRoomCount = 15;
+
     UPROPERTY(EditAnywhere, Category = "Maze Settings")
     bool bCreateLoops = true;  // 순환 경로 생성 여부
 
